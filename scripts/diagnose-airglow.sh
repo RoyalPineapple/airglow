@@ -16,11 +16,11 @@ if ! command -v jq >/dev/null 2>&1; then
 fi
 
 # Parse arguments
-TARGET_HOST="${1:-localhost}"
+TARGET_HOST="${1:-}"
 LEDFX_PORT="${LEDFX_PORT:-8888}"
 
-# If target host specified, use SSH; otherwise run locally
-if [ -n "$TARGET_HOST" ]; then
+# If target host specified and it's not "localhost", use SSH; otherwise run locally
+if [ -n "$TARGET_HOST" ] && [ "$TARGET_HOST" != "localhost" ]; then
     SSH_CMD="ssh -o BatchMode=yes -o ConnectTimeout=5 root@${TARGET_HOST}"
     # When checking remote host, API calls are made from local machine
     LEDFX_HOST="${TARGET_HOST}"
