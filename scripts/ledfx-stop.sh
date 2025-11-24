@@ -1,5 +1,5 @@
 #!/bin/sh
-# LedFx Stop Script - Pause effects and deactivate virtual(s) (preserves effects)
+# LedFx Stop Script - Deactivate virtual(s) (preserves effects, never pauses)
 # Usage: ledfx-stop.sh [virtual_ids] [host] [port]
 #   virtual_ids: Comma-separated list of virtual IDs (default: from config or all)
 set -eu
@@ -21,11 +21,6 @@ deactivate_virtual() {
     -d '{"active": false}' \
     -s "${BASE_URL}/api/virtuals/${vid}" > /dev/null
 }
-
-# Step 1: Pause all effects (press pause button) - this is global
-curl -X PUT -H "Content-Type: application/json" \
-  -d '{"paused": true}' \
-  -s "${BASE_URL}/api/virtuals" > /dev/null
 
 # If no virtuals specified, get all virtuals from API
 if [ -z "$VIRTUAL_IDS" ]; then
@@ -50,6 +45,7 @@ for vid in $VIRTUAL_IDS; do
 done
 unset IFS
 
-# Note: This pauses and deactivates but preserves all effects
+# Note: This deactivates virtuals but preserves all effects
 # Effects remain configured and will be active when virtual is reactivated
+# We never set paused=true - only set paused=false when starting
 
