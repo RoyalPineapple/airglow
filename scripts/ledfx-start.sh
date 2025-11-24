@@ -25,12 +25,9 @@ activate_virtual() {
 
 # If no virtuals specified, get all virtuals from API
 if [ -z "$VIRTUAL_IDS" ]; then
-  # Get all virtual IDs from API (requires curl and basic parsing)
+  # Get all virtual IDs from API using jq
   VIRTUAL_IDS=$(curl -s "${BASE_URL}/api/virtuals" | \
-    grep -o '"[^"]*":\s*{' | \
-    grep -v 'status\|virtuals' | \
-    sed 's/":.*//' | \
-    sed 's/"//g' | \
+    jq -r '.virtuals | keys[]' 2>/dev/null | \
     tr '\n' ',' | \
     sed 's/,$//')
 fi
@@ -49,9 +46,10 @@ unset IFS
 # Ensure not paused (press play) - this is global, affects all virtuals
 # Retry a few times in case of transient failures
 for i in 1 2 3; do
-  if curl -X PUT -H "Content-Type: application/json" \
+  RESPONSE=$(curl -X PUT -H "Content-Type: application/json" \
     -d '{"paused": false}' \
-    -s "${BASE_URL}/api/virtuals" | grep -q '"status": "success"'; then
+    -s "${BASE_URL}/api/virtuals")
+  if echo "$RESPONSE" | jq -e '.status == "success"' >/dev/null 2>&1; then
     break
   fi
   sleep 0.5

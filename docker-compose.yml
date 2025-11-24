@@ -44,7 +44,10 @@ services:
   shairport-sync:
     # Shairport-Sync - AirPlay 2 receiver
     # Receives AirPlay audio and outputs to PulseAudio
-    image: mikebrady/shairport-sync:latest
+    # Custom image includes jq for JSON parsing in hook scripts
+    build:
+      context: .
+      dockerfile: Dockerfile.shairport-sync
     container_name: shairport-sync
 
     # Host networking required for mDNS/Bonjour AirPlay discovery
