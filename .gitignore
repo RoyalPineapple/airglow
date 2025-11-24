@@ -1,0 +1,9 @@
+# PulseAudio runtime files
+pulse/
+
+# Environment variables
+.env
+
+# Docker volumes
+ledfx-data/
+
