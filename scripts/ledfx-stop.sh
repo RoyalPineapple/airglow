@@ -1,7 +1,7 @@
-#!/usr/bin/env bash
+#!/bin/sh
 # LedFx Stop Script - Pause effects and deactivate virtual (preserves effects)
 # Usage: ledfx-stop.sh [virtual_id] [host] [port]
-set -euo pipefail
+set -eu
 
 VIRTUAL_ID="${1:-dig-quad}"
 LEDFX_HOST="${2:-192.168.2.122}"
