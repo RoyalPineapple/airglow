@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# LedFX AirPlay Docker Stack Installer
-# Installs Docker (if needed) and starts the LedFX + Shairport-Sync stack
+# Airglow Installer
+# Installs Docker (if needed) and starts the AirPlay ➜ LedFX stack
 
 set -Eeuo pipefail
 
@@ -8,7 +8,7 @@ set -Eeuo pipefail
 VERSION="1.0.0"
 
 # Configuration
-INSTALL_DIR="/opt/ledfx-airplay"
+INSTALL_DIR="/opt/airglow"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
 DRY_RUN=false
 
@@ -32,7 +32,7 @@ function msg_warn() {
 # Display help message
 function show_help() {
     cat << EOF
-LedFX AirPlay Docker Stack Installer v${VERSION}
+Airglow Installer v${VERSION}
 
 Usage: $(basename "$0") [OPTIONS]
 
@@ -40,11 +40,11 @@ Options:
     -h, --help          Show this help message
     -v, --version       Show version information
     -n, --dry-run       Show what would be done without making changes
-    -d, --dir DIR       Set installation directory (default: /opt/ledfx-airplay)
+    -d, --dir DIR       Set installation directory (default: /opt/airglow)
 
 Description:
-    Installs Docker (if needed) and deploys the LedFX + Shairport-Sync
-    stack for AirPlay audio visualization.
+    Installs Docker (if needed) and deploys the Airglow
+    AirPlay ➜ LedFX visualization stack.
 
 Requirements:
     - Debian/Ubuntu Linux system
@@ -56,7 +56,7 @@ EOF
 
 # Display version information
 function show_version() {
-    echo "LedFX AirPlay Docker Stack Installer v${VERSION}"
+    echo "Airglow Installer v${VERSION}"
 }
 
 # Check if running as root
@@ -158,7 +158,7 @@ function copy_configs() {
         return 0
     fi
 
-    local repo_url="https://raw.githubusercontent.com/RoyalPineapple/ledfx-airplay-docker/master"
+    local repo_url="https://raw.githubusercontent.com/RoyalPineapple/airglow/master"
     
     # Try local files first, fallback to downloading from GitHub
     if [[ -f "${SCRIPT_DIR}/docker-compose.yml" ]]; then
@@ -197,7 +197,7 @@ function copy_configs() {
 
 # Start the Docker Compose stack
 function start_stack() {
-    msg_info "Starting LedFX AirPlay stack..."
+    msg_info "Starting Airglow stack..."
 
     if [[ "${DRY_RUN}" == true ]]; then
         msg_info "[DRY RUN] Would run: docker compose -f ${INSTALL_DIR}/docker-compose.yml up -d"
@@ -231,7 +231,7 @@ function start_stack() {
 function show_status() {
     echo ""
     echo "=========================================="
-    echo "LedFX AirPlay Installation Complete!"
+    echo "Airglow Installation Complete!"
     echo "=========================================="
     echo ""
 
@@ -245,7 +245,7 @@ function show_status() {
     echo ""
     echo "Access LedFX web UI: http://localhost:8888"
     echo ""
-    echo "AirPlay device name: LEDFx AirPlay"
+    echo "AirPlay device name: Airglow"
     echo "(Should appear in your device's AirPlay menu)"
     echo ""
     echo "Useful commands:"

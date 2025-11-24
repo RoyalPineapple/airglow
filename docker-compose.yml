@@ -1,4 +1,4 @@
-# LedFX AirPlay - Docker Compose Stack
+# Airglow - AirPlay ➜ LedFX Stack
 #
 # This stack provides AirPlay 2 audio streaming to LedFX for real-time LED visualization.
 # Audio flows: AirPlay Device → Shairport-Sync → PulseAudio → LedFX → LED Devices

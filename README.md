@@ -1,9 +1,9 @@
-# AirPlay -> LedFX - Docker Compose Stack
+# Airglow — AirPlay ➜ LedFX Stack
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Docker](https://img.shields.io/badge/Docker-20.10%2B-blue.svg)](https://www.docker.com/)
 
-Stream audio from any AirPlay device to LedFX for real-time LED visualization.
+Airglow exposes a clean AirPlay 2 endpoint and routes the PCM stream straight into LedFX so multiple WLED/E1.31 instances can react in sync—no microphones, no line-in wiring.
 
 ## Features
 
@@ -44,23 +44,28 @@ LED Strips/Devices
 
 ### Method 1: Docker Compose (Manual)
 
-1. Clone or download this directory
+1. Clone the repository and enter the directory:
+   ```bash
+   git clone https://github.com/RoyalPineapple/airglow.git
+   cd airglow
+   ```
 2. Start the stack:
    ```bash
    docker compose up -d
    ```
-3. Check status:
+3. Check status and logs:
    ```bash
    docker compose ps
    docker compose logs
    ```
-4. Open LedFX web UI: `http://localhost:8888`
+4. Open the LedFX web UI: `http://localhost:8888`
 
 ### Method 2: Install Script (Automated)
 
 Run the installer which handles Docker installation and setup:
 ```bash
-./install.sh
+chmod +x install.sh
+sudo ./install.sh
 ```
 
 ## Configuration
@@ -69,7 +74,7 @@ Run the installer which handles Docker installation and setup:
 Edit `configs/shairport-sync.conf` and change the `name` field:
 ```
 general = {
-    name = "LedFX";  // Change this
+    name = "Airglow";  // Change this
     ...
 }
 ```
@@ -82,9 +87,21 @@ general = {
 This connects LedFX to the PulseAudio monitor that receives audio from Shairport.
 
 ### LED Devices
+<<<<<<< HEAD
 1. Open LedFX Devices tab: `http://localhost:8888/#/Devices`
 2. Add your Led devices
 3. Configure effects and start visualizing
+||||||| merged common ancestors
+1. Open LedFX web UI: `http://localhost:8888`
+2. Navigate to Devices section
+3. Add your WLED/E1.31 devices
+4. Configure effects and start visualizing
+=======
+1. Open the LedFX web UI: `http://localhost:8888`
+2. Navigate to **Devices**
+3. Add your LED device outputs
+4. Configure effects and start visualizing
+>>>>>>> Rename project to Airglow and refresh docs
 
 ## Troubleshooting
 
@@ -99,7 +116,7 @@ docker compose logs -f shairport-sync
 ```
 
 ### Verify AirPlay Discovery
-The AirPlay device "LEDFx AirPlay" should appear in your device's AirPlay menu. If not:
+The AirPlay device "Airglow" should appear in your device's AirPlay menu. If not:
 - Check that containers are running (`docker compose ps`)
 - Verify network mode is `host`
 - Ensure mDNS/Avahi is working on your network
@@ -188,8 +205,7 @@ This setup uses a PulseAudio socket to route audio between containers:
 
 This project is designed for Linux systems, specifically:
 
-- **Tested on:** Debian 11+, Ubuntu 20.04+
-- **Architectures:** amd64, arm64 (Raspberry Pi 4+)
+- **Tested on:** Debian 11+, Ubuntu 20.04+ (x86_64)
 - **Not supported:** macOS (Docker Desktop networking limitations), Windows
 
 For non-Debian systems, you may need to manually install Docker and adapt the installation script.
@@ -211,8 +227,8 @@ Contributions are welcome! Here's how you can help:
 
 ## Support
 
-- **Issues & Bugs:** [GitHub Issues](https://github.com/your-username/ledfx-airplay-docker/issues)
-- **Discussions:** [GitHub Discussions](https://github.com/your-username/ledfx-airplay-docker/discussions)
+- **Issues & Bugs:** [GitHub Issues](https://github.com/RoyalPineapple/airglow/issues)
+- **Discussions:** [GitHub Discussions](https://github.com/RoyalPineapple/airglow/discussions)
 - **LedFX Project:** [https://github.com/LedFX/LedFX](https://github.com/LedFX/LedFX)
 - **Shairport Sync:** [https://github.com/mikebrady/shairport-sync](https://github.com/mikebrady/shairport-sync)
 
