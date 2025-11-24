@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# LedFx Stop Script - Stop all effects and deactivate (equivalent to stop button)
+# LedFx Stop Script - Pause effects and deactivate virtual (preserves effects)
 # Usage: ledfx-stop.sh [virtual_id] [host] [port]
 set -euo pipefail
 
@@ -11,12 +11,11 @@ BASE_URL="http://${LEDFX_HOST}:${LEDFX_PORT}"
 # Get current state
 STATE=$(curl -s "${BASE_URL}/api/virtuals/${VIRTUAL_ID}")
 ACTIVE=$(echo "$STATE" | jq -r ".[\"${VIRTUAL_ID}\"].active // false")
-HAS_EFFECT=$(echo "$STATE" | jq -r ".[\"${VIRTUAL_ID}\"].effect | type != \"object\" or length > 0")
 
-# Step 1: Clear effect to stop visualization
-if [ "$HAS_EFFECT" = "true" ]; then
-    curl -X DELETE -s "${BASE_URL}/api/virtuals/${VIRTUAL_ID}/effects" > /dev/null
-fi
+# Step 1: Pause all effects (press pause button)
+curl -X PUT -H "Content-Type: application/json" \
+  -d '{"paused": true}' \
+  -s "${BASE_URL}/api/virtuals" > /dev/null
 
 # Step 2: Deactivate virtual
 if [ "$ACTIVE" = "true" ]; then
@@ -25,6 +24,6 @@ if [ "$ACTIVE" = "true" ]; then
       -s "${BASE_URL}/api/virtuals/${VIRTUAL_ID}" > /dev/null
 fi
 
-# Note: This fully stops the virtual (equivalent to stop button)
-# Use pause/play for temporary pause/resume
+# Note: This pauses and deactivates but preserves all effects
+# Effects remain configured and will be active when virtual is reactivated
 
