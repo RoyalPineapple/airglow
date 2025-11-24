@@ -9,16 +9,18 @@ set -euo pipefail
 
 # Parse arguments
 TARGET_HOST="${1:-}"
-LEDFX_HOST="${LEDFX_HOST:-localhost}"
 LEDFX_PORT="${LEDFX_PORT:-8888}"
 
 # If target host specified, use SSH; otherwise run locally
 if [ -n "$TARGET_HOST" ]; then
     SSH_CMD="ssh -o BatchMode=yes -o ConnectTimeout=5 root@${TARGET_HOST}"
-    LEDFX_HOST="${TARGET_HOST}"
+    # When running on remote host, API is at localhost
+    LEDFX_HOST="localhost"
     REMOTE=true
 else
     SSH_CMD=""
+    # When running locally, API might be at localhost or we need to detect
+    LEDFX_HOST="${LEDFX_HOST:-localhost}"
     REMOTE=false
 fi
 
@@ -177,7 +179,7 @@ if docker_cmd ps --format '{{.Names}}' | grep -q '^ledfx$'; then
     done || check_warn "Could not list sinks"
     
 else
-    check_fail "LedFx container is not running"
+    check_fail "LedFx pulse audio bridge is not accessible"
 fi
 
 # ============================================================================
