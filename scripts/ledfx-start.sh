@@ -43,18 +43,8 @@ for vid in $VIRTUAL_IDS; do
 done
 unset IFS
 
-# Ensure not paused (press play) - this is global, affects all virtuals
-# Retry a few times in case of transient failures
-for i in 1 2 3; do
-  RESPONSE=$(curl -X PUT -H "Content-Type: application/json" \
-    -d '{"paused": false}' \
-    -s "${BASE_URL}/api/virtuals")
-  if echo "$RESPONSE" | jq -e '.status == "success"' >/dev/null 2>&1; then
-    break
-  fi
-  sleep 0.5
-done
-
-# Note: streaming is read-only and automatically becomes true when audio input starts
-# We ensure active=true and paused=false, then streaming will follow when audio arrives
+# Note: We only set active=true for the specific virtual(s)
+# We do NOT touch global paused state - that would affect all virtuals
+# The per-virtual play button in the UI controls active state, not paused
+# Streaming is read-only and automatically becomes true when audio input starts
 
