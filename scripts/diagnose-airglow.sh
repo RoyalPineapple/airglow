@@ -16,7 +16,7 @@ if ! command -v jq >/dev/null 2>&1; then
 fi
 
 # Parse arguments
-TARGET_HOST="${1:-}"
+TARGET_HOST="${1:-localhost}"
 LEDFX_PORT="${LEDFX_PORT:-8888}"
 
 # If target host specified, use SSH; otherwise run locally
