@@ -97,8 +97,8 @@ if docker_cmd ps --format '{{.Names}}' | grep -q '^shairport-sync$'; then
         
         # Check device name
         # Format: "shairport.c:2133"    name = "Airglow";
-        # The line has a timestamp prefix, so we match "name = " anywhere
-        DEVICE_NAME=$(docker_cmd exec shairport-sync shairport-sync --displayConfig 2>&1 | grep -E '\s+name\s*=' | sed -n 's/.*name\s*=\s*"\([^"]*\)".*/\1/p' | head -1 || echo "")
+        # Extract the value between quotes after "name ="
+        DEVICE_NAME=$(docker_cmd exec shairport-sync shairport-sync --displayConfig 2>&1 | grep 'name =' | sed -n 's/.*name\s*=\s*"\([^"]*\)".*/\1/p' | head -1 || echo "")
         if [ -z "$DEVICE_NAME" ]; then
             # Try alternative format: player name = "..."
             DEVICE_NAME=$(docker_cmd exec shairport-sync shairport-sync --displayConfig 2>&1 | grep -i 'player name' | sed -n 's/.*"\([^"]*\)".*/\1/p' | head -1 || echo "")
