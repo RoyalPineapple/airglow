@@ -25,7 +25,8 @@ services:
       # PulseAudio configuration and socket for inter-container audio
       - ./pulse:/home/ledfx/.config/pulse
       # Persistent LedFX configuration (devices, effects, presets)
-      - ledfx-data:/home/ledfx/ledfx-config
+      # Using bind mount to avoid permission issues with named volumes
+      - ./ledfx-data:/home/ledfx/ledfx-config
 
     environment:
       # Enable real-time Python output (useful for debugging)
@@ -69,9 +70,3 @@ services:
       - ./scripts:/hooks:ro
 
     restart: unless-stopped
-
-volumes:
-  # Named volume for LedFX persistent data
-  # Contains device configs, effects, presets, and user settings
-  ledfx-data:
-
