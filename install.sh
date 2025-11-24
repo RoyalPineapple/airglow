@@ -9,7 +9,7 @@ VERSION="1.0.0"
 
 # Configuration
 INSTALL_DIR="/opt/ledfx-airplay"
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
 DRY_RUN=false
 
 # Color output functions
