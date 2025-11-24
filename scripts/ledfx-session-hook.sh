@@ -4,8 +4,13 @@
 
 set -eu
 
-# Configuration
-VIRTUAL_ID="${LEDFX_VIRTUAL_ID:-dig-quad}"
+# Configuration - load from config file if available
+if [ -f /configs/ledfx-hooks.conf ]; then
+  . /configs/ledfx-hooks.conf
+fi
+
+# Allow override via environment variables
+VIRTUAL_IDS="${LEDFX_VIRTUAL_IDS:-${VIRTUAL_IDS:-dig-quad}}"
 LEDFX_HOST="${LEDFX_HOST:-localhost}"
 LEDFX_PORT="${LEDFX_PORT:-8888}"
 LOG_FILE="${LEDFX_HOOK_LOG:-/var/log/shairport-sync/ledfx-session-hook.log}"
@@ -49,8 +54,8 @@ case "$action" in
     else
       log_entry "START" "AirPlay session began"
     fi
-    log_entry "INFO" "Calling ledfx-start.sh for virtual ${VIRTUAL_ID}"
-    /scripts/ledfx-start.sh "${VIRTUAL_ID}" "${LEDFX_HOST}" "${LEDFX_PORT}" || {
+    log_entry "INFO" "Calling ledfx-start.sh for virtual(s) ${VIRTUAL_IDS}"
+    /scripts/ledfx-start.sh "${VIRTUAL_IDS}" "${LEDFX_HOST}" "${LEDFX_PORT}" || {
       log_entry "ERROR" "Failed to start LedFx"
       exit 1
     }
@@ -62,8 +67,8 @@ case "$action" in
     else
       log_entry "STOP" "AirPlay session ended"
     fi
-    log_entry "INFO" "Calling ledfx-stop.sh for virtual ${VIRTUAL_ID}"
-    /scripts/ledfx-stop.sh "${VIRTUAL_ID}" "${LEDFX_HOST}" "${LEDFX_PORT}" || {
+    log_entry "INFO" "Calling ledfx-stop.sh for virtual(s) ${VIRTUAL_IDS}"
+    /scripts/ledfx-stop.sh "${VIRTUAL_IDS}" "${LEDFX_HOST}" "${LEDFX_PORT}" || {
       log_entry "ERROR" "Failed to stop LedFx"
       exit 1
     }
