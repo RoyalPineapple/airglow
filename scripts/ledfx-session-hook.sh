@@ -1,9 +1,9 @@
-#!/usr/bin/env bash
+#!/bin/sh
 # Prototype helper invoked from Shairport-Sync session hooks.
 # For now it simply logs start/stop events so we can verify hook wiring
 # before it begins toggling LedFx state.
 
-set -euo pipefail
+set -eu
 
 usage() {
   cat <<'EOF'
@@ -27,7 +27,7 @@ log_entry() {
   printf "%s [%s] %s\n" "$(timestamp)" "$level" "$msg" >> "$log_target"
 }
 
-if [[ $# -lt 1 ]]; then
+if [ $# -lt 1 ]; then
   usage >&2
   exit 1
 fi
@@ -37,10 +37,18 @@ shift || true
 
 case "$action" in
   start)
-    log_entry "START" "AirPlay session began ${*:+- $*}"
+    if [ $# -gt 0 ]; then
+      log_entry "START" "AirPlay session began - $*"
+    else
+      log_entry "START" "AirPlay session began"
+    fi
     ;;
   stop)
-    log_entry "STOP" "AirPlay session ended ${*:+- $*}"
+    if [ $# -gt 0 ]; then
+      log_entry "STOP" "AirPlay session ended - $*"
+    else
+      log_entry "STOP" "AirPlay session ended"
+    fi
     ;;
   *)
     usage >&2
