@@ -217,35 +217,50 @@ function setup_directory() {
     msg_ok "Directory structure created"
 }
 
-# Copy configuration files to installation directory
+# Copy or download configuration files to installation directory
 function copy_configs() {
-    msg_info "Copying configuration files..."
+    msg_info "Deploying configuration files..."
 
     if [[ "${DRY_RUN}" == true ]]; then
         msg_info "[DRY RUN] Would copy docker-compose.yml and configs to ${INSTALL_DIR}"
         return 0
     fi
 
-    if [[ ! -f "${SCRIPT_DIR}/docker-compose.yml" ]]; then
-        msg_error "docker-compose.yml not found in ${SCRIPT_DIR}"
-        exit 1
-    fi
-
-    cp "${SCRIPT_DIR}/docker-compose.yml" "${INSTALL_DIR}/" || {
-        msg_error "Failed to copy docker-compose.yml"
-        exit 1
-    }
-
-    if [[ -d "${SCRIPT_DIR}/configs" ]]; then
-        cp -r "${SCRIPT_DIR}/configs"/* "${INSTALL_DIR}/configs/" || {
-            msg_error "Failed to copy configuration files"
+    local repo_url="https://raw.githubusercontent.com/RoyalPineapple/ledfx-airplay-docker/master"
+    
+    # Try local files first, fallback to downloading from GitHub
+    if [[ -f "${SCRIPT_DIR}/docker-compose.yml" ]]; then
+        msg_info "Using local configuration files..."
+        cp "${SCRIPT_DIR}/docker-compose.yml" "${INSTALL_DIR}/" || {
+            msg_error "Failed to copy docker-compose.yml"
             exit 1
         }
+        
+        if [[ -d "${SCRIPT_DIR}/configs" ]]; then
+            cp -r "${SCRIPT_DIR}/configs"/* "${INSTALL_DIR}/configs/" || {
+                msg_error "Failed to copy configuration files"
+                exit 1
+            }
+        fi
     else
-        msg_warn "configs directory not found in ${SCRIPT_DIR}"
+        msg_info "Downloading configuration files from GitHub..."
+        
+        curl -fsSL "${repo_url}/docker-compose.yml" -o "${INSTALL_DIR}/docker-compose.yml" || {
+            msg_error "Failed to download docker-compose.yml"
+            exit 1
+        }
+        
+        curl -fsSL "${repo_url}/configs/shairport-sync.conf" -o "${INSTALL_DIR}/configs/shairport-sync.conf" || {
+            msg_error "Failed to download shairport-sync.conf"
+            exit 1
+        }
+        
+        curl -fsSL "${repo_url}/env.example" -o "${INSTALL_DIR}/.env" || {
+            msg_warn "Failed to download .env example"
+        }
     fi
 
-    msg_ok "Configuration files copied"
+    msg_ok "Configuration files deployed"
 }
 
 # Start the Docker Compose stack
