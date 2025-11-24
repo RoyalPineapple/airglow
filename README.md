@@ -10,9 +10,6 @@ Airglow exposes a clean AirPlay 2 endpoint and routes the audio stream into LedF
 - **Zero-Config AirPlay 2 Support** - Instantly appears as an AirPlay device on your network
 - **No ALSA Configuration Required** - Uses PulseAudio for clean audio routing
 - **Docker-Based** - Easy deployment with Docker Compose
-- **Real-Time Visualization** - Low-latency audio processing for responsive LED effects
-- **High-Quality Audio** - SoXR interpolation for optimal sound quality
-- **Simple Management** - Web UI for easy configuration and device management
 
 ## Architecture
 
@@ -27,8 +24,8 @@ LED Strips/Devices
 ```
 
 **How it works:**
-- **Shairport-Sync** receives AirPlay audio streams and outputs to PulseAudio
 - **LedFX** runs a PulseAudio server that Shairport connects to via Unix socket
+- **Shairport-Sync** receives AirPlay audio streams and outputs to PulseAudio
 - **Network mode: host** - Services use host networking for mDNS discovery and LED protocols
 
 ## Prerequisites
