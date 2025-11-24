@@ -3,7 +3,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Docker](https://img.shields.io/badge/Docker-20.10%2B-blue.svg)](https://www.docker.com/)
 
-Airglow exposes a clean AirPlay 2 endpoint and routes the PCM stream straight into LedFX so multiple WLED/E1.31 instances can react in sync—no microphones, no line-in wiring.
+Airglow exposes a clean AirPlay 2 endpoint and routes the audio stream into LedFX.
 
 ## Features
 
@@ -29,7 +29,6 @@ LED Strips/Devices
 **How it works:**
 - **Shairport-Sync** receives AirPlay audio streams and outputs to PulseAudio
 - **LedFX** runs a PulseAudio server that Shairport connects to via Unix socket
-- **No ALSA configuration needed** - PulseAudio handles all audio routing
 - **Network mode: host** - Services use host networking for mDNS discovery and LED protocols
 
 ## Prerequisites
@@ -87,21 +86,9 @@ general = {
 This connects LedFX to the PulseAudio monitor that receives audio from Shairport.
 
 ### LED Devices
-<<<<<<< HEAD
 1. Open LedFX Devices tab: `http://localhost:8888/#/Devices`
 2. Add your Led devices
 3. Configure effects and start visualizing
-||||||| merged common ancestors
-1. Open LedFX web UI: `http://localhost:8888`
-2. Navigate to Devices section
-3. Add your WLED/E1.31 devices
-4. Configure effects and start visualizing
-=======
-1. Open the LedFX web UI: `http://localhost:8888`
-2. Navigate to **Devices**
-3. Add your LED device outputs
-4. Configure effects and start visualizing
->>>>>>> Rename project to Airglow and refresh docs
 
 ## Troubleshooting
 
