@@ -102,14 +102,17 @@ if docker_cmd ps --format '{{.Names}}' | grep -q '^shairport-sync$'; then
         fi
         
         # Check session hooks
-        if docker_cmd exec shairport-sync shairport-sync --displayConfig 2>&1 | grep -q 'run_this_before_entering_active_state'; then
-            HOOK_PATH=$(docker_cmd exec shairport-sync shairport-sync --displayConfig 2>&1 | grep 'run_this_before_entering_active_state' | awk -F'"' '{print $2}' || echo "")
-            if [ -n "$HOOK_PATH" ]; then
+        HOOK_LINE=$(docker_cmd exec shairport-sync shairport-sync --displayConfig 2>&1 | grep 'run_this_before_entering_active_state' | head -1 || echo "")
+        if [ -n "$HOOK_LINE" ]; then
+            HOOK_PATH=$(echo "$HOOK_LINE" | sed -n 's/.*= "\([^"]*\)".*/\1/p' || echo "")
+            if [ -n "$HOOK_PATH" ] && [ "$HOOK_PATH" != "shairport.c" ]; then
                 if docker_cmd exec shairport-sync test -f "$HOOK_PATH"; then
                     check_ok "Session hook configured: $HOOK_PATH"
                 else
-                    check_fail "Session hook file not found: $HOOK_PATH"
+                    check_warn "Session hook file not found: $HOOK_PATH"
                 fi
+            else
+                check_warn "Session hooks configured but path parsing failed"
             fi
         else
             check_warn "Session hooks not configured"
@@ -211,35 +214,40 @@ if docker_cmd ps --format '{{.Names}}' | grep -q '^ledfx$'; then
     echo "  Virtuals:"
     VIRTUAL_DATA=$(curl -s "${LEDFX_URL}/api/virtuals")
     if echo "$VIRTUAL_DATA" | grep -q '"virtuals"'; then
-        VIRTUAL_COUNT=$(echo "$VIRTUAL_DATA" | grep -o '"[^"]*":\s*{' | grep -v 'status\|virtuals' | wc -l | tr -d ' ')
+        # Extract virtual IDs properly (avoid false matches like "config", "effect", etc.)
+        # Look for patterns like "virtual_id": { with "id" field matching
+        VIRTUAL_IDS=$(echo "$VIRTUAL_DATA" | grep -o '"[^"]*":\s*{' | grep -v -E 'status|virtuals|config|effect|devices|scenes' | sed 's/":.*//' | sed 's/"//g' | sort -u)
+        VIRTUAL_COUNT=$(echo "$VIRTUAL_IDS" | grep -v '^$' | wc -l | tr -d ' ')
         check_ok "Found $VIRTUAL_COUNT virtual(s)"
         
         # Check each virtual
-        echo "$VIRTUAL_DATA" | grep -o '"[^"]*":\s*{' | grep -v 'status\|virtuals' | sed 's/":.*//' | sed 's/"//g' | while read vid; do
+        echo "$VIRTUAL_IDS" | grep -v '^$' | while read vid; do
             if [ -n "$vid" ]; then
-                VIRTUAL_STATE=$(curl -s "${LEDFX_URL}/api/virtuals/${vid}")
-                ACTIVE=$(echo "$VIRTUAL_STATE" | grep -o '"active":[^,]*' | cut -d':' -f2 | tr -d ' ' || echo "unknown")
-                STREAMING=$(echo "$VIRTUAL_STATE" | grep -o '"streaming":[^,]*' | cut -d':' -f2 | tr -d ' }' || echo "unknown")
-                EFFECT=$(echo "$VIRTUAL_STATE" | grep -o '"type":"[^"]*"' | cut -d'"' -f4 || echo "none")
-                
-                echo
-                echo "    Virtual: $vid"
-                if [ "$ACTIVE" = "true" ]; then
-                    check_ok "      Active: true"
-                else
-                    check_warn "      Active: false"
-                fi
-                
-                if [ "$STREAMING" = "true" ]; then
-                    check_ok "      Streaming: true (receiving audio)"
-                else
-                    check_warn "      Streaming: false (no audio input)"
-                fi
-                
-                if [ "$EFFECT" != "none" ] && [ -n "$EFFECT" ]; then
-                    check_ok "      Effect: $EFFECT"
-                else
-                    check_warn "      Effect: none (no effect loaded)"
+                VIRTUAL_STATE=$(curl -s "${LEDFX_URL}/api/virtuals/${vid}" 2>/dev/null || echo "")
+                if [ -n "$VIRTUAL_STATE" ] && echo "$VIRTUAL_STATE" | grep -q "\"$vid\""; then
+                    ACTIVE=$(echo "$VIRTUAL_STATE" | grep -o '"active":[^,}]*' | cut -d':' -f2 | tr -d ' ' || echo "unknown")
+                    STREAMING=$(echo "$VIRTUAL_STATE" | grep -o '"streaming":[^,}]*' | cut -d':' -f2 | tr -d ' }' || echo "unknown")
+                    EFFECT=$(echo "$VIRTUAL_STATE" | grep -o '"type":"[^"]*"' | cut -d'"' -f4 || echo "none")
+                    
+                    echo
+                    echo "    Virtual: $vid"
+                    if [ "$ACTIVE" = "true" ]; then
+                        check_ok "      Active: true"
+                    else
+                        check_warn "      Active: false"
+                    fi
+                    
+                    if [ "$STREAMING" = "true" ]; then
+                        check_ok "      Streaming: true (receiving audio)"
+                    else
+                        check_warn "      Streaming: false (no audio input)"
+                    fi
+                    
+                    if [ "$EFFECT" != "none" ] && [ -n "$EFFECT" ]; then
+                        check_ok "      Effect: $EFFECT"
+                    else
+                        check_warn "      Effect: none (no effect loaded)"
+                    fi
                 fi
             fi
         done
