@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# LedFx Begin Script - Activate virtual and ensure not paused
+# LedFx Start Script - Activate virtual and ensure not paused
 # Equivalent to: activate virtual + press play button
-# Usage: ledfx-begin.sh [virtual_id] [host] [port]
+# Usage: ledfx-start.sh [virtual_id] [host] [port]
 set -euo pipefail
 
 VIRTUAL_ID="${1:-dig-quad}"
