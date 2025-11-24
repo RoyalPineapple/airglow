@@ -77,22 +77,10 @@ function detect_distro() {
     fi
 
     source /etc/os-release
-
-    case "${ID}" in
-        debian|ubuntu)
-            msg_ok "Detected ${NAME} ${VERSION_ID}"
-            return 0
-            ;;
-        *)
-            msg_error "Unsupported distribution: ${NAME}"
-            msg_error "This script is designed for Debian/Ubuntu systems"
-            msg_error "You'll need to manually install Docker and run: docker compose up -d"
-            exit 1
-            ;;
-    esac
+    msg_ok "Detected ${NAME} ${VERSION_ID:-unknown}"
 }
 
-# Install Docker on Debian/Ubuntu systems
+# Install Docker using official installation script
 function install_docker() {
     if command -v docker &>/dev/null; then
         local docker_version
@@ -101,75 +89,19 @@ function install_docker() {
         return 0
     fi
 
-    msg_info "Installing Docker..."
+    msg_info "Installing Docker using official installation script..."
 
     if [[ "${DRY_RUN}" == true ]]; then
-        msg_info "[DRY RUN] Would install Docker from official repository"
+        msg_info "[DRY RUN] Would run: curl -fsSL https://get.docker.com | sh"
         return 0
     fi
 
-    # Update package index
-    apt-get update -qq || {
-        msg_error "Failed to update package index"
+    # Use Docker's official convenience script
+    curl -fsSL https://get.docker.com | sh || {
+        msg_error "Failed to install Docker"
         msg_error "Check your internet connection and try again"
+        msg_error "Manual installation: https://docs.docker.com/engine/install/"
         exit 1
-    }
-
-    # Install prerequisites
-    apt-get install -y -qq \
-        ca-certificates \
-        curl \
-        gnupg \
-        lsb-release || {
-        msg_error "Failed to install prerequisites"
-        exit 1
-    }
-
-    # Detect distro for Docker repo
-    source /etc/os-release
-    local docker_distro="${ID}"
-
-    # Ubuntu derivatives should use ubuntu repo
-    if [[ -n "${ID_LIKE:-}" ]] && [[ "${ID_LIKE}" == *"ubuntu"* ]] && [[ "${ID}" != "ubuntu" ]]; then
-        docker_distro="ubuntu"
-    fi
-
-    # Add Docker's official GPG key
-    install -m 0755 -d /etc/apt/keyrings
-    curl -fsSL "https://download.docker.com/linux/${docker_distro}/gpg" | \
-        gpg --dearmor -o /etc/apt/keyrings/docker.gpg || {
-        msg_error "Failed to download Docker GPG key"
-        msg_error "Check your internet connection"
-        exit 1
-    }
-    chmod a+r /etc/apt/keyrings/docker.gpg
-
-    # Set up repository
-    echo \
-      "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/${docker_distro} \
-      $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
-      tee /etc/apt/sources.list.d/docker.list > /dev/null
-
-    # Install Docker
-    apt-get update -qq || {
-        msg_error "Failed to update package index after adding Docker repository"
-        exit 1
-    }
-
-    apt-get install -y -qq docker-ce docker-ce-cli containerd.io docker-compose-plugin || {
-        msg_error "Failed to install Docker packages"
-        msg_error "Check the error messages above for details"
-        exit 1
-    }
-
-    # Start and enable Docker
-    systemctl start docker || {
-        msg_error "Failed to start Docker service"
-        exit 1
-    }
-
-    systemctl enable docker || {
-        msg_warn "Failed to enable Docker service at boot"
     }
 
     msg_ok "Docker installed successfully"
