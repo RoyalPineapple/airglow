@@ -5,7 +5,15 @@
 #   ./diagnose-airglow.sh                    # Run on localhost
 #   ./diagnose-airglow.sh 192.168.2.122      # Run on remote host via SSH
 #   ./diagnose-airglow.sh airglow.office.lab # Run on remote host via SSH
+# Requirements: jq (for JSON parsing)
 set -euo pipefail
+
+# Check for jq
+if ! command -v jq >/dev/null 2>&1; then
+    echo "Error: jq is required but not installed."
+    echo "Install with: apt-get install jq (Debian/Ubuntu) or brew install jq (macOS)"
+    exit 1
+fi
 
 # Parse arguments
 TARGET_HOST="${1:-}"
@@ -209,7 +217,7 @@ if docker_cmd ps --format '{{.Names}}' | grep -q '^ledfx$'; then
     fi
     
     # Check global paused state
-    PAUSED=$(curl -s "${LEDFX_URL}/api/virtuals" | grep -o '"paused":[^,]*' | cut -d':' -f2 | tr -d ' }' || echo "unknown")
+    PAUSED=$(curl -s "${LEDFX_URL}/api/virtuals" | jq -r '.paused // "unknown"')
     if [ "$PAUSED" = "false" ]; then
         check_ok "Global paused state: false (effects are playing)"
     elif [ "$PAUSED" = "true" ]; then
@@ -222,29 +230,22 @@ if docker_cmd ps --format '{{.Names}}' | grep -q '^ledfx$'; then
     echo
     echo "  Virtuals:"
     VIRTUAL_DATA=$(curl -s "${LEDFX_URL}/api/virtuals")
-    if echo "$VIRTUAL_DATA" | grep -q '"virtuals"'; then
-        # Extract virtual IDs properly (avoid false matches like "config", "effect", etc.)
-        # Look for patterns like "virtual_id": { with "id" field matching
-        VIRTUAL_IDS=$(echo "$VIRTUAL_DATA" | grep -o '"[^"]*":\s*{' | grep -v -E 'status|virtuals|config|effect|devices|scenes' | sed 's/":.*//' | sed 's/"//g' | sort -u)
+    if echo "$VIRTUAL_DATA" | jq -e '.virtuals' >/dev/null 2>&1; then
+        # Extract virtual IDs using jq
+        VIRTUAL_IDS=$(echo "$VIRTUAL_DATA" | jq -r '.virtuals | keys[]' 2>/dev/null || echo "")
         VIRTUAL_COUNT=$(echo "$VIRTUAL_IDS" | grep -v '^$' | wc -l | tr -d ' ')
         check_ok "Found $VIRTUAL_COUNT virtual(s)"
         
         # Check each virtual
         echo "$VIRTUAL_IDS" | grep -v '^$' | while read vid; do
             if [ -n "$vid" ]; then
-                VIRTUAL_STATE=$(curl -s "${LEDFX_URL}/api/virtuals/${vid}" 2>/dev/null || echo "")
-                if [ -n "$VIRTUAL_STATE" ] && echo "$VIRTUAL_STATE" | grep -q "\"$vid\""; then
-                    # Extract values from JSON - the response has the virtual ID as the key
-                    # Format: { "dig-quad": { "active": true, "streaming": false, "effect": { "type": "rain" }, ... } }
-                    ACTIVE=$(echo "$VIRTUAL_STATE" | grep -o "\"$vid\"[^}]*{[^}]*\"active\":[^,}]*" | grep -o '"active":[^,}]*' | cut -d':' -f2 | tr -d ' ' || echo "unknown")
-                    STREAMING=$(echo "$VIRTUAL_STATE" | grep -o "\"$vid\"[^}]*{[^}]*\"streaming\":[^,}]*" | grep -o '"streaming":[^,}]*' | cut -d':' -f2 | tr -d ' }' || echo "unknown")
+                VIRTUAL_STATE=$(curl -s "${LEDFX_URL}/api/virtuals/${vid}" 2>/dev/null || echo "{}")
+                if echo "$VIRTUAL_STATE" | jq -e ".\"$vid\"" >/dev/null 2>&1; then
+                    # Extract values using jq
+                    ACTIVE=$(echo "$VIRTUAL_STATE" | jq -r ".\"$vid\".active // \"unknown\"")
+                    STREAMING=$(echo "$VIRTUAL_STATE" | jq -r ".\"$vid\".streaming // \"unknown\"")
                     # Effect is nested: "effect": { "type": "rain", ... }
-                    # Need to look deeper into the nested structure
-                    EFFECT=$(echo "$VIRTUAL_STATE" | grep -A20 "\"$vid\"" | grep -A10 '"effect"' | grep -o '"type":"[^"]*"' | cut -d'"' -f4 || echo "none")
-                    # Fallback to last_effect if effect.type not found
-                    if [ "$EFFECT" = "none" ] || [ -z "$EFFECT" ]; then
-                        EFFECT=$(echo "$VIRTUAL_STATE" | grep -o "\"$vid\"[^}]*{[^}]*\"last_effect\":\"[^\"]*\"" | grep -o '"last_effect":"[^"]*"' | cut -d'"' -f4 || echo "none")
-                    fi
+                    EFFECT=$(echo "$VIRTUAL_STATE" | jq -r ".\"$vid\".effect.type // .\"$vid\".last_effect // \"none\"")
                     
                     echo
                     echo "    Virtual: $vid"
@@ -280,18 +281,16 @@ if docker_cmd ps --format '{{.Names}}' | grep -q '^ledfx$'; then
     echo
     echo "  Devices:"
     DEVICE_DATA=$(curl -s "${LEDFX_URL}/api/devices")
-    if echo "$DEVICE_DATA" | grep -q '"devices"'; then
-        # Extract device IDs from the devices object
-        # Format: { "devices": { "dig-quad": { "online": true, ... }, ... } }
-        DEVICE_IDS=$(echo "$DEVICE_DATA" | grep -o '"devices"[^}]*{[^}]*' | grep -o '"[^"]*":\s*{' | grep -v -E 'status|devices|config' | sed 's/":.*//' | sed 's/"//g' | sort -u)
+    if echo "$DEVICE_DATA" | jq -e '.devices' >/dev/null 2>&1; then
+        # Extract device IDs using jq
+        DEVICE_IDS=$(echo "$DEVICE_DATA" | jq -r '.devices | keys[]' 2>/dev/null || echo "")
         DEVICE_COUNT=$(echo "$DEVICE_IDS" | grep -v '^$' | wc -l | tr -d ' ')
         check_ok "Found $DEVICE_COUNT device(s)"
         
         echo "$DEVICE_IDS" | grep -v '^$' | while read did; do
             if [ -n "$did" ]; then
-                # Extract online status - look for the device key and then online field
-                # The structure is: "dig-quad": { "online": true, ... }
-                ONLINE=$(echo "$DEVICE_DATA" | grep -A10 "\"devices\"" | grep -A10 "\"$did\"" | grep '"online"' | grep -o 'true\|false' | head -1 || echo "unknown")
+                # Extract online status using jq
+                ONLINE=$(echo "$DEVICE_DATA" | jq -r ".devices.\"$did\".online // \"unknown\"")
                 if [ "$ONLINE" = "true" ]; then
                     check_ok "      $did: online"
                 else
