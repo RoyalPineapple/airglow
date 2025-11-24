@@ -1,24 +1,17 @@
 #!/usr/bin/env bash
-# LedFx Play Script - Resume effects by restoring brightness to 1.0
-# Usage: ledfx-play.sh [virtual_id] [host] [port]
+# LedFx Play Script - Resume all effects (equivalent to play button)
+# Usage: ledfx-play.sh [host] [port]
 set -euo pipefail
 
-VIRTUAL_ID="${1:-dig-quad}"
-LEDFX_HOST="${2:-192.168.2.122}"
-LEDFX_PORT="${3:-8888}"
+LEDFX_HOST="${1:-192.168.2.122}"
+LEDFX_PORT="${2:-8888}"
 BASE_URL="http://${LEDFX_HOST}:${LEDFX_PORT}"
 
-# Get current effect config
-CURRENT_EFFECT=$(curl -s "${BASE_URL}/api/virtuals/${VIRTUAL_ID}/effects" | jq '.effect')
-
-# Restore brightness to 1.0 to resume the effect
-UPDATED_EFFECT=$(echo "$CURRENT_EFFECT" | jq '.config.brightness = 1.0')
-
-# Apply the updated effect config
+# Set global paused state to false (resume)
 curl -X PUT -H "Content-Type: application/json" \
-  -d "$UPDATED_EFFECT" \
-  -s "${BASE_URL}/api/virtuals/${VIRTUAL_ID}/effects" > /dev/null
+  -d '{"paused": false}' \
+  -s "${BASE_URL}/api/virtuals" > /dev/null
 
-# Note: This restores brightness to 1.0, resuming the effect
-# LedFx remains in control
+# Note: This resumes all paused effects
+# Effects must be active for this to have an effect
 

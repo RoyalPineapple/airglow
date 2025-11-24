@@ -1,24 +1,17 @@
 #!/usr/bin/env bash
-# LedFx Pause Script - Pause effects by setting brightness to 0 (keeps LedFx in control)
-# Usage: ledfx-pause.sh [virtual_id] [host] [port]
+# LedFx Pause Script - Pause all effects (equivalent to pause button)
+# Usage: ledfx-pause.sh [host] [port]
 set -euo pipefail
 
-VIRTUAL_ID="${1:-dig-quad}"
-LEDFX_HOST="${2:-192.168.2.122}"
-LEDFX_PORT="${3:-8888}"
+LEDFX_HOST="${1:-192.168.2.122}"
+LEDFX_PORT="${2:-8888}"
 BASE_URL="http://${LEDFX_HOST}:${LEDFX_PORT}"
 
-# Get current effect config
-CURRENT_EFFECT=$(curl -s "${BASE_URL}/api/virtuals/${VIRTUAL_ID}/effects" | jq '.effect')
-
-# Update brightness to 0 to pause visually while keeping LedFx in control
-UPDATED_EFFECT=$(echo "$CURRENT_EFFECT" | jq '.config.brightness = 0.0')
-
-# Apply the updated effect config
+# Set global paused state to true
 curl -X PUT -H "Content-Type: application/json" \
-  -d "$UPDATED_EFFECT" \
-  -s "${BASE_URL}/api/virtuals/${VIRTUAL_ID}/effects" > /dev/null
+  -d '{"paused": true}' \
+  -s "${BASE_URL}/api/virtuals" > /dev/null
 
-# Note: This sets brightness to 0, pausing the effect visually
-# LedFx remains in control (not released to WLED)
+# Note: This pauses all effects globally but keeps them active
+# Effects will resume when paused is set to false
 
