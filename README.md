@@ -66,7 +66,7 @@ sudo ./install.sh
 
 ## Configuration
 
-### AirPlay Device Name
+### Set AirPlay Device Name (Optional)
 Edit `configs/shairport-sync.conf` and change the `name` field:
 ```
 general = {
@@ -75,14 +75,14 @@ general = {
 }
 ```
 
-### Audio Settings
+### Configure LedFX Audio Settings
 1. Open LedFX Settings tab: `http://localhost:8888/#/Settings`
 2. Select "pulse" from the audio device dropdown
 3. Click "Save" to apply
 
 This connects LedFX to the PulseAudio monitor that receives audio from Shairport.
 
-### LED Devices
+### Add LED Devices
 1. Open LedFX Devices tab: `http://localhost:8888/#/Devices`
 2. Add your Led devices
 3. Configure effects and start visualizing
