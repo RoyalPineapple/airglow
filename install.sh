@@ -146,10 +146,108 @@ function setup_directory() {
         msg_warn "Failed to set ownership on pulse directory"
         msg_warn "You may need to manually run: sudo chown -R 1000:1000 ${INSTALL_DIR}/pulse"
     }
+    chown -R 1000:1000 "${INSTALL_DIR}/pulse" || {
+        msg_warn "Failed to set ownership on pulse directory"
+        msg_warn "You may need to manually run: sudo chown -R 1000:1000 ${INSTALL_DIR}/pulse"
+    }
     chown -R 1000:1000 "${INSTALL_DIR}/ledfx-data" || {
         msg_warn "Failed to set ownership on ledfx-data directory"
         msg_warn "You may need to manually run: sudo chown -R 1000:1000 ${INSTALL_DIR}/ledfx-data"
     }
+
+    # Initialize LedFX config file with pulse as default audio device
+    local ledfx_config="${INSTALL_DIR}/ledfx-data/config.json"
+    if [[ ! -f "${ledfx_config}" ]]; then
+        msg_info "Creating LedFX config file with pulse audio device..."
+        cat > "${ledfx_config}" << 'EOF'
+{
+    "audio": {
+        "audio_device": 0,
+        "fft_size": 4096,
+        "mic_rate": 44100,
+        "sample_rate": 60,
+        "min_volume": 0.2,
+        "delay_ms": 0
+    },
+    "configuration_version": "2.3.6",
+    "create_segments": false,
+    "dev_mode": false,
+    "devices": [],
+    "flush_on_deactivate": false,
+    "global_brightness": 1.0,
+    "global_transitions": true,
+    "host": "0.0.0.0",
+    "hosts": [],
+    "integrations": [],
+    "melbank_collection": [],
+    "melbanks": {},
+    "playlists": {},
+    "port": 8888,
+    "port_s": 8443,
+    "scan_on_startup": false,
+    "scenes": {},
+    "startup_scene_id": "",
+    "transmission_mode": "compressed",
+    "ui_brightness_boost": 0.0,
+    "user_colors": {},
+    "user_gradients": {},
+    "user_presets": {},
+    "virtuals": [],
+    "visualisation_fps": 30,
+    "visualisation_maxlen": 81,
+    "wled_preferences": {}
+}
+EOF
+        chown 1000:1000 "${ledfx_config}" || {
+            msg_warn "Failed to set ownership on LedFX config file"
+        }
+        msg_ok "LedFX config file created with pulse audio device"
+    else
+        # Update existing config file to set audio device to pulse if not already set
+        msg_info "Updating LedFX config file to use pulse audio device..."
+        if command -v python3 &>/dev/null; then
+            python3 << PYEOF
+import json
+import os
+
+config_path = "${ledfx_config}"
+try:
+    with open(config_path, 'r') as f:
+        config = json.load(f)
+    
+    # Ensure audio section exists
+    if 'audio' not in config:
+        config['audio'] = {}
+    
+    # Set audio device to 0 (pulse) if not already set or if set to default (1)
+    if config['audio'].get('audio_device', 1) != 0:
+        config['audio']['audio_device'] = 0
+        # Set other audio defaults if missing
+        config['audio'].setdefault('fft_size', 4096)
+        config['audio'].setdefault('mic_rate', 44100)
+        config['audio'].setdefault('sample_rate', 60)
+        config['audio'].setdefault('min_volume', 0.2)
+        config['audio'].setdefault('delay_ms', 0)
+        
+        with open(config_path, 'w') as f:
+            json.dump(config, f, indent=4)
+        print("Updated audio device to pulse (index 0)")
+    else:
+        print("Audio device already set to pulse")
+except Exception as e:
+    print(f"Error updating config: {e}")
+    exit(1)
+PYEOF
+            if [ $? -eq 0 ]; then
+                chown 1000:1000 "${ledfx_config}" || true
+                msg_ok "LedFX config updated to use pulse audio device"
+            else
+                msg_warn "Failed to update LedFX config (non-fatal)"
+            fi
+        else
+            msg_warn "python3 not available, skipping config update (non-fatal)"
+        fi
+    fi
 
     msg_ok "Directory structure created"
 }
@@ -317,34 +415,6 @@ function start_stack() {
     }
 
     msg_ok "Stack started successfully"
-    
-    # Wait for LedFX to be ready and set audio device to pulse
-    msg_info "Waiting for LedFX to be ready..."
-    local max_attempts=30
-    local attempt=0
-    while [ $attempt -lt $max_attempts ]; do
-        if curl -s -f "http://localhost:8888/api/info" > /dev/null 2>&1; then
-            msg_ok "LedFX is ready"
-            
-            # Set audio device to pulse (index 0)
-            msg_info "Setting LedFX audio device to pulse..."
-            if curl -s -X PUT "http://localhost:8888/api/config" \
-                -H "Content-Type: application/json" \
-                -d '{"audio": {"audio_device": 0}}' > /dev/null 2>&1; then
-                msg_ok "LedFX audio device set to pulse"
-            else
-                msg_warn "Failed to set LedFX audio device (non-fatal)"
-            fi
-            break
-        fi
-        attempt=$((attempt + 1))
-        sleep 2
-    done
-    
-    if [ $attempt -eq $max_attempts ]; then
-        msg_warn "LedFX did not become ready in time (non-fatal)"
-        msg_warn "You may need to manually set the audio device to 'pulse' in LedFX settings"
-    fi
 }
 
 # Display installation status and next steps
