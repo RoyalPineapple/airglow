@@ -9,11 +9,13 @@
 <body>
     <div class="banner-container">
         <img src="https://raw.githubusercontent.com/RoyalPineapple/airglow/master/web/static/banner.jpg" alt="Aurora Borealis" class="banner-image" onerror="this.parentElement.style.display='none'">
+        <div class="banner-overlay">
+            <h1 class="banner-title">Airglow</h1>
+            <p class="banner-tagline">AirPlay ➜ LedFX Visualization</p>
+        </div>
     </div>
     <div class="container">
-        <header>
-            <h1>Airglow</h1>
-            <p class="tagline">AirPlay ➜ LedFX Visualization</p>
+        <header style="display: none;">
         </header>
 
         {% if is_fresh_install %}
