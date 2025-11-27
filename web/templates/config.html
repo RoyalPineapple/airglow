@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Airglow Configuration</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Airglow Configuration</h1>
+            <nav>
+                <a href="/">← Back to Dashboard</a>
+            </nav>
+        </header>
+
+        <div id="error-message" class="error-message" style="display: none;"></div>
+        <div id="success-message" class="success-message" style="display: none;"></div>
+
+        <form id="config-form">
+            <!-- Hook Configuration Section -->
+            <section class="config-section">
+                <h2>Hook Configuration</h2>
+                <p class="section-description">Enable or disable AirPlay session hooks individually.</p>
+                
+                <div class="toggle-group">
+                    <label class="toggle-label">
+                        <input type="checkbox" id="start-hook" class="toggle-checkbox">
+                        <span class="toggle-switch"></span>
+                        <span class="toggle-text">Start Hook</span>
+                    </label>
+                    <p class="toggle-description">Controls <code>run_this_before_entering_active_state</code></p>
+                </div>
+
+                <div class="toggle-group">
+                    <label class="toggle-label">
+                        <input type="checkbox" id="end-hook" class="toggle-checkbox">
+                        <span class="toggle-switch"></span>
+                        <span class="toggle-text">End Hook</span>
+                    </label>
+                    <p class="toggle-description">Controls <code>run_this_after_exiting_active_state</code></p>
+                </div>
+            </section>
+
+            <!-- Virtual Selection Section -->
+            <section class="config-section">
+                <h2>Virtual Selection</h2>
+                <p class="section-description">Select which LedFX virtuals should be controlled by AirPlay hooks.</p>
+                
+                <div class="virtual-selection-controls">
+                    <label class="checkbox-label all-virtuals-label">
+                        <input type="checkbox" id="all-virtuals" class="checkbox-input">
+                        <span class="checkbox-text">All Virtuals</span>
+                    </label>
+                    <div class="button-group">
+                        <button type="button" id="select-all" class="btn btn-secondary">Select All</button>
+                        <button type="button" id="deselect-all" class="btn btn-secondary">Deselect All</button>
+                    </div>
+                </div>
+
+                <div id="virtuals-list" class="virtuals-list">
+                    <p class="loading">Loading virtuals...</p>
+                </div>
+            </section>
+
+            <!-- LedFX Connection Section -->
+            <section class="config-section">
+                <h2>LedFX Connection</h2>
+                <p class="section-description">Configure LedFX API connection settings.</p>
+                
+                <div class="form-group">
+                    <label for="ledfx-host">Host:</label>
+                    <input type="text" id="ledfx-host" name="ledfx-host" value="localhost" class="form-input">
+                </div>
+                
+                <div class="form-group">
+                    <label for="ledfx-port">Port:</label>
+                    <input type="number" id="ledfx-port" name="ledfx-port" value="8888" class="form-input" min="1" max="65535">
+                </div>
+            </section>
+
+            <!-- Save Button -->
+            <div class="form-actions">
+                <button type="submit" id="save-btn" class="btn btn-primary">Save Configuration</button>
+                <span id="save-status" class="save-status"></span>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        let configData = null;
+        let availableVirtuals = [];
+        let refreshInterval = null;
+
+        // Escape HTML to prevent XSS
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Show error message
+        function showError(message) {
+            const errorEl = document.getElementById('error-message');
+            errorEl.textContent = message;
+            errorEl.style.display = 'block';
+            setTimeout(() => {
+                errorEl.style.display = 'none';
+            }, 5000);
+        }
+
+        // Show success message
+        function showSuccess(message) {
+            const successEl = document.getElementById('success-message');
+            successEl.textContent = message;
+            successEl.style.display = 'block';
+            setTimeout(() => {
+                successEl.style.display = 'none';
+            }, 3000);
+        }
+
+        // Load configuration
+        async function loadConfig() {
+            try {
+                const response = await fetch('/api/config');
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+                const data = await response.json();
+                
+                if (data.error) {
+                    showError(data.error);
+                    return;
+                }
+
+                configData = data;
+                availableVirtuals = data.available_virtuals || [];
+
+                // Update hook toggles
+                document.getElementById('start-hook').checked = data.hooks.start_hook_enabled !== false;
+                document.getElementById('end-hook').checked = data.hooks.end_hook_enabled !== false;
+
+                // Update LedFX connection
+                document.getElementById('ledfx-host').value = data.virtuals.ledfx?.host || 'localhost';
+                document.getElementById('ledfx-port').value = data.virtuals.ledfx?.port || 8888;
+
+                // Update virtual selection
+                updateVirtualSelection(data.virtuals);
+
+            } catch (error) {
+                showError(`Failed to load configuration: ${error.message}`);
+            }
+        }
+
+        // Update virtual selection UI
+        function updateVirtualSelection(virtualsConfig) {
+            const allVirtualsChecked = virtualsConfig.all_virtuals === true;
+            const selectedVirtuals = virtualsConfig.virtuals || [];
+
+            // Update "All Virtuals" checkbox
+            const allVirtualsCheckbox = document.getElementById('all-virtuals');
+            allVirtualsCheckbox.checked = allVirtualsChecked;
+
+            // Build virtuals list
+            const virtualsListEl = document.getElementById('virtuals-list');
+            virtualsListEl.innerHTML = '';
+
+            if (availableVirtuals.length === 0) {
+                virtualsListEl.innerHTML = '<p class="no-virtuals">No virtuals available. Make sure LedFX is running and connected.</p>';
+                return;
+            }
+
+            availableVirtuals.forEach(vid => {
+                const virtualConfig = selectedVirtuals.find(v => v.id === vid) || { id: vid, start_repeats: 1, stop_repeats: 1 };
+                
+                const virtualDiv = document.createElement('div');
+                virtualDiv.className = 'virtual-item';
+                virtualDiv.innerHTML = `
+                    <label class="checkbox-label">
+                        <input type="checkbox" class="virtual-checkbox" data-vid="${escapeHtml(vid)}" ${!allVirtualsChecked && selectedVirtuals.some(v => v.id === vid) ? 'checked' : ''}>
+                        <span class="checkbox-text">${escapeHtml(vid)}</span>
+                    </label>
+                    <div class="virtual-repeats">
+                        <div class="repeat-group">
+                            <label>Start Repeats:</label>
+                            <input type="number" class="repeat-input start-repeats" data-vid="${escapeHtml(vid)}" value="${virtualConfig.start_repeats || 1}" min="1" max="10">
+                        </div>
+                        <div class="repeat-group">
+                            <label>Stop Repeats:</label>
+                            <input type="number" class="repeat-input stop-repeats" data-vid="${escapeHtml(vid)}" value="${virtualConfig.stop_repeats || 1}" min="1" max="10">
+                        </div>
+                    </div>
+                `;
+                virtualsListEl.appendChild(virtualDiv);
+            });
+
+            // Update checkbox states based on "All Virtuals"
+            updateCheckboxStates(allVirtualsChecked);
+        }
+
+        // Update checkbox states
+        function updateCheckboxStates(allVirtualsChecked) {
+            const checkboxes = document.querySelectorAll('.virtual-checkbox');
+            checkboxes.forEach(cb => {
+                cb.disabled = allVirtualsChecked;
+                if (allVirtualsChecked) {
+                    cb.checked = false;
+                }
+            });
+        }
+
+        // Handle "All Virtuals" checkbox
+        document.getElementById('all-virtuals').addEventListener('change', function() {
+            updateCheckboxStates(this.checked);
+        });
+
+        // Handle "Select All" button
+        document.getElementById('select-all').addEventListener('click', function() {
+            document.getElementById('all-virtuals').checked = false;
+            updateCheckboxStates(false);
+            document.querySelectorAll('.virtual-checkbox').forEach(cb => {
+                cb.checked = true;
+            });
+        });
+
+        // Handle "Deselect All" button
+        document.getElementById('deselect-all').addEventListener('click', function() {
+            document.getElementById('all-virtuals').checked = true;
+            updateCheckboxStates(true);
+        });
+
+        // Save configuration
+        document.getElementById('config-form').addEventListener('submit', async function(e) {
+            e.preventDefault();
+
+            const saveBtn = document.getElementById('save-btn');
+            const saveStatus = document.getElementById('save-status');
+            
+            saveBtn.disabled = true;
+            saveStatus.textContent = 'Saving...';
+
+            try {
+                // Collect virtual selection
+                const allVirtuals = document.getElementById('all-virtuals').checked;
+                const selectedVirtuals = [];
+
+                if (!allVirtuals) {
+                    document.querySelectorAll('.virtual-checkbox:checked').forEach(cb => {
+                        const vid = cb.dataset.vid;
+                        const startRepeats = parseInt(document.querySelector(`.start-repeats[data-vid="${vid}"]`).value) || 1;
+                        const stopRepeats = parseInt(document.querySelector(`.stop-repeats[data-vid="${vid}"]`).value) || 1;
+                        selectedVirtuals.push({
+                            id: vid,
+                            start_repeats: startRepeats,
+                            stop_repeats: stopRepeats
+                        });
+                    });
+                }
+
+                const configPayload = {
+                    start_enabled: document.getElementById('start-hook').checked,
+                    end_enabled: document.getElementById('end-hook').checked,
+                    all_virtuals: allVirtuals,
+                    virtuals: selectedVirtuals,
+                    ledfx_host: document.getElementById('ledfx-host').value,
+                    ledfx_port: parseInt(document.getElementById('ledfx-port').value) || 8888
+                };
+
+                const response = await fetch('/api/config', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(configPayload)
+                });
+
+                const data = await response.json();
+
+                if (!response.ok || data.error) {
+                    throw new Error(data.error || `HTTP ${response.status}`);
+                }
+
+                if (data.warning) {
+                    showSuccess(`Configuration saved with warning: ${data.warning}`);
+                } else {
+                    showSuccess('Configuration saved successfully!');
+                }
+
+                // Reload config to reflect any changes
+                await loadConfig();
+
+            } catch (error) {
+                showError(`Failed to save configuration: ${error.message}`);
+            } finally {
+                saveBtn.disabled = false;
+                saveStatus.textContent = '';
+            }
+        });
+
+        // Auto-refresh available virtuals list
+        async function refreshVirtuals() {
+            try {
+                const response = await fetch('/api/config');
+                if (response.ok) {
+                    const data = await response.json();
+                    const newVirtuals = data.available_virtuals || [];
+                    
+                    // Only update if list changed
+                    if (JSON.stringify(newVirtuals) !== JSON.stringify(availableVirtuals)) {
+                        availableVirtuals = newVirtuals;
+                        if (configData) {
+                            updateVirtualSelection(configData.virtuals);
+                        }
+                    }
+                }
+            } catch (error) {
+                // Silently fail on refresh
+            }
+        }
+
+        // Initial load
+        loadConfig();
+
+        // Refresh virtuals list every 10 seconds
+        refreshInterval = setInterval(refreshVirtuals, 10000);
+
+        // Clear interval on page unload
+        window.addEventListener('beforeunload', () => {
+            if (refreshInterval) {
+                clearInterval(refreshInterval);
+            }
+        });
+    </script>
+</body>
+</html>
+

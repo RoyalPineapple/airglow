@@ -78,3 +78,40 @@ services:
       - ledfx
 
     restart: unless-stopped
+
+  airglow-web:
+    # Airglow Status Dashboard - Web interface for status and configuration
+    # Web UI: http://localhost:8080
+    build:
+      context: .
+      dockerfile: Dockerfile.web
+    container_name: airglow-web
+
+    # Host networking required to access LedFX API and Docker socket
+    network_mode: host
+
+    environment:
+      # LedFX API connection
+      - LEDFX_HOST=localhost
+      - LEDFX_PORT=8888
+
+    volumes:
+      # Configuration files (read-write for config page)
+      - ./configs:/configs:rw
+      # Diagnostic scripts (read-only)
+      - ./scripts:/scripts:ro
+      # Docker socket for container status checks
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+
+    # Ensure LedFX is available before starting
+    depends_on:
+      - ledfx
+
+    restart: unless-stopped
+
+    # Health check to verify web interface is responding
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/api/status"]
+      interval: 30s
+      timeout: 10s
+      retries: 3

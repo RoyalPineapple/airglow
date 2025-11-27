@@ -1,0 +1,21 @@
+# LedFX AirPlay Hook Configuration (YAML)
+# This file configures which LedFX virtuals should be controlled by AirPlay session hooks
+
+ledfx:
+  host: localhost
+  port: 8888
+
+hooks:
+  start_enabled: true
+  end_enabled: true
+
+virtuals:
+  # Empty list = control all virtuals
+  # Specify virtuals with per-virtual settings:
+  selected: []
+  # Example:
+  # selected:
+  #   - id: dig-quad
+  #     start_repeats: 1
+  #     stop_repeats: 2
+
