@@ -525,8 +525,9 @@ def index():
         pass
     
     # Check if banner image exists
-    banner_path = os.path.join(app.static_folder, 'banner.jpg')
-    has_banner = os.path.exists(banner_path)
+    static_folder = app.static_folder or os.path.join(os.path.dirname(__file__), 'static')
+    banner_path = os.path.join(static_folder, 'banner.jpg')
+    has_banner = os.path.exists(banner_path) and os.path.isfile(banner_path)
     
     return render_template('landing.html', 
                           is_fresh_install=is_fresh_install,
