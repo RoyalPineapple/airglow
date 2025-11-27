@@ -1,6 +1,11 @@
 {
+    "configuration_version": "2.3.6",
     "audio": {
         "audio_device": 0
-    }
+    },
+    "devices": [],
+    "scenes": {},
+    "user_presets": {},
+    "virtuals": []
 }
 
