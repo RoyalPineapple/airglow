@@ -182,7 +182,9 @@
             listEl.innerHTML = '';
 
             if (availableVirtuals.length === 0) {
-                listEl.innerHTML = '<p class="no-virtuals">No virtuals available. Make sure LedFX is running and connected.</p>';
+                // Get LedFX URL from window location (same host, different port)
+                const ledfxUrl = window.location.protocol + '//' + window.location.hostname + ':8888';
+                listEl.innerHTML = `<p class="no-virtuals">No virtuals available. <a href="${ledfxUrl}" target="_blank">Open LedFX</a> to create virtuals first, then refresh this page.</p>`;
                 return;
             }
 
