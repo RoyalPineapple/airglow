@@ -254,26 +254,30 @@ function copy_configs() {
 
     msg_ok "Configuration files deployed"
     
-    # Initialize git repository for future updates
+    # Initialize git repository for future updates (only if installing from a git repo)
+    # This allows seamless updates via update-airglow.sh script
     if [[ "${DRY_RUN}" == false ]] && [[ -d "${INSTALL_DIR}" ]]; then
-        msg_info "Initializing git repository for future updates..."
-        if command -v git &>/dev/null; then
+        # Only initialize git if we're installing from a local git repository
+        # (indicates this is a managed deployment, not a standalone download)
+        if [[ -d "${SCRIPT_DIR}/.git" ]] && command -v git &>/dev/null; then
+            msg_info "Initializing git repository for future updates..."
             cd "${INSTALL_DIR}" || exit 1
             if ! git rev-parse --git-dir >/dev/null 2>&1; then
                 git init -q
-                git remote add origin https://github.com/RoyalPineapple/airglow.git 2>/dev/null || true
+                # Use the same remote as the source repository
+                local source_remote=$(cd "${SCRIPT_DIR}" && git remote get-url origin 2>/dev/null || echo "https://github.com/RoyalPineapple/airglow.git")
+                git remote add origin "${source_remote}" 2>/dev/null || true
                 git fetch origin -q 2>/dev/null || true
                 # Add all files and create initial commit
                 git add -A
                 git commit -m "Initial installation" -q 2>/dev/null || true
                 # Try to checkout the branch we're installing from (if available)
-                if [[ -n "${GIT_BRANCH:-}" ]]; then
-                    git checkout -b "${GIT_BRANCH}" "origin/${GIT_BRANCH}" 2>/dev/null || true
+                local current_branch=$(cd "${SCRIPT_DIR}" && git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "master")
+                if git ls-remote --heads origin "${current_branch}" 2>/dev/null | grep -q "${current_branch}"; then
+                    git checkout -b "${current_branch}" "origin/${current_branch}" 2>/dev/null || true
                 fi
                 msg_ok "Git repository initialized"
             fi
-        else
-            msg_warn "Git not available - future updates may require manual git setup"
         fi
     fi
 }
