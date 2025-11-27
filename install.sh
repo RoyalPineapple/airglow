@@ -317,6 +317,34 @@ function start_stack() {
     }
 
     msg_ok "Stack started successfully"
+    
+    # Wait for LedFX to be ready and set audio device to pulse
+    msg_info "Waiting for LedFX to be ready..."
+    local max_attempts=30
+    local attempt=0
+    while [ $attempt -lt $max_attempts ]; do
+        if curl -s -f "http://localhost:8888/api/info" > /dev/null 2>&1; then
+            msg_ok "LedFX is ready"
+            
+            # Set audio device to pulse (index 0)
+            msg_info "Setting LedFX audio device to pulse..."
+            if curl -s -X PUT "http://localhost:8888/api/config" \
+                -H "Content-Type: application/json" \
+                -d '{"audio": {"audio_device": 0}}' > /dev/null 2>&1; then
+                msg_ok "LedFX audio device set to pulse"
+            else
+                msg_warn "Failed to set LedFX audio device (non-fatal)"
+            fi
+            break
+        fi
+        attempt=$((attempt + 1))
+        sleep 2
+    done
+    
+    if [ $attempt -eq $max_attempts ]; then
+        msg_warn "LedFX did not become ready in time (non-fatal)"
+        msg_warn "You may need to manually set the audio device to 'pulse' in LedFX settings"
+    fi
 }
 
 # Display installation status and next steps
