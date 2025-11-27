@@ -122,6 +122,8 @@
         let availableVirtuals = [];
         let availableScenes = [];
         let refreshInterval = null;
+        let hasUnsavedChanges = false;
+        let savedFormState = null;
 
         // Escape HTML to prevent XSS
         function escapeHtml(text) {
@@ -186,6 +188,10 @@
                 if (endEnabled) {
                     updateHookConfig('end', data.virtuals.hooks?.end);
                 }
+
+                // Save the current form state as the "saved" state
+                savedFormState = getFormState();
+                hasUnsavedChanges = false;
 
             } catch (error) {
                 showError(`Failed to load configuration: ${error.message}`);
@@ -356,6 +362,8 @@
                 if (allVirtualsLabel) {
                     allVirtualsLabel.style.display = mode === 'toggle' ? 'flex' : 'none';
                 }
+                
+                markFormChanged();
             });
         });
 
@@ -372,6 +380,7 @@
                     buildVirtualsList('start', hookConfig.virtuals);
                 }
             }
+            markFormChanged();
         });
 
         document.getElementById('end-all-virtuals').addEventListener('change', function() {
@@ -386,7 +395,25 @@
                     buildVirtualsList('end', hookConfig.virtuals);
                 }
             }
+            markFormChanged();
         });
+
+        // Add change listeners to all form inputs
+        function addFormChangeListeners() {
+            // Listen for changes on checkboxes and inputs
+            document.addEventListener('change', function(e) {
+                if (e.target.matches('.virtual-checkbox, .scene-checkbox, .repeat-input')) {
+                    markFormChanged();
+                }
+            });
+
+            // Listen for input changes on repeat inputs
+            document.addEventListener('input', function(e) {
+                if (e.target.matches('.repeat-input')) {
+                    markFormChanged();
+                }
+            });
+        }
 
         // Save configuration
         document.getElementById('config-form').addEventListener('submit', async function(e) {
@@ -498,6 +525,10 @@
 
                 // Reload config to reflect any changes
                 await loadConfig();
+                
+                // Reset unsaved changes flag after successful save
+                hasUnsavedChanges = false;
+                savedFormState = getFormState();
 
             } catch (error) {
                 showError(`Failed to save configuration: ${error.message}`);
