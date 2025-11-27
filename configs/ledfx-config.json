@@ -1,38 +1,6 @@
 {
     "audio": {
-        "audio_device": 0,
-        "fft_size": 4096,
-        "mic_rate": 44100,
-        "sample_rate": 60,
-        "min_volume": 0.2,
-        "delay_ms": 0
-    },
-    "configuration_version": "2.3.6",
-    "create_segments": false,
-    "dev_mode": false,
-    "devices": [],
-    "flush_on_deactivate": false,
-    "global_brightness": 1.0,
-    "global_transitions": true,
-    "host": "0.0.0.0",
-    "hosts": [],
-    "integrations": [],
-    "melbank_collection": [],
-    "melbanks": {},
-    "playlists": {},
-    "port": 8888,
-    "port_s": 8443,
-    "scan_on_startup": false,
-    "scenes": {},
-    "startup_scene_id": "",
-    "transmission_mode": "compressed",
-    "ui_brightness_boost": 0.0,
-    "user_colors": {},
-    "user_gradients": {},
-    "user_presets": {},
-    "virtuals": [],
-    "visualisation_fps": 30,
-    "visualisation_maxlen": 81,
-    "wled_preferences": {}
+        "audio_device": 0
+    }
 }
 
