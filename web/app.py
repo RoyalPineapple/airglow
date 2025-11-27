@@ -345,6 +345,17 @@ def get_virtual_config():
             start_virtuals = start_hook.get('virtuals', [])
             end_virtuals = end_hook.get('virtuals', [])
             
+            # Check for explicit all_virtuals flag, default to True for backward compatibility
+            start_all_virtuals = start_hook.get('all_virtuals')
+            if start_all_virtuals is None:
+                # Backward compatibility: if flag not present, check if list is empty
+                start_all_virtuals = len(start_virtuals) == 0
+            
+            end_all_virtuals = end_hook.get('all_virtuals')
+            if end_all_virtuals is None:
+                # Backward compatibility: if flag not present, check if list is empty
+                end_all_virtuals = len(end_virtuals) == 0
+            
             return {
                 'ledfx': {
                     'host': ledfx_config.get('host', 'localhost'),
@@ -354,12 +365,12 @@ def get_virtual_config():
                     'start': {
                         'enabled': start_hook.get('enabled', True),
                         'virtuals': start_virtuals,
-                        'all_virtuals': len(start_virtuals) == 0
+                        'all_virtuals': start_all_virtuals
                     },
                     'end': {
                         'enabled': end_hook.get('enabled', True),
                         'virtuals': end_virtuals,
-                        'all_virtuals': len(end_virtuals) == 0
+                        'all_virtuals': end_all_virtuals
                     }
                 }
             }
@@ -379,7 +390,7 @@ def get_virtual_config():
             
             all_virtuals = len(virtual_ids) == 0
             # Convert old format to new format
-            virtuals_list = [] if all_virtuals else [{'id': vid, 'repeats': 1} for vid in virtual_ids]
+            virtuals_list = [{'id': vid, 'repeats': 1} for vid in virtual_ids]
             
             return {
                 'ledfx': {'host': 'localhost', 'port': 8888},
@@ -404,12 +415,12 @@ def get_virtual_config():
                 'start': {
                     'enabled': True,
                     'virtuals': [],
-                    'all_virtuals': True
+                    'all_virtuals': True  # Explicit flag, not inferred from empty list
                 },
                 'end': {
                     'enabled': True,
                     'virtuals': [],
-                    'all_virtuals': True
+                    'all_virtuals': True  # Explicit flag, not inferred from empty list
                 }
             }
         }
@@ -425,18 +436,26 @@ def get_virtual_config():
 def save_virtual_config(config_data):
     """Write virtual configuration to YAML file"""
     try:
-        # Build YAML structure
+        # Build YAML structure with new nested format
+        start_hook_data = config_data.get('start_hook', {})
+        end_hook_data = config_data.get('end_hook', {})
+        
         yaml_data = {
             'ledfx': {
                 'host': config_data.get('ledfx_host', 'localhost'),
                 'port': config_data.get('ledfx_port', 8888)
             },
             'hooks': {
-                'start_enabled': config_data.get('start_enabled', True),
-                'end_enabled': config_data.get('end_enabled', True)
-            },
-            'virtuals': {
-                'selected': config_data.get('virtuals', [])
+                'start': {
+                    'enabled': config_data.get('start_enabled', True),
+                    'all_virtuals': start_hook_data.get('all_virtuals', True),
+                    'virtuals': start_hook_data.get('virtuals', [])
+                },
+                'end': {
+                    'enabled': config_data.get('end_enabled', True),
+                    'all_virtuals': end_hook_data.get('all_virtuals', True),
+                    'virtuals': end_hook_data.get('virtuals', [])
+                }
             }
         }
         
@@ -525,28 +544,44 @@ def save_config():
         # Validate input
         start_enabled = data.get('start_enabled', False)
         end_enabled = data.get('end_enabled', False)
-        all_virtuals = data.get('all_virtuals', True)
-        virtuals = data.get('virtuals', [])
         ledfx_host = data.get('ledfx_host', 'localhost')
         ledfx_port = data.get('ledfx_port', 8888)
         
+        start_hook_data = data.get('start_hook', {})
+        end_hook_data = data.get('end_hook', {})
+        
+        start_all_virtuals = start_hook_data.get('all_virtuals', True)
+        start_virtuals = start_hook_data.get('virtuals', [])
+        end_all_virtuals = end_hook_data.get('all_virtuals', True)
+        end_virtuals = end_hook_data.get('virtuals', [])
+        
         # Validate virtual IDs if specific virtuals are selected
-        if not all_virtuals and virtuals:
-            virtuals_list = get_ledfx_virtuals()
-            available_virtuals = set(virtuals_list.get('virtuals', {}).keys()) if virtuals_list.get('connected') else set()
-            
-            for v in virtuals:
+        virtuals_list = get_ledfx_virtuals()
+        available_virtuals = set(virtuals_list.get('virtuals', {}).keys()) if virtuals_list.get('connected') else set()
+        
+        # Validate start hook virtuals
+        if not start_all_virtuals and start_virtuals:
+            for v in start_virtuals:
                 vid = v.get('id')
                 if vid and vid not in available_virtuals:
-                    return jsonify({'error': f'Invalid virtual ID: {vid}'}), 400
+                    return jsonify({'error': f'Invalid virtual ID in start hook: {vid}'}), 400
                 
                 # Validate repeat counts
-                start_repeats = v.get('start_repeats', 1)
-                stop_repeats = v.get('stop_repeats', 1)
-                if not isinstance(start_repeats, int) or start_repeats < 1:
-                    return jsonify({'error': f'Invalid start_repeats for {vid}: must be integer >= 1'}), 400
-                if not isinstance(stop_repeats, int) or stop_repeats < 1:
-                    return jsonify({'error': f'Invalid stop_repeats for {vid}: must be integer >= 1'}), 400
+                repeats = v.get('repeats', 1)
+                if not isinstance(repeats, int) or repeats < 0:
+                    return jsonify({'error': f'Invalid repeats for {vid} in start hook: must be integer >= 0'}), 400
+        
+        # Validate end hook virtuals
+        if not end_all_virtuals and end_virtuals:
+            for v in end_virtuals:
+                vid = v.get('id')
+                if vid and vid not in available_virtuals:
+                    return jsonify({'error': f'Invalid virtual ID in end hook: {vid}'}), 400
+                
+                # Validate repeat counts
+                repeats = v.get('repeats', 0)
+                if not isinstance(repeats, int) or repeats < 0:
+                    return jsonify({'error': f'Invalid repeats for {vid} in end hook: must be integer >= 0'}), 400
         
         # Save virtual configuration (includes hook enable/disable in YAML)
         # No restart needed - hook scripts check YAML dynamically
@@ -555,7 +590,14 @@ def save_config():
             'ledfx_port': ledfx_port,
             'start_enabled': start_enabled,
             'end_enabled': end_enabled,
-            'virtuals': [] if all_virtuals else virtuals
+            'start_hook': {
+                'all_virtuals': start_all_virtuals,
+                'virtuals': start_virtuals
+            },
+            'end_hook': {
+                'all_virtuals': end_all_virtuals,
+                'virtuals': end_virtuals
+            }
         }
         virtual_result = save_virtual_config(virtual_config_data)
         if 'error' in virtual_result:

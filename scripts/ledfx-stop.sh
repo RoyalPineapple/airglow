@@ -15,14 +15,14 @@ if [ -f /configs/ledfx-hooks.yaml ]; then
   LEDFX_HOST=$(yq eval '.ledfx.host // "localhost"' /configs/ledfx-hooks.yaml 2>/dev/null || echo "localhost")
   LEDFX_PORT=$(yq eval '.ledfx.port // 8888' /configs/ledfx-hooks.yaml 2>/dev/null || echo "8888")
   
-  # Check if all virtuals should be controlled
-  selected_count=$(yq eval '.virtuals.selected | length' /configs/ledfx-hooks.yaml 2>/dev/null || echo "0")
-  if [ "$selected_count" = "0" ]; then
+  # Check if all virtuals should be controlled (explicit flag)
+  all_virtuals_flag=$(yq eval '.hooks.end.all_virtuals // true' /configs/ledfx-hooks.yaml 2>/dev/null || echo "true")
+  if [ "$all_virtuals_flag" = "true" ]; then
     ALL_VIRTUALS=true
   else
     ALL_VIRTUALS=false
     # Get list of virtual IDs from YAML
-    VIRTUAL_IDS=$(yq eval '.virtuals.selected[].id' /configs/ledfx-hooks.yaml 2>/dev/null | tr '\n' ',' | sed 's/,$//')
+    VIRTUAL_IDS=$(yq eval '.hooks.end.virtuals[].id' /configs/ledfx-hooks.yaml 2>/dev/null | tr '\n' ',' | sed 's/,$//')
   fi
 # Fallback to legacy .conf file
 elif [ -f /configs/ledfx-hooks.conf ]; then
@@ -137,8 +137,8 @@ for vid in $VIRTUAL_IDS; do
   if [ -n "$vid" ]; then
     # Get repeat count for this virtual from YAML
     stop_repeats=1
-    if [ -f /configs/ledfx-hooks.yaml ]; then
-      stop_repeats=$(yq eval ".virtuals.selected[] | select(.id == \"$vid\") | .stop_repeats // 1" /configs/ledfx-hooks.yaml 2>/dev/null || echo "1")
+    if [ -f /configs/ledfx-hooks.yaml ] && [ "$ALL_VIRTUALS" = "false" ]; then
+      stop_repeats=$(yq eval ".hooks.end.virtuals[] | select(.id == \"$vid\") | .repeats // 1" /configs/ledfx-hooks.yaml 2>/dev/null || echo "1")
     fi
     
     if virtual_uses_govee "$vid"; then

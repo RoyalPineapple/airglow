@@ -8,10 +8,11 @@ ledfx:
 hooks:
   start:
     enabled: true
-    # Empty list = control all virtuals
-    # Specify virtuals with repeat counts:
+    all_virtuals: true  # true = control all virtuals, false = use virtuals list
+    # Specify virtuals with repeat counts (only used if all_virtuals: false):
     virtuals: []
     # Example:
+    # all_virtuals: false
     # virtuals:
     #   - id: dig-quad
     #     repeats: 1
@@ -19,10 +20,11 @@ hooks:
     #     repeats: 2
   end:
     enabled: true
-    # Empty list = control all virtuals
-    # Specify virtuals with repeat counts:
+    all_virtuals: true  # true = control all virtuals, false = use virtuals list
+    # Specify virtuals with repeat counts (only used if all_virtuals: false):
     virtuals: []
     # Example:
+    # all_virtuals: false
     # virtuals:
     #   - id: dig-quad
     #     repeats: 1

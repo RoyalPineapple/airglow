@@ -16,14 +16,14 @@ if [ -f /configs/ledfx-hooks.yaml ]; then
   LEDFX_HOST=$(yq eval '.ledfx.host // "localhost"' /configs/ledfx-hooks.yaml 2>/dev/null || echo "localhost")
   LEDFX_PORT=$(yq eval '.ledfx.port // 8888' /configs/ledfx-hooks.yaml 2>/dev/null || echo "8888")
   
-  # Check if all virtuals should be controlled
-  selected_count=$(yq eval '.virtuals.selected | length' /configs/ledfx-hooks.yaml 2>/dev/null || echo "0")
-  if [ "$selected_count" = "0" ]; then
+  # Check if all virtuals should be controlled (explicit flag)
+  all_virtuals_flag=$(yq eval '.hooks.start.all_virtuals // true' /configs/ledfx-hooks.yaml 2>/dev/null || echo "true")
+  if [ "$all_virtuals_flag" = "true" ]; then
     ALL_VIRTUALS=true
   else
     ALL_VIRTUALS=false
     # Get list of virtual IDs from YAML
-    VIRTUAL_IDS=$(yq eval '.virtuals.selected[].id' /configs/ledfx-hooks.yaml 2>/dev/null | tr '\n' ',' | sed 's/,$//')
+    VIRTUAL_IDS=$(yq eval '.hooks.start.virtuals[].id' /configs/ledfx-hooks.yaml 2>/dev/null | tr '\n' ',' | sed 's/,$//')
   fi
 # Fallback to legacy .conf file
 elif [ -f /configs/ledfx-hooks.conf ]; then
@@ -78,12 +78,12 @@ for vid in $VIRTUAL_IDS; do
   # Trim whitespace
   vid=$(echo "$vid" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
   if [ -n "$vid" ]; then
-    # Get repeat count for this virtual from YAML
-    start_repeats=1
-    if [ -f /configs/ledfx-hooks.yaml ]; then
-      start_repeats=$(yq eval ".virtuals.selected[] | select(.id == \"$vid\") | .start_repeats // 1" /configs/ledfx-hooks.yaml 2>/dev/null || echo "1")
-    fi
-    activate_virtual "$vid" "$start_repeats"
+                # Get repeat count for this virtual from YAML
+                start_repeats=1
+                if [ -f /configs/ledfx-hooks.yaml ] && [ "$ALL_VIRTUALS" = "false" ]; then
+                    start_repeats=$(yq eval ".hooks.start.virtuals[] | select(.id == \"$vid\") | .repeats // 1" /configs/ledfx-hooks.yaml 2>/dev/null || echo "1")
+                fi
+                activate_virtual "$vid" "$start_repeats"
   fi
 done
 unset IFS

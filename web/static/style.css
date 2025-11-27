@@ -299,6 +299,13 @@ nav a:hover {
     font-size: 0.85rem;
 }
 
+.hook-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: calc(var(--spacing) * 0.5);
+}
+
 .virtual-selection-controls {
     display: flex;
     justify-content: space-between;
