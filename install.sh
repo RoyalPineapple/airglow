@@ -253,6 +253,29 @@ function copy_configs() {
     fi
 
     msg_ok "Configuration files deployed"
+    
+    # Initialize git repository for future updates
+    if [[ "${DRY_RUN}" == false ]] && [[ -d "${INSTALL_DIR}" ]]; then
+        msg_info "Initializing git repository for future updates..."
+        if command -v git &>/dev/null; then
+            cd "${INSTALL_DIR}" || exit 1
+            if ! git rev-parse --git-dir >/dev/null 2>&1; then
+                git init -q
+                git remote add origin https://github.com/RoyalPineapple/airglow.git 2>/dev/null || true
+                git fetch origin -q 2>/dev/null || true
+                # Add all files and create initial commit
+                git add -A
+                git commit -m "Initial installation" -q 2>/dev/null || true
+                # Try to checkout the branch we're installing from (if available)
+                if [[ -n "${GIT_BRANCH:-}" ]]; then
+                    git checkout -b "${GIT_BRANCH}" "origin/${GIT_BRANCH}" 2>/dev/null || true
+                fi
+                msg_ok "Git repository initialized"
+            fi
+        else
+            msg_warn "Git not available - future updates may require manual git setup"
+        fi
+    fi
 }
 
 # Start the Docker Compose stack
