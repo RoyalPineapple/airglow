@@ -563,18 +563,37 @@
             }
         }
 
-        // Initial load
-        loadConfig();
-
-        // Refresh virtuals and scenes lists every 10 seconds
-        refreshInterval = setInterval(refreshLists, 10000);
-
-        // Clear interval on page unload
-        window.addEventListener('beforeunload', () => {
+        // Warn before leaving with unsaved changes
+        window.addEventListener('beforeunload', (e) => {
+            if (hasUnsavedChanges || checkUnsavedChanges()) {
+                e.preventDefault();
+                e.returnValue = 'You have unsaved changes. Are you sure you want to leave?';
+                return e.returnValue;
+            }
             if (refreshInterval) {
                 clearInterval(refreshInterval);
             }
         });
+
+        // Intercept navigation links to warn about unsaved changes
+        document.addEventListener('click', (e) => {
+            const link = e.target.closest('a');
+            if (link && link.href && !link.target && (hasUnsavedChanges || checkUnsavedChanges())) {
+                if (!confirm('You have unsaved changes. Are you sure you want to leave this page?')) {
+                    e.preventDefault();
+                    return false;
+                }
+            }
+        });
+
+        // Initial load
+        loadConfig();
+
+        // Add form change listeners
+        addFormChangeListeners();
+
+        // Refresh virtuals and scenes lists every 10 seconds
+        refreshInterval = setInterval(refreshLists, 10000);
     </script>
 </body>
 </html>
