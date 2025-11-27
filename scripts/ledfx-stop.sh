@@ -14,16 +14,22 @@ LEDFX_HOST="${2:-${LEDFX_HOST:-localhost}}"
 LEDFX_PORT="${3:-${LEDFX_PORT:-8888}}"
 BASE_URL="http://${LEDFX_HOST}:${LEDFX_PORT}"
 
-# Function to deactivate a single virtual (sends command twice with delay for reliability)
+# Function to deactivate a single virtual (toggle pattern for reliability, especially Govee)
 deactivate_virtual() {
   local vid="$1"
-  # Send deactivate command first time
+  # Send deactivate command
   curl -X PUT -H "Content-Type: application/json" \
     -d '{"active": false}' \
     -s "${BASE_URL}/api/virtuals/${vid}" > /dev/null
   # Wait 0.25 seconds
   sleep 0.25
-  # Send deactivate command second time for reliability (especially Govee devices)
+  # Send activate command (toggle to ensure state is processed)
+  curl -X PUT -H "Content-Type: application/json" \
+    -d '{"active": true}' \
+    -s "${BASE_URL}/api/virtuals/${vid}" > /dev/null
+  # Wait 0.25 seconds
+  sleep 0.25
+  # Send deactivate command again (final state)
   curl -X PUT -H "Content-Type: application/json" \
     -d '{"active": false}' \
     -s "${BASE_URL}/api/virtuals/${vid}" > /dev/null
