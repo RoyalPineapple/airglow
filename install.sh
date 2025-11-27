@@ -139,11 +139,16 @@ function setup_directory() {
     mkdir -p "${INSTALL_DIR}"
     mkdir -p "${INSTALL_DIR}/configs"
     mkdir -p "${INSTALL_DIR}/pulse"
+    mkdir -p "${INSTALL_DIR}/ledfx-data"
 
-    # Set ownership for Pulse directory (LedFX runs as UID 1000)
+    # Set ownership for Pulse and LedFX data directories (LedFX runs as UID 1000)
     chown -R 1000:1000 "${INSTALL_DIR}/pulse" || {
         msg_warn "Failed to set ownership on pulse directory"
         msg_warn "You may need to manually run: sudo chown -R 1000:1000 ${INSTALL_DIR}/pulse"
+    }
+    chown -R 1000:1000 "${INSTALL_DIR}/ledfx-data" || {
+        msg_warn "Failed to set ownership on ledfx-data directory"
+        msg_warn "You may need to manually run: sudo chown -R 1000:1000 ${INSTALL_DIR}/ledfx-data"
     }
 
     msg_ok "Directory structure created"
