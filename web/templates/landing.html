@@ -24,6 +24,17 @@
         </div>
         {% endif %}
 
+        {% if not has_ledfx_devices %}
+        <div class="setup-banner">
+            <div class="setup-icon">💡</div>
+            <div class="setup-content">
+                <h2>No LedFX Devices Configured</h2>
+                <p>LedFX doesn't have any devices configured yet. You'll need to add devices in LedFX before you can configure AirPlay hooks to control them.</p>
+                <a href="http://{{ request.host.split(':')[0] }}:8888" target="_blank" class="btn btn-primary">Open LedFX</a>
+            </div>
+        </div>
+        {% endif %}
+
         <main class="landing-main">
             <div class="landing-cards">
                 <a href="/status" class="landing-card">

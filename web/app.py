@@ -474,7 +474,19 @@ def index():
     """Landing page"""
     # Check if this is a fresh installation (no config file)
     is_fresh_install = not os.path.exists(HOOKS_YAML)
-    return render_template('landing.html', is_fresh_install=is_fresh_install)
+    
+    # Check if LedFX has any devices configured
+    has_ledfx_devices = False
+    try:
+        devices_data = get_ledfx_devices()
+        if devices_data.get('connected') and devices_data.get('devices'):
+            has_ledfx_devices = len(devices_data['devices']) > 0
+    except Exception:
+        pass
+    
+    return render_template('landing.html', 
+                          is_fresh_install=is_fresh_install,
+                          has_ledfx_devices=has_ledfx_devices)
 
 
 @app.route('/status')
