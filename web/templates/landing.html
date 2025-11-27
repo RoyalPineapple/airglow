@@ -7,11 +7,9 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
-    {% if has_banner %}
     <div class="banner-container">
-        <img src="{{ url_for('static', filename='banner.jpg') }}" alt="Aurora Borealis" class="banner-image">
+        <img src="https://raw.githubusercontent.com/RoyalPineapple/airglow/master/web/static/banner.jpg" alt="Aurora Borealis" class="banner-image" onerror="this.parentElement.style.display='none'">
     </div>
-    {% endif %}
     <div class="container">
         <header>
             <h1>Airglow</h1>
