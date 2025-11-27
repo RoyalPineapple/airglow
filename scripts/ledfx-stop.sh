@@ -21,14 +21,14 @@ deactivate_virtual() {
   curl -X PUT -H "Content-Type: application/json" \
     -d '{"active": false}' \
     -s "${BASE_URL}/api/virtuals/${vid}" > /dev/null
-  # Wait 0.25 seconds
-  sleep 0.25
+  # Wait 0.1 seconds
+  sleep 0.1
   # Send activate command (toggle to ensure state is processed)
   curl -X PUT -H "Content-Type: application/json" \
     -d '{"active": true}' \
     -s "${BASE_URL}/api/virtuals/${vid}" > /dev/null
-  # Wait 0.25 seconds
-  sleep 0.25
+  # Wait 0.1 seconds
+  sleep 0.1
   # Send deactivate command again (final state)
   curl -X PUT -H "Content-Type: application/json" \
     -d '{"active": false}' \
