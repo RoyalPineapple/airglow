@@ -483,12 +483,6 @@ def status_page():
     return render_template('index.html')
 
 
-@app.route('/ledfx')
-def ledfx():
-    """LedFX devices and virtuals page"""
-    return render_template('ledfx.html')
-
-
 @app.route('/config')
 def config():
     """Configuration page"""
