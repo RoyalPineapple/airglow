@@ -245,7 +245,19 @@
 
             // Update "All Virtuals" checkbox
             allVirtualsCheckbox.checked = allVirtualsChecked;
-
+            
+            // Hide "All Virtuals" checkbox if no devices are configured
+            const allVirtualsLabel = allVirtualsCheckbox.closest('.all-virtuals-label');
+            if (allVirtualsLabel) {
+                allVirtualsLabel.style.display = hasDevices ? 'flex' : 'none';
+            }
+            
+            // If no devices, force all_virtuals to false
+            if (!hasDevices && allVirtualsChecked) {
+                allVirtualsCheckbox.checked = false;
+                hookConfig.all_virtuals = false;
+            }
+            
             // Show/hide virtuals list based on "All Virtuals" selection
             if (allVirtualsChecked) {
                 listEl.style.display = 'none';
