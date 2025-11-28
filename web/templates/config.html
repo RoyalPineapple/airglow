@@ -241,8 +241,10 @@
             });
         }
 
+        let successMessageTimeout = null;
+
         // Show success message
-        function showSuccess(message) {
+        function showSuccess(message, autoDismiss = false) {
             const successEl = document.getElementById('success-message');
             const successText = document.getElementById('success-text');
             if (successText) {
@@ -251,6 +253,20 @@
                 successEl.textContent = message;
             }
             successEl.style.display = 'flex';
+            
+            // Clear any existing timeout
+            if (successMessageTimeout) {
+                clearTimeout(successMessageTimeout);
+                successMessageTimeout = null;
+            }
+            
+            // Auto-dismiss after 3 seconds if requested
+            if (autoDismiss) {
+                successMessageTimeout = setTimeout(() => {
+                    successEl.style.display = 'none';
+                    successMessageTimeout = null;
+                }, 3000);
+            }
         }
 
         // Load configuration
@@ -299,7 +315,8 @@
                 // Store initial state of all controls for rollback
                 storeControlStates();
 
-                updateSaveStatus('Configuration loaded.');
+                // Show configuration loaded banner that auto-dismisses
+                showSuccess('Configuration loaded.', true);
 
             } catch (error) {
                 showError(`Failed to load configuration: ${error.message}`);
