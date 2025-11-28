@@ -368,7 +368,7 @@ def get_virtual_config():
             start_virtuals = start_hook.get('virtuals', [])
             end_virtuals = end_hook.get('virtuals', [])
             
-            # Check for explicit all_virtuals flag, default to True for backward compatibility
+            # Check for explicit all_virtuals flag, default to True
             start_all_virtuals = start_hook.get('all_virtuals')
             if start_all_virtuals is None:
                 # If flag not present, check if list is empty
