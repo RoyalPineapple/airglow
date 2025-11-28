@@ -76,7 +76,8 @@
                 html += '<h2>Audio System</h2>';
                 html += '<div class="status-grid">';
                 const audio = data.audio || {};
-                html += `<div class="status-item"><span class="status-label">PulseAudio:</span> ${formatStatus(audio.pulseaudio?.available)}</div>`;
+                const pulseaudio = audio.pulseaudio || {};
+                html += `<div class="status-item"><span class="status-label">PulseAudio:</span> ${formatStatus(pulseaudio.available)}</div>`;
                 html += `<div class="status-item"><span class="status-label">Active Streams:</span> <span class="status-value">${audio.active_streams || 0}</span></div>`;
                 if (data.ledfx_audio_device?.configured_device) {
                     const deviceName = data.ledfx_audio_device.configured_device.replace(/^ALSA: /, '');
