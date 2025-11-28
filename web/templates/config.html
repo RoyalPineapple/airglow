@@ -185,6 +185,7 @@
         let hasDevices = false;
         let currentAirplayName = '';
         let airplayRequestInFlight = false;
+        let airplayConfigSaved = false; // Track if config has been saved (enables restart button)
         const airplayNameInput = document.getElementById('airplay-name-input');
         const airplayFeedbackEl = document.getElementById('airplay-feedback');
         const saveAirplayNameBtn = document.getElementById('save-airplay-name-btn');
@@ -290,7 +291,9 @@
                 if (airplayNameInput) {
                     currentAirplayName = typeof data.airplay_name === 'string' ? data.airplay_name : '';
                     airplayNameInput.value = currentAirplayName;
-                    // Both buttons start disabled (even if name matches)
+                    // Reset saved flag on load - restart button disabled until save
+                    airplayConfigSaved = false;
+                    // Both buttons start disabled
                     updateAirplayButtonStates();
                 }
 
@@ -470,9 +473,9 @@
                 saveAirplayNameBtn.disabled = !hasUnsavedChanges || airplayRequestInFlight;
             }
             
-            // Restart button: enabled only when there are no unsaved changes (config is saved)
+            // Restart button: enabled only when config has been saved AND there are no unsaved changes
             if (restartShairportBtn) {
-                restartShairportBtn.disabled = hasUnsavedChanges;
+                restartShairportBtn.disabled = !airplayConfigSaved || hasUnsavedChanges;
             }
         }
 
@@ -504,6 +507,10 @@
                 return;
             }
             if (newName === currentAirplayName) {
+                // If name matches but hasn't been saved yet, mark as saved
+                if (!airplayConfigSaved) {
+                    airplayConfigSaved = true;
+                }
                 updateSaveStatus('AirPlay name is already set to that value.');
                 updateAirplayButtonStates();
                 return;
@@ -524,6 +531,8 @@
                     throw new Error(result.error || 'Failed to update AirPlay name.');
                 }
                 currentAirplayName = result.name || newName;
+                // Mark config as saved - enables restart button
+                airplayConfigSaved = true;
                 showSuccess('AirPlay name saved. Restart Shairport-Sync to apply changes.');
                 updateSaveStatus('AirPlay name saved. Restart to apply.', 'success');
             } catch (error) {
