@@ -444,6 +444,15 @@ nav a:hover {
     background-color: rgba(52, 152, 219, 0.1);
 }
 
+.btn-destructive {
+    background-color: #e74c3c;
+    color: #fff;
+}
+
+.btn-destructive:hover:not(:disabled) {
+    background-color: #c0392b;
+}
+
 .diagnostic-output {
     margin-top: var(--spacing);
     padding: var(--spacing);
