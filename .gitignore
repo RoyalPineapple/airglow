@@ -11,6 +11,10 @@ pulse/
 # Volume data (if mounted locally)
 ledfx-data/
 
+# User-generated configuration files (should not be tracked)
+configs/ledfx-hooks.yaml
+configs/ledfx-config.json
+
 # Logs
 *.log
 logs/
