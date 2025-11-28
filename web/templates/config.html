@@ -554,12 +554,11 @@
                 }
                 showSuccess('Shairport-Sync restart triggered. Give it a few seconds to come back online.');
                 updateSaveStatus('Shairport-Sync restarted.', 'success');
-                // Button states remain: Save disabled, Restart enabled (no unsaved changes)
-                updateAirplayButtonStates();
             } catch (error) {
                 showError(error.message || 'Failed to restart shairport-sync.');
             } finally {
-                restartShairportBtn.disabled = false;
+                // Update button states: Restart enabled if no unsaved changes, disabled if there are changes
+                updateAirplayButtonStates();
             }
         }
 
