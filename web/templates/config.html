@@ -187,9 +187,8 @@
                     updateHookConfig('end', data.virtuals.hooks?.end);
                 }
 
-                // Save the current form state as the "saved" state
-                savedFormState = getFormState();
-                hasUnsavedChanges = false;
+                // Store initial state of all controls for rollback
+                storeControlStates();
 
             } catch (error) {
                 showError(`Failed to load configuration: ${error.message}`);
@@ -719,26 +718,10 @@
             }
         }
 
-        // Warn before leaving with unsaved changes
+        // Clear refresh interval on page unload
         window.addEventListener('beforeunload', (e) => {
-            if (hasUnsavedChanges || checkUnsavedChanges()) {
-                e.preventDefault();
-                e.returnValue = 'You have unsaved changes. Are you sure you want to leave?';
-                return e.returnValue;
-            }
             if (refreshInterval) {
                 clearInterval(refreshInterval);
-            }
-        });
-
-        // Intercept navigation links to warn about unsaved changes
-        document.addEventListener('click', (e) => {
-            const link = e.target.closest('a');
-            if (link && link.href && !link.target && (hasUnsavedChanges || checkUnsavedChanges())) {
-                if (!confirm('You have unsaved changes. Are you sure you want to leave this page?')) {
-                    e.preventDefault();
-                    return false;
-                }
             }
         });
 
