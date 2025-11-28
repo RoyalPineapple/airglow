@@ -109,11 +109,6 @@
                 </div>
             </section>
 
-            <!-- Save Button -->
-            <div class="form-actions">
-                <button type="submit" id="save-btn" class="btn btn-primary">Save Configuration</button>
-                <span id="save-status" class="save-status"></span>
-            </div>
         </form>
     </div>
 
@@ -123,8 +118,9 @@
         let availableScenes = [];
         let hasDevices = false;
         let refreshInterval = null;
-        let hasUnsavedChanges = false;
-        let savedFormState = null;
+        // Track previous state of each control for rollback on failure
+        let controlStates = new Map();
+        let saveInProgress = false;
 
         // Escape HTML to prevent XSS
         function escapeHtml(text) {
@@ -333,88 +329,6 @@
             });
         }
 
-        // Handle hook enable/disable toggle changes
-        document.getElementById('start-hook-enabled').addEventListener('change', function() {
-            const configSection = document.getElementById('start-hook-config');
-            configSection.style.display = this.checked ? 'block' : 'none';
-            if (this.checked && configData) {
-                updateHookConfig('start', configData.virtuals.hooks?.start);
-            }
-        });
-
-        document.getElementById('end-hook-enabled').addEventListener('change', function() {
-            const configSection = document.getElementById('end-hook-config');
-            configSection.style.display = this.checked ? 'block' : 'none';
-            if (this.checked && configData) {
-                updateHookConfig('end', configData.virtuals.hooks?.end);
-            }
-        });
-
-        // Handle mode tab switching
-        document.querySelectorAll('.mode-tab').forEach(tab => {
-            tab.addEventListener('click', function() {
-                const hookType = this.dataset.hook;
-                const mode = this.dataset.mode;
-                
-                // Update active tab
-                document.querySelectorAll(`.mode-tab[data-hook="${hookType}"]`).forEach(t => t.classList.remove('active'));
-                this.classList.add('active');
-                
-                // Show/hide mode content
-                const toggleModeEl = document.getElementById(`${hookType}-toggle-mode`);
-                const sceneModeEl = document.getElementById(`${hookType}-scene-mode`);
-                toggleModeEl.style.display = mode === 'toggle' ? 'block' : 'none';
-                sceneModeEl.style.display = mode === 'scene' ? 'block' : 'none';
-                
-                // Hide/show "All Virtuals" checkbox based on mode
-                const allVirtualsLabel = document.querySelector(`#${hookType}-all-virtuals`).closest('.all-virtuals-label');
-                if (allVirtualsLabel) {
-                    allVirtualsLabel.style.display = mode === 'toggle' ? 'flex' : 'none';
-                }
-                
-                // Build scenes list if switching to scene mode and list hasn't been built yet
-                if (mode === 'scene') {
-                    const scenesListEl = document.getElementById(`${hookType}-scenes-list`);
-                    if (scenesListEl.innerHTML.includes('Loading')) {
-                        const hookConfig = configData?.virtuals?.hooks?.[hookType] || { scenes: [] };
-                        updateSceneSelection(hookType, hookConfig);
-                    }
-                }
-                
-                markFormChanged();
-            });
-        });
-
-        // Handle "All Virtuals" checkbox changes
-        document.getElementById('start-all-virtuals').addEventListener('change', function() {
-            const listEl = document.getElementById('start-virtuals-list');
-            if (this.checked) {
-                listEl.style.display = 'none';
-            } else {
-                listEl.style.display = 'block';
-                if (listEl.innerHTML.includes('Loading')) {
-                    // Build list if not already built
-                    const hookConfig = configData?.virtuals?.hooks?.start || { virtuals: [], all_virtuals: false };
-                    buildVirtualsList('start', hookConfig.virtuals);
-                }
-            }
-            markFormChanged();
-        });
-
-        document.getElementById('end-all-virtuals').addEventListener('change', function() {
-            const listEl = document.getElementById('end-virtuals-list');
-            if (this.checked) {
-                listEl.style.display = 'none';
-            } else {
-                listEl.style.display = 'block';
-                if (listEl.innerHTML.includes('Loading')) {
-                    // Build list if not already built
-                    const hookConfig = configData?.virtuals?.hooks?.end || { virtuals: [], all_virtuals: false };
-                    buildVirtualsList('end', hookConfig.virtuals);
-                }
-            }
-            markFormChanged();
-        });
 
         // Get current form state for comparison
         function getFormState() {
@@ -454,51 +368,84 @@
             return JSON.stringify(state);
         }
 
-        // Check if there are unsaved changes by comparing current state with saved state
-        function checkUnsavedChanges() {
-            if (!savedFormState) {
-                return false;
-            }
-            const currentState = getFormState();
-            return currentState !== savedFormState;
-        }
-
-        // Add change listeners to all form inputs
-        function addFormChangeListeners() {
-            // Listen for changes on checkboxes and inputs
-            document.addEventListener('change', function(e) {
-                if (e.target.matches('.virtual-checkbox, .scene-checkbox, .repeat-input')) {
-                    markFormChanged();
-                }
-            });
-
-            // Listen for input changes on repeat inputs
-            document.addEventListener('input', function(e) {
-                if (e.target.matches('.repeat-input')) {
-                    markFormChanged();
-                }
-            });
-        }
-
-        // Save configuration
-        document.getElementById('config-form').addEventListener('submit', async function(e) {
-            e.preventDefault();
-
-            const saveBtn = document.getElementById('save-btn');
-            const saveStatus = document.getElementById('save-status');
+        // Store the current state of all controls for rollback
+        function storeControlStates() {
+            controlStates.clear();
             
-            saveBtn.disabled = true;
-            saveStatus.textContent = 'Saving...';
-
+            // Store hook toggles
+            controlStates.set('start-hook-enabled', document.getElementById('start-hook-enabled').checked);
+            controlStates.set('end-hook-enabled', document.getElementById('end-hook-enabled').checked);
+            
+            // Store mode tabs
+            const startModeTab = document.querySelector('.mode-tab[data-hook="start"].active');
+            const endModeTab = document.querySelector('.mode-tab[data-hook="end"].active');
+            controlStates.set('start-mode', startModeTab ? startModeTab.dataset.mode : 'toggle');
+            controlStates.set('end-mode', endModeTab ? endModeTab.dataset.mode : 'toggle');
+            
+            // Store all virtuals checkboxes
+            controlStates.set('start-all-virtuals', document.getElementById('start-all-virtuals').checked);
+            controlStates.set('end-all-virtuals', document.getElementById('end-all-virtuals').checked);
+            
+            // Store virtual checkboxes
+            document.querySelectorAll('.virtual-checkbox').forEach(cb => {
+                controlStates.set(cb.id || `virtual-${cb.dataset.hook}-${cb.dataset.vid}`, cb.checked);
+            });
+            
+            // Store scene checkboxes
+            document.querySelectorAll('.scene-checkbox').forEach(cb => {
+                controlStates.set(cb.id || `scene-${cb.dataset.hook}-${cb.dataset.sid}`, cb.checked);
+            });
+            
+            // Store repeat inputs
+            document.querySelectorAll('.repeat-input').forEach(input => {
+                controlStates.set(input.id || `repeat-${input.dataset.hook}-${input.dataset.vid}`, input.value);
+            });
+        }
+        
+        // Revert a specific control to its previous state
+        function revertControl(controlId, previousValue) {
+            const element = document.getElementById(controlId);
+            if (!element) {
+                // Try to find by data attributes
+                const [type, hook, id] = controlId.split('-');
+                if (type === 'virtual') {
+                    const cb = document.querySelector(`.virtual-checkbox[data-hook="${hook}"][data-vid="${id}"]`);
+                    if (cb) cb.checked = previousValue;
+                } else if (type === 'scene') {
+                    const cb = document.querySelector(`.scene-checkbox[data-hook="${hook}"][data-sid="${id}"]`);
+                    if (cb) cb.checked = previousValue;
+                } else if (type === 'repeat') {
+                    const input = document.querySelector(`.repeat-input[data-hook="${hook}"][data-vid="${id}"]`);
+                    if (input) input.value = previousValue;
+                }
+                return;
+            }
+            
+            if (element.type === 'checkbox') {
+                element.checked = previousValue;
+            } else if (element.type === 'number' || element.type === 'text') {
+                element.value = previousValue;
+            }
+        }
+        
+        // Auto-save configuration on change
+        async function autoSave(controlId, previousValue) {
+            if (saveInProgress) {
+                // If a save is already in progress, queue this one
+                setTimeout(() => autoSave(controlId, previousValue), 100);
+                return;
+            }
+            
+            saveInProgress = true;
+            
             try {
-                // Collect start hook configuration (only if enabled)
+                // Collect current configuration
                 const startEnabled = document.getElementById('start-hook-enabled').checked;
                 let startMode = 'toggle';
                 let startAllVirtuals = true;
                 let startVirtuals = [];
                 let startScenes = [];
                 if (startEnabled) {
-                    // Get active mode
                     const activeStartTab = document.querySelector(`.mode-tab[data-hook="start"].active`);
                     startMode = activeStartTab ? activeStartTab.dataset.mode : 'toggle';
                     
@@ -507,28 +454,25 @@
                         if (!startAllVirtuals) {
                             document.querySelectorAll('.virtual-checkbox[data-hook="start"]:checked').forEach(cb => {
                                 const vid = cb.dataset.vid;
-                                const repeats = parseInt(document.querySelector(`.repeat-input[data-hook="start"][data-vid="${vid}"]`).value) || 1;
+                                const repeats = parseInt(document.querySelector(`.repeat-input[data-hook="start"][data-vid="${vid}"]`)?.value) || 1;
                                 if (repeats > 0) {
                                     startVirtuals.push({ id: vid, repeats: repeats });
                                 }
                             });
                         }
                     } else {
-                        // Scene mode
                         document.querySelectorAll('.scene-checkbox[data-hook="start"]:checked').forEach(cb => {
                             startScenes.push(cb.dataset.sid);
                         });
                     }
                 }
 
-                // Collect end hook configuration (only if enabled)
                 const endEnabled = document.getElementById('end-hook-enabled').checked;
                 let endMode = 'toggle';
                 let endAllVirtuals = true;
                 let endVirtuals = [];
                 let endScenes = [];
                 if (endEnabled) {
-                    // Get active mode
                     const activeEndTab = document.querySelector(`.mode-tab[data-hook="end"].active`);
                     endMode = activeEndTab ? activeEndTab.dataset.mode : 'toggle';
                     
@@ -537,14 +481,13 @@
                         if (!endAllVirtuals) {
                             document.querySelectorAll('.virtual-checkbox[data-hook="end"]:checked').forEach(cb => {
                                 const vid = cb.dataset.vid;
-                                const repeats = parseInt(document.querySelector(`.repeat-input[data-hook="end"][data-vid="${vid}"]`).value) || 0;
+                                const repeats = parseInt(document.querySelector(`.repeat-input[data-hook="end"][data-vid="${vid}"]`)?.value) || 0;
                                 if (repeats > 0) {
                                     endVirtuals.push({ id: vid, repeats: repeats });
                                 }
                             });
                         }
                     } else {
-                        // Scene mode
                         document.querySelectorAll('.scene-checkbox[data-hook="end"]:checked').forEach(cb => {
                             endScenes.push(cb.dataset.sid);
                         });
@@ -576,32 +519,180 @@
                     body: JSON.stringify(configPayload)
                 });
 
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({ error: 'Failed to save configuration' }));
+                    throw new Error(errorData.error || 'Failed to save configuration');
+                }
+
                 const data = await response.json();
-
-                if (!response.ok || data.error) {
-                    throw new Error(data.error || `HTTP ${response.status}`);
-                }
-
-                if (data.warning) {
-                    showSuccess(`Configuration saved with warning: ${data.warning}`);
-                } else {
-                    showSuccess('Configuration saved successfully!');
-                }
-
-                // Reload config to reflect any changes
-                await loadConfig();
                 
-                // Reset unsaved changes flag after successful save
-                hasUnsavedChanges = false;
-                savedFormState = getFormState();
-
+                // Update stored states on success
+                storeControlStates();
+                
+                // Show brief success indicator
+                showControlFeedback(controlId, true);
+                
             } catch (error) {
-                showError(`Failed to save configuration: ${error.message}`);
+                // Revert the control that failed
+                revertControl(controlId, previousValue);
+                showControlFeedback(controlId, false, error.message);
             } finally {
-                saveBtn.disabled = false;
-                saveStatus.textContent = '';
+                saveInProgress = false;
             }
-        });
+        }
+        
+        // Show feedback for a specific control
+        function showControlFeedback(controlId, success, errorMessage = null) {
+            const element = document.getElementById(controlId);
+            if (!element) return;
+            
+            // Remove existing feedback
+            const existingFeedback = element.parentElement.querySelector('.control-feedback');
+            if (existingFeedback) {
+                existingFeedback.remove();
+            }
+            
+            if (success) {
+                const feedback = document.createElement('span');
+                feedback.className = 'control-feedback success';
+                feedback.textContent = '✓';
+                feedback.title = 'Saved';
+                element.parentElement.style.position = 'relative';
+                element.parentElement.appendChild(feedback);
+                setTimeout(() => feedback.remove(), 2000);
+            } else {
+                const feedback = document.createElement('span');
+                feedback.className = 'control-feedback error';
+                feedback.textContent = '✗';
+                feedback.title = errorMessage || 'Failed to save';
+                element.parentElement.style.position = 'relative';
+                element.parentElement.appendChild(feedback);
+                setTimeout(() => feedback.remove(), 3000);
+            }
+        }
+
+        // Add change listeners to all form inputs with auto-save
+        function addFormChangeListeners() {
+            // Hook enable/disable toggles
+            document.getElementById('start-hook-enabled').addEventListener('change', function() {
+                const previousValue = controlStates.get('start-hook-enabled') || false;
+                controlStates.set('start-hook-enabled', this.checked);
+                const configSection = document.getElementById('start-hook-config');
+                configSection.style.display = this.checked ? 'block' : 'none';
+                if (this.checked && configData) {
+                    updateHookConfig('start', configData.virtuals.hooks?.start);
+                }
+                autoSave('start-hook-enabled', previousValue);
+            });
+
+            document.getElementById('end-hook-enabled').addEventListener('change', function() {
+                const previousValue = controlStates.get('end-hook-enabled') || false;
+                controlStates.set('end-hook-enabled', this.checked);
+                const configSection = document.getElementById('end-hook-config');
+                configSection.style.display = this.checked ? 'block' : 'none';
+                if (this.checked && configData) {
+                    updateHookConfig('end', configData.virtuals.hooks?.end);
+                }
+                autoSave('end-hook-enabled', previousValue);
+            });
+            
+            // Mode tabs
+            document.querySelectorAll('.mode-tab').forEach(tab => {
+                tab.addEventListener('click', function() {
+                    const hookType = this.dataset.hook;
+                    const mode = this.dataset.mode;
+                    const previousMode = controlStates.get(`${hookType}-mode`) || 'toggle';
+                    
+                    // Update active tab
+                    document.querySelectorAll(`.mode-tab[data-hook="${hookType}"]`).forEach(t => t.classList.remove('active'));
+                    this.classList.add('active');
+                    
+                    // Show/hide mode content
+                    const toggleModeEl = document.getElementById(`${hookType}-toggle-mode`);
+                    const sceneModeEl = document.getElementById(`${hookType}-scene-mode`);
+                    toggleModeEl.style.display = mode === 'toggle' ? 'block' : 'none';
+                    sceneModeEl.style.display = mode === 'scene' ? 'block' : 'none';
+                    
+                    // Hide/show "All Virtuals" checkbox based on mode
+                    const allVirtualsLabel = document.querySelector(`#${hookType}-all-virtuals`).closest('.all-virtuals-label');
+                    if (allVirtualsLabel) {
+                        allVirtualsLabel.style.display = mode === 'toggle' ? 'flex' : 'none';
+                    }
+                    
+                    // Build scenes list if switching to scene mode and list hasn't been built yet
+                    if (mode === 'scene') {
+                        const scenesListEl = document.getElementById(`${hookType}-scenes-list`);
+                        if (scenesListEl.innerHTML.includes('Loading')) {
+                            const hookConfig = configData?.virtuals?.hooks?.[hookType] || { scenes: [] };
+                            updateSceneSelection(hookType, hookConfig);
+                        }
+                    }
+                    
+                    controlStates.set(`${hookType}-mode`, mode);
+                    autoSave(`${hookType}-mode`, previousMode);
+                });
+            });
+            
+            // All virtuals checkboxes
+            document.getElementById('start-all-virtuals').addEventListener('change', function() {
+                const previousValue = controlStates.get('start-all-virtuals') || false;
+                controlStates.set('start-all-virtuals', this.checked);
+                const listEl = document.getElementById('start-virtuals-list');
+                if (this.checked) {
+                    listEl.style.display = 'none';
+                } else {
+                    listEl.style.display = 'block';
+                    if (listEl.innerHTML.includes('Loading')) {
+                        const hookConfig = configData?.virtuals?.hooks?.start || { virtuals: [], all_virtuals: false };
+                        buildVirtualsList('start', hookConfig.virtuals);
+                    }
+                }
+                autoSave('start-all-virtuals', previousValue);
+            });
+
+            document.getElementById('end-all-virtuals').addEventListener('change', function() {
+                const previousValue = controlStates.get('end-all-virtuals') || false;
+                controlStates.set('end-all-virtuals', this.checked);
+                const listEl = document.getElementById('end-virtuals-list');
+                if (this.checked) {
+                    listEl.style.display = 'none';
+                } else {
+                    listEl.style.display = 'block';
+                    if (listEl.innerHTML.includes('Loading')) {
+                        const hookConfig = configData?.virtuals?.hooks?.end || { virtuals: [], all_virtuals: false };
+                        buildVirtualsList('end', hookConfig.virtuals);
+                    }
+                }
+                autoSave('end-all-virtuals', previousValue);
+            });
+            
+            // Listen for changes on checkboxes and inputs
+            document.addEventListener('change', function(e) {
+                if (e.target.matches('.virtual-checkbox, .scene-checkbox')) {
+                    const controlId = e.target.id || `${e.target.classList.contains('virtual-checkbox') ? 'virtual' : 'scene'}-${e.target.dataset.hook}-${e.target.dataset.vid || e.target.dataset.sid}`;
+                    const previousValue = controlStates.get(controlId) || false;
+                    controlStates.set(controlId, e.target.checked);
+                    autoSave(controlId, previousValue);
+                }
+            });
+
+            // Listen for input changes on repeat inputs (with debounce)
+            let repeatInputTimeout = null;
+            document.addEventListener('input', function(e) {
+                if (e.target.matches('.repeat-input')) {
+                    const controlId = e.target.id || `repeat-${e.target.dataset.hook}-${e.target.dataset.vid}`;
+                    const previousValue = controlStates.get(controlId) || e.target.value;
+                    
+                    // Debounce repeat input saves (wait 500ms after user stops typing)
+                    clearTimeout(repeatInputTimeout);
+                    repeatInputTimeout = setTimeout(() => {
+                        controlStates.set(controlId, e.target.value);
+                        autoSave(controlId, previousValue);
+                    }, 500);
+                }
+            });
+        }
+
 
         // Auto-refresh available virtuals and scenes lists
         async function refreshLists() {

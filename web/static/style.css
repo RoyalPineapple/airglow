@@ -583,6 +583,25 @@ code {
     max-width: 800px;
 }
 
+.control-feedback {
+    position: absolute;
+    right: 0.5rem;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 0.875rem;
+    font-weight: bold;
+    pointer-events: none;
+    z-index: 10;
+}
+
+.control-feedback.success {
+    color: var(--color-success);
+}
+
+.control-feedback.error {
+    color: var(--color-error);
+}
+
 .landing-card {
     display: flex;
     flex-direction: column;
