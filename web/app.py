@@ -30,6 +30,8 @@ LEDFX_URL = f"http://{LEDFX_HOST}:{LEDFX_PORT}"
 # Config file paths
 CONFIG_DIR = '/configs'
 HOOKS_YAML = os.path.join(CONFIG_DIR, 'ledfx-hooks.yaml')
+SHAIRPORT_CONF = os.path.join(CONFIG_DIR, 'shairport-sync.conf')
+DEFAULT_AIRPLAY_NAME = 'Airglow'
 
 # Rate limiting for diagnostic endpoint
 DIAGNOSTIC_RATE_LIMIT = {}  # Simple in-memory rate limiter
@@ -426,6 +428,56 @@ def get_virtual_config():
         return {'error': str(e) if app.debug else 'Error reading configuration'}
 
 
+def get_airplay_name():
+    """Return the configured AirPlay display name from shairport-sync.conf"""
+    try:
+        if not os.path.exists(SHAIRPORT_CONF):
+            return DEFAULT_AIRPLAY_NAME
+        with open(SHAIRPORT_CONF, 'r') as f:
+            content = f.read()
+        match = re.search(r'name\s*=\s*"([^"]+)"', content)
+        if match:
+            return match.group(1).strip()
+    except Exception as exc:
+        logger.warning(f"Unable to read AirPlay name: {exc}")
+    return DEFAULT_AIRPLAY_NAME
+
+
+def _sanitize_airplay_name(name):
+    """Validate and sanitize user-provided AirPlay display name"""
+    if name is None:
+        raise ValueError('AirPlay name is required.')
+    trimmed = name.strip()
+    if not trimmed:
+        raise ValueError('AirPlay name cannot be empty.')
+    if len(trimmed) > 50:
+        raise ValueError('AirPlay name must be 50 characters or fewer.')
+    if '"' in trimmed or '\n' in trimmed or '\r' in trimmed:
+        raise ValueError('AirPlay name cannot contain quotes or new lines.')
+    return trimmed
+
+
+def update_airplay_name(new_name):
+    """Persist the AirPlay display name inside shairport-sync.conf"""
+    sanitized = _sanitize_airplay_name(new_name)
+    if not os.path.exists(SHAIRPORT_CONF):
+        raise FileNotFoundError('Shairport configuration file not found.')
+    with open(SHAIRPORT_CONF, 'r') as f:
+        content = f.read()
+    pattern = r'(name\s*=\s*")([^"]*)(";)'
+
+    def replacer(match):
+        return f'{match.group(1)}{sanitized}{match.group(3)}'
+
+    updated_content, replacements = re.subn(pattern, replacer, content, count=1)
+    if replacements == 0:
+        raise ValueError('Unable to locate AirPlay name entry in shairport-sync.conf.')
+
+    with open(SHAIRPORT_CONF, 'w') as f:
+        f.write(updated_content)
+    return sanitized
+
+
 # Note: save_hook_config() removed - we never edit shairport-sync.conf
 # Hook enable/disable is stored only in YAML and checked by hook scripts
 
@@ -553,7 +605,8 @@ def get_config():
             'virtuals': virtual_config,
             'available_virtuals': available_virtuals,
             'available_scenes': available_scenes,
-            'has_devices': has_devices
+            'has_devices': has_devices,
+            'airplay_name': get_airplay_name()
         })
     except Exception as e:
         logger.error(f"Error getting config: {e}")
@@ -668,6 +721,45 @@ def save_config():
     except Exception as e:
         logger.error(f"Error saving config: {e}", exc_info=True)
         return jsonify({'error': str(e) if app.debug else 'Error saving configuration'}), 500
+
+
+@app.route('/api/airplay-name', methods=['POST'])
+def set_airplay_name():
+    """Update the AirPlay display name (stored in shairport-sync.conf)"""
+    try:
+        data = request.get_json() or {}
+        new_name = data.get('name', '')
+        updated_name = update_airplay_name(new_name)
+        return jsonify({'success': True, 'name': updated_name})
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
+    except FileNotFoundError as e:
+        logger.error(str(e))
+        return jsonify({'error': 'Shairport configuration file not found on this host.'}), 500
+    except Exception as e:
+        logger.error(f"Error updating AirPlay name: {e}", exc_info=True)
+        return jsonify({'error': 'Failed to update AirPlay name'}), 500
+
+
+@app.route('/api/shairport/restart', methods=['POST'])
+def restart_shairport():
+    """Restart the shairport-sync container to apply configuration changes"""
+    try:
+        result = subprocess.run(
+            ['docker', 'restart', 'shairport-sync'],
+            capture_output=True,
+            text=True,
+            timeout=30
+        )
+        if result.returncode != 0:
+            error_output = result.stderr.strip() or 'Unknown error restarting shairport-sync.'
+            return jsonify({'error': error_output}), 500
+        return jsonify({'success': True, 'output': result.stdout.strip()})
+    except subprocess.TimeoutExpired:
+        return jsonify({'error': 'Timed out while restarting shairport-sync.'}), 504
+    except Exception as e:
+        logger.error(f"Error restarting shairport-sync: {e}", exc_info=True)
+        return jsonify({'error': 'Failed to restart shairport-sync.'}), 500
 
 
 def rate_limit_diagnose(f):
