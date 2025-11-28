@@ -32,13 +32,14 @@ body {
 .banner-container {
     position: relative;
     width: 100%;
-    max-width: 100%;
-    margin: 0;
+    max-width: 1200px;
+    margin: 0 auto;
     padding: 0;
     overflow: hidden;
     background: transparent;
     aspect-ratio: 8 / 1; /* Short and wide header */
     max-height: 150px;
+    border-radius: var(--border-radius);
 }
 
 .banner-image {
