@@ -53,13 +53,10 @@ Comprehensive diagnostic tool for the entire audio flow.
 
 ## Configuration
 
-### `ledfx-hooks.conf`
-Configuration file for AirPlay session hooks.
+### `ledfx-hooks.yaml`
+Configuration file for AirPlay session hooks (YAML format).
 
-**Variables:**
-- `VIRTUAL_IDS`: Comma-separated list of virtual IDs to control
-- `LEDFX_HOST`: LedFx API hostname (default: localhost)
-- `LEDFX_PORT`: LedFx API port (default: 8888)
+See [CONFIGURATION.md](../CONFIGURATION.md) for detailed documentation.
 
 ## TODO: Callback Configuration Improvements
 
@@ -68,7 +65,7 @@ Configuration file for AirPlay session hooks.
 - [ ] **Device/Scene Selection**
   - [ ] Add configuration option to choose between controlling devices (virtuals) or scenes
   - [ ] Support scene activation/deactivation via LedFx API
-  - [ ] Update `ledfx-hooks.conf` to support `CONTROL_TYPE` (devices|scenes)
+  - [ ] Update `ledfx-hooks.yaml` to support `CONTROL_TYPE` (devices|scenes)
   - [ ] Update scripts to handle both devices and scenes
 
 - [ ] **Effect Selection**
@@ -76,7 +73,7 @@ Configuration file for AirPlay session hooks.
   - [ ] Support effect name or type (e.g., "rain", "gradient", "energy")
   - [ ] Allow different effects for different virtuals
   - [ ] Option to restore last effect vs. always use specified effect
-  - [ ] Update `ledfx-hooks.conf` to support `EFFECT_NAME` or `EFFECT_TYPE`
+  - [ ] Update `ledfx-hooks.yaml` to support `EFFECT_NAME` or `EFFECT_TYPE`
 
 ### Medium Priority
 

@@ -31,7 +31,6 @@ LEDFX_URL = f"http://{LEDFX_HOST}:{LEDFX_PORT}"
 CONFIG_DIR = '/configs'
 SHAIRPORT_CONF = os.path.join(CONFIG_DIR, 'shairport-sync.conf')
 HOOKS_YAML = os.path.join(CONFIG_DIR, 'ledfx-hooks.yaml')
-HOOKS_CONF = os.path.join(CONFIG_DIR, 'ledfx-hooks.conf')  # For backward compatibility
 
 # Rate limiting for diagnostic endpoint
 DIAGNOSTIC_RATE_LIMIT = {}  # Simple in-memory rate limiter
@@ -372,12 +371,12 @@ def get_virtual_config():
             # Check for explicit all_virtuals flag, default to True for backward compatibility
             start_all_virtuals = start_hook.get('all_virtuals')
             if start_all_virtuals is None:
-                # Backward compatibility: if flag not present, check if list is empty
+                # If flag not present, check if list is empty
                 start_all_virtuals = len(start_virtuals) == 0
             
             end_all_virtuals = end_hook.get('all_virtuals')
             if end_all_virtuals is None:
-                # Backward compatibility: if flag not present, check if list is empty
+                # If flag not present, check if list is empty
                 end_all_virtuals = len(end_virtuals) == 0
             
             return {
@@ -399,43 +398,6 @@ def get_virtual_config():
                         'virtuals': end_virtuals,
                         'all_virtuals': end_all_virtuals,
                         'scenes': end_hook.get('scenes', [])  # List of scene IDs
-                    }
-                }
-            }
-        
-        # Fallback to old .conf format for backward compatibility
-        elif os.path.exists(HOOKS_CONF):
-            virtual_ids = []
-            with open(HOOKS_CONF, 'r') as f:
-                for line in f:
-                    if line.startswith('VIRTUAL_IDS='):
-                        # Parse VIRTUAL_IDS="id1,id2" or VIRTUAL_IDS=""
-                        match = re.search(r'VIRTUAL_IDS="([^"]*)"', line)
-                        if match:
-                            ids_str = match.group(1)
-                            if ids_str:
-                                virtual_ids = [vid.strip() for vid in ids_str.split(',') if vid.strip()]
-            
-            all_virtuals = len(virtual_ids) == 0
-            # Convert old format to new format
-            virtuals_list = [{'id': vid, 'repeats': 1} for vid in virtual_ids]
-            
-            return {
-                'ledfx': {'host': 'localhost', 'port': 8888},
-                'hooks': {
-                    'start': {
-                        'enabled': True,
-                        'mode': 'toggle',  # Legacy config defaults to toggle
-                        'virtuals': virtuals_list,
-                        'all_virtuals': all_virtuals,
-                        'scenes': []
-                    },
-                    'end': {
-                        'enabled': True,
-                        'mode': 'toggle',  # Legacy config defaults to toggle
-                        'virtuals': virtuals_list,
-                        'all_virtuals': all_virtuals,
-                        'scenes': []
                     }
                 }
             }

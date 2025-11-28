@@ -29,11 +29,6 @@ check_hook_enabled() {
   return 1
 }
 
-# Configuration - load from config file if available
-if [ -f /configs/ledfx-hooks.conf ]; then
-  . /configs/ledfx-hooks.conf
-fi
-
 # Allow override via environment variables
 VIRTUAL_IDS="${LEDFX_VIRTUAL_IDS:-${VIRTUAL_IDS:-}}"
 LEDFX_HOST="${LEDFX_HOST:-localhost}"

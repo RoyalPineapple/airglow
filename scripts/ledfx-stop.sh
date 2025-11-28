@@ -24,12 +24,6 @@ if [ -f /configs/ledfx-hooks.yaml ]; then
     # Get list of virtual IDs from YAML
     VIRTUAL_IDS=$(yq eval '.hooks.end.virtuals[].id' /configs/ledfx-hooks.yaml 2>/dev/null | tr '\n' ',' | sed 's/,$//')
   fi
-# Fallback to legacy .conf file
-elif [ -f /configs/ledfx-hooks.conf ]; then
-  . /configs/ledfx-hooks.conf
-  if [ -n "${VIRTUAL_IDS:-}" ]; then
-    ALL_VIRTUALS=false
-  fi
 fi
 
 # Override with command-line arguments if provided

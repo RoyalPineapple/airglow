@@ -68,8 +68,6 @@ services:
       - ./configs/shairport-sync.conf:/etc/shairport-sync.conf:ro
       # LedFx hook configuration (YAML format, read by hook scripts)
       - ./configs/ledfx-hooks.yaml:/configs/ledfx-hooks.yaml:ro
-      # Legacy .conf file (backward compatibility, read-only)
-      - ./configs/ledfx-hooks.conf:/configs/ledfx-hooks.conf:ro
       # PulseAudio socket for audio output to LedFX
       - ./pulse:/pulse
       # Session hook scripts triggered on AirPlay start/stop

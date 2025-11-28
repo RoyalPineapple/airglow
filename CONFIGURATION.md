@@ -217,10 +217,6 @@ hooks:
 
 **shairport-sync.conf is Read-Only**: The `shairport-sync.conf` file is never modified. Hook enable/disable is controlled entirely through YAML configuration.
 
-## Backward Compatibility
-
-The system supports reading from the legacy `.conf` format (`ledfx-hooks.conf`) for backward compatibility, but all new configurations should use YAML format.
-
 ## API Endpoints
 
 ### GET `/api/config`
