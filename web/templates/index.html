@@ -23,6 +23,9 @@
         </header>
 
         <div class="status-header">
+            <button id="refresh-btn" class="btn btn-primary" title="Refresh status">
+                <span id="refresh-icon">🔄</span> Refresh
+            </button>
             <div id="last-update" class="last-update"></div>
         </div>
 
@@ -213,6 +216,22 @@
 
         // Initial load
         refreshStatus();
+
+        // Add refresh button handler
+        const refreshBtn = document.getElementById('refresh-btn');
+        if (refreshBtn) {
+            refreshBtn.addEventListener('click', () => {
+                refreshStatus();
+                // Add visual feedback
+                const icon = document.getElementById('refresh-icon');
+                if (icon) {
+                    icon.style.animation = 'spin 0.5s linear';
+                    setTimeout(() => {
+                        icon.style.animation = '';
+                    }, 500);
+                }
+            });
+        }
     </script>
 </body>
 </html>
