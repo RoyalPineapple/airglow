@@ -274,6 +274,8 @@
                 if (airplayNameInput) {
                     currentAirplayName = typeof data.airplay_name === 'string' ? data.airplay_name : '';
                     airplayNameInput.value = currentAirplayName;
+                    // Update restart button state after loading
+                    updateRestartButtonState();
                 }
 
                 // Update hook toggles
@@ -442,12 +444,22 @@
             });
         }
 
+        function updateRestartButtonState() {
+            if (!restartShairportBtn || !airplayNameInput) return;
+            const hasUnsavedChanges = airplayNameInput.value.trim() !== currentAirplayName;
+            restartShairportBtn.disabled = hasUnsavedChanges;
+        }
+
         function initAirplayControls() {
             if (saveAirplayNameBtn) {
                 saveAirplayNameBtn.addEventListener('click', handleAirplayNameSave);
             }
             if (restartShairportBtn) {
                 restartShairportBtn.addEventListener('click', handleShairportRestart);
+            }
+            if (airplayNameInput) {
+                // Disable restart button when user changes the name (creates unsaved changes)
+                airplayNameInput.addEventListener('input', updateRestartButtonState);
             }
         }
 
@@ -482,6 +494,8 @@
                     throw new Error(result.error || 'Failed to update AirPlay name.');
                 }
                 currentAirplayName = result.name || newName;
+                // Enable restart button after successful save
+                updateRestartButtonState();
                 showSuccess('AirPlay name saved. Restart Shairport-Sync to apply changes.');
                 updateSaveStatus('AirPlay name saved. Restart to apply.', 'success');
             } catch (error) {
@@ -511,6 +525,8 @@
                 }
                 showSuccess('Shairport-Sync restart triggered. Give it a few seconds to come back online.');
                 updateSaveStatus('Shairport-Sync restarted.', 'success');
+                // Disable restart button after restart (name is now active, no unsaved changes)
+                updateRestartButtonState();
             } catch (error) {
                 showError(error.message || 'Failed to restart shairport-sync.');
             } finally {
