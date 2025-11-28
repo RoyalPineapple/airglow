@@ -273,7 +273,7 @@
             listEl.innerHTML = '';
 
             if (availableScenes.length === 0) {
-                const ledfxUrl = window.location.protocol + '//' + window.location.hostname + ':8888';
+                const ledfxUrl = window.location.protocol + '//' + window.location.hostname + ':8888/#/Scenes';
                 listEl.innerHTML = `<p class="no-virtuals">No scenes available. <a href="${ledfxUrl}" target="_blank">Open LedFX</a> to create scenes first, then refresh this page.</p>`;
                 return;
             }
