@@ -246,14 +246,15 @@
             // Update "All Virtuals" checkbox
             allVirtualsCheckbox.checked = allVirtualsChecked;
 
-            // Hide "All Virtuals" checkbox if no virtuals are available
+            // Hide "All Virtuals" checkbox if no virtuals are available OR no devices are configured
             const allVirtualsLabel = allVirtualsCheckbox.closest('.all-virtuals-label');
             if (allVirtualsLabel) {
-                allVirtualsLabel.style.display = availableVirtuals.length > 0 ? 'flex' : 'none';
+                const shouldShow = hasDevices && availableVirtuals.length > 0;
+                allVirtualsLabel.style.display = shouldShow ? 'flex' : 'none';
             }
             
-            // If no virtuals, force all_virtuals to false
-            if (availableVirtuals.length === 0 && allVirtualsChecked) {
+            // If no virtuals or no devices, force all_virtuals to false
+            if ((!hasDevices || availableVirtuals.length === 0) && allVirtualsChecked) {
                 allVirtualsCheckbox.checked = false;
                 hookConfig.all_virtuals = false;
             }
@@ -424,11 +425,11 @@
                     startMode = activeStartTab ? activeStartTab.dataset.mode : 'toggle';
                     
                     if (startMode === 'toggle') {
-                        // Only check "All Virtuals" if virtuals exist
-                        if (availableVirtuals.length > 0) {
+                        // Only check "All Virtuals" if devices and virtuals exist
+                        if (hasDevices && availableVirtuals.length > 0) {
                             startAllVirtuals = document.getElementById('start-all-virtuals').checked;
                         } else {
-                            startAllVirtuals = false; // Can't use all virtuals if no virtuals available
+                            startAllVirtuals = false; // Can't use all virtuals if no devices or no virtuals available
                         }
                         if (!startAllVirtuals) {
                             document.querySelectorAll('.virtual-checkbox[data-hook="start"]:checked').forEach(cb => {
@@ -456,11 +457,11 @@
                     endMode = activeEndTab ? activeEndTab.dataset.mode : 'toggle';
                     
                     if (endMode === 'toggle') {
-                        // Only check "All Virtuals" if virtuals exist
-                        if (availableVirtuals.length > 0) {
+                        // Only check "All Virtuals" if devices and virtuals exist
+                        if (hasDevices && availableVirtuals.length > 0) {
                             endAllVirtuals = document.getElementById('end-all-virtuals').checked;
                         } else {
-                            endAllVirtuals = false; // Can't use all virtuals if no virtuals available
+                            endAllVirtuals = false; // Can't use all virtuals if no devices or no virtuals available
                         }
                         if (!endAllVirtuals) {
                             document.querySelectorAll('.virtual-checkbox[data-hook="end"]:checked').forEach(cb => {
