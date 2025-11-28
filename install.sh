@@ -155,10 +155,42 @@ function setup_directory() {
         msg_warn "You may need to manually run: sudo chown -R 1000:1000 ${INSTALL_DIR}/ledfx-data"
     }
 
-    # Copy default LedFX config file if it doesn't exist
+    # Ensure LedFX config file has pulse audio device (index 0)
     local ledfx_config="${INSTALL_DIR}/ledfx-data/config.json"
     local default_config="${SCRIPT_DIR}/configs/ledfx-config.json"
-    if [[ ! -f "${ledfx_config}" ]] && [[ -f "${default_config}" ]]; then
+    
+    if [[ -f "${ledfx_config}" ]]; then
+        # Check if audio_device is set to 0 (pulse), if not update it
+        local current_device
+        current_device=$(grep -o '"audio_device"[[:space:]]*:[[:space:]]*[0-9]*' "${ledfx_config}" | grep -o '[0-9]*' || echo "")
+        if [[ "${current_device}" != "0" ]]; then
+            msg_info "Updating LedFX config to use pulse audio device (index 0)..."
+            # Use Python to safely update the JSON
+            python3 << EOF
+import json
+import sys
+try:
+    with open("${ledfx_config}", 'r') as f:
+        config = json.load(f)
+    if 'audio' not in config:
+        config['audio'] = {}
+    config['audio']['audio_device'] = 0
+    with open("${ledfx_config}", 'w') as f:
+        json.dump(config, f, indent=4)
+    sys.exit(0)
+except Exception as e:
+    print(f"Error: {e}", file=sys.stderr)
+    sys.exit(1)
+EOF
+            if [ $? -eq 0 ]; then
+                chown 1000:1000 "${ledfx_config}" || true
+                msg_ok "LedFX config updated to use pulse audio device"
+            else
+                msg_warn "Failed to update LedFX config file"
+            fi
+        fi
+    elif [[ -f "${default_config}" ]]; then
+        # Copy default config if it doesn't exist
         msg_info "Copying default LedFX config file with pulse audio device..."
         cp "${default_config}" "${ledfx_config}" || {
             msg_warn "Failed to copy LedFX config file"
@@ -336,6 +368,30 @@ function start_stack() {
     }
 
     msg_ok "Stack started successfully"
+    
+    # Wait for LedFX to be ready and set audio device to pulse (index 0)
+    msg_info "Waiting for LedFX to be ready..."
+    local max_wait=60
+    local waited=0
+    while [ $waited -lt $max_wait ]; do
+        if curl -s -f "http://localhost:8888/api/info" > /dev/null 2>&1; then
+            msg_info "Setting LedFX audio device to pulse (index 0)..."
+            if curl -s -X PUT "http://localhost:8888/api/config" \
+                -H "Content-Type: application/json" \
+                -d '{"audio": {"audio_device": 0}}' > /dev/null 2>&1; then
+                msg_ok "LedFX audio device set to pulse"
+            else
+                msg_warn "Failed to set LedFX audio device via API"
+            fi
+            break
+        fi
+        sleep 2
+        waited=$((waited + 2))
+    done
+    
+    if [ $waited -ge $max_wait ]; then
+        msg_warn "LedFX did not become ready in time, audio device may need manual configuration"
+    fi
 }
 
 # Display installation status and next steps
