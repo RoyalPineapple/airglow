@@ -182,8 +182,9 @@ function copy_configs() {
     fi
 
     local repo_url="https://raw.githubusercontent.com/RoyalPineapple/airglow/master"
+    local repo_git_url="https://github.com/RoyalPineapple/airglow.git"
     
-    # Try local files first, fallback to downloading from GitHub
+    # Try local files first, fallback to cloning from GitHub
     if [[ -f "${SCRIPT_DIR}/docker-compose.yml" ]]; then
         msg_info "Using local configuration files..."
         cp "${SCRIPT_DIR}/docker-compose.yml" "${INSTALL_DIR}/" || {
@@ -243,37 +244,119 @@ function copy_configs() {
             done
         fi
     else
-        msg_info "Downloading configuration files from GitHub..."
+        msg_info "Cloning repository from GitHub..."
         
-        curl -fsSL "${repo_url}/docker-compose.yml" -o "${INSTALL_DIR}/docker-compose.yml" || {
-            msg_error "Failed to download docker-compose.yml"
-            exit 1
+        # Check if git is available
+        if ! command -v git &>/dev/null; then
+            msg_info "Git not found, installing git..."
+            if command -v apt-get &>/dev/null; then
+                apt-get update -qq >/dev/null 2>&1
+                apt-get install -y -qq git >/dev/null 2>&1 || {
+                    msg_error "Failed to install git"
+                    exit 1
+                }
+            else
+                msg_error "Git is required for installation from GitHub. Please install git first."
+                exit 1
+            fi
+        fi
+        
+        # Clone the repository to a temporary directory
+        local temp_repo_dir="${INSTALL_DIR}.tmp"
+        rm -rf "${temp_repo_dir}"
+        
+        msg_info "Cloning AirGlow repository..."
+        # Use BRANCH environment variable if set, otherwise default to master
+        local branch="${BRANCH:-master}"
+        
+        git clone --depth 1 --branch "${branch}" "${repo_git_url}" "${temp_repo_dir}" || {
+            # Fallback to master if branch doesn't exist
+            if [[ "${branch}" != "master" ]]; then
+                msg_warn "Branch ${branch} not found, falling back to master"
+                git clone --depth 1 --branch master "${repo_git_url}" "${temp_repo_dir}" || {
+                    msg_error "Failed to clone repository"
+                    exit 1
+                }
+            else
+                msg_error "Failed to clone repository"
+                exit 1
+            fi
         }
         
-        # Download Dockerfiles
-        curl -fsSL "${repo_url}/Dockerfile.web" -o "${INSTALL_DIR}/Dockerfile.web" || {
-            msg_error "Failed to download Dockerfile.web"
-            exit 1
-        }
+        # Copy necessary files from cloned repo
+        msg_info "Copying files from repository..."
         
-        curl -fsSL "${repo_url}/Dockerfile.shairport-sync" -o "${INSTALL_DIR}/Dockerfile.shairport-sync" || {
-            msg_error "Failed to download Dockerfile.shairport-sync"
-            exit 1
-        }
+        # Copy docker-compose.yml
+        if [[ -f "${temp_repo_dir}/docker-compose.yml" ]]; then
+            cp "${temp_repo_dir}/docker-compose.yml" "${INSTALL_DIR}/" || {
+                msg_error "Failed to copy docker-compose.yml"
+                exit 1
+            }
+        fi
         
-        # Download web directory (need to download files individually or use git)
-        msg_info "Note: For full installation from GitHub, consider cloning the repository:"
-        msg_info "  git clone https://github.com/RoyalPineapple/airglow.git ${INSTALL_DIR}"
-        msg_info "  Then run this installer from that directory"
+        # Copy Dockerfiles
+        if [[ -f "${temp_repo_dir}/Dockerfile.web" ]]; then
+            cp "${temp_repo_dir}/Dockerfile.web" "${INSTALL_DIR}/" || {
+                msg_error "Failed to copy Dockerfile.web"
+                exit 1
+            }
+        fi
         
-        curl -fsSL "${repo_url}/configs/shairport-sync.conf" -o "${INSTALL_DIR}/configs/shairport-sync.conf" || {
-            msg_error "Failed to download shairport-sync.conf"
-            exit 1
-        }
+        if [[ -f "${temp_repo_dir}/Dockerfile.shairport-sync" ]]; then
+            cp "${temp_repo_dir}/Dockerfile.shairport-sync" "${INSTALL_DIR}/" || {
+                msg_error "Failed to copy Dockerfile.shairport-sync"
+                exit 1
+            }
+        fi
         
-        curl -fsSL "${repo_url}/env.example" -o "${INSTALL_DIR}/.env" || {
-            msg_warn "Failed to download .env example"
-        }
+        # Copy web directory
+        if [[ -d "${temp_repo_dir}/web" ]]; then
+            cp -r "${temp_repo_dir}/web" "${INSTALL_DIR}/" || {
+                msg_error "Failed to copy web directory"
+                exit 1
+            }
+        fi
+        
+        # Copy scripts directory
+        if [[ -d "${temp_repo_dir}/scripts" ]]; then
+            cp -r "${temp_repo_dir}/scripts" "${INSTALL_DIR}/" || {
+                msg_error "Failed to copy scripts directory"
+                exit 1
+            }
+        fi
+        
+        # Copy .dockerignore if it exists
+        if [[ -f "${temp_repo_dir}/.dockerignore" ]]; then
+            cp "${temp_repo_dir}/.dockerignore" "${INSTALL_DIR}/" || {
+                msg_warn "Failed to copy .dockerignore (non-fatal)"
+            }
+        fi
+        
+        # Copy configs directory (excluding ledfx-hooks.yaml and ledfx-config.json)
+        if [[ -d "${temp_repo_dir}/configs" ]]; then
+            mkdir -p "${INSTALL_DIR}/configs"
+            for config_file in "${temp_repo_dir}/configs"/*; do
+                local basename_file="$(basename "${config_file}")"
+                if [[ -f "${config_file}" ]] && [[ "${basename_file}" != "ledfx-hooks.yaml" ]] && [[ "${basename_file}" != "ledfx-config.json" ]]; then
+                    cp "${config_file}" "${INSTALL_DIR}/configs/" || {
+                        msg_error "Failed to copy ${basename_file}"
+                        exit 1
+                    }
+                fi
+            done
+        fi
+        
+        # Copy ledfx-config.json to INSTALL_DIR for later use (not to configs/)
+        if [[ -f "${temp_repo_dir}/configs/ledfx-config.json" ]]; then
+            cp "${temp_repo_dir}/configs/ledfx-config.json" "${INSTALL_DIR}/" || {
+                msg_warn "Failed to copy ledfx-config.json (non-fatal)"
+            }
+        fi
+        
+        # Clean up temporary directory
+        rm -rf "${temp_repo_dir}"
+        
+        msg_ok "Repository cloned and files copied"
     fi
 
     msg_ok "Configuration files deployed"
