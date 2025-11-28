@@ -259,16 +259,17 @@
                 hookConfig.all_virtuals = false;
             }
             
-            // Always show the virtuals list area and build it to show proper messages
+            // Always show the virtuals list area and build it
             listEl.style.display = 'block';
             
-            // Show/hide virtuals list content based on "All Virtuals" selection
+            // Always build the list to show proper messages (no devices, no virtuals, or virtual list)
+            buildVirtualsList(hookType, selectedVirtuals);
+            
+            // If "All Virtuals" is checked, check all individual virtual checkboxes
             if (allVirtualsChecked && hasDevices && availableVirtuals.length > 0) {
-                // Hide the list content when "All Virtuals" is checked
-                listEl.innerHTML = '';
-            } else {
-                // Always build the list to show proper messages (no devices, no virtuals, or virtual list)
-                buildVirtualsList(hookType, selectedVirtuals);
+                document.querySelectorAll(`.virtual-checkbox[data-hook="${hookType}"]`).forEach(cb => {
+                    cb.checked = true;
+                });
             }
         }
 
@@ -429,14 +430,16 @@
                     startMode = activeStartTab ? activeStartTab.dataset.mode : 'toggle';
                     
                     if (startMode === 'toggle') {
-                        // Only check "All Virtuals" if devices and virtuals exist
-                        if (hasDevices && availableVirtuals.length > 0) {
-                            startAllVirtuals = document.getElementById('start-all-virtuals').checked;
+                        // Check if all virtuals are selected
+                        const checkedBoxes = document.querySelectorAll('.virtual-checkbox[data-hook="start"]:checked');
+                        if (hasDevices && availableVirtuals.length > 0 && checkedBoxes.length === availableVirtuals.length) {
+                            // All virtuals are selected - use all_virtuals flag
+                            startAllVirtuals = true;
+                            startVirtuals = [];
                         } else {
-                            startAllVirtuals = false; // Can't use all virtuals if no devices or no virtuals available
-                        }
-                        if (!startAllVirtuals) {
-                            document.querySelectorAll('.virtual-checkbox[data-hook="start"]:checked').forEach(cb => {
+                            // Some or no virtuals selected - collect individual selections
+                            startAllVirtuals = false;
+                            checkedBoxes.forEach(cb => {
                                 const vid = cb.dataset.vid;
                                 const repeats = parseInt(document.querySelector(`.repeat-input[data-hook="start"][data-vid="${vid}"]`)?.value) || 1;
                                 if (repeats > 0) {
@@ -461,14 +464,16 @@
                     endMode = activeEndTab ? activeEndTab.dataset.mode : 'toggle';
                     
                     if (endMode === 'toggle') {
-                        // Only check "All Virtuals" if devices and virtuals exist
-                        if (hasDevices && availableVirtuals.length > 0) {
-                            endAllVirtuals = document.getElementById('end-all-virtuals').checked;
+                        // Check if all virtuals are selected
+                        const checkedBoxes = document.querySelectorAll('.virtual-checkbox[data-hook="end"]:checked');
+                        if (hasDevices && availableVirtuals.length > 0 && checkedBoxes.length === availableVirtuals.length) {
+                            // All virtuals are selected - use all_virtuals flag
+                            endAllVirtuals = true;
+                            endVirtuals = [];
                         } else {
-                            endAllVirtuals = false; // Can't use all virtuals if no devices or no virtuals available
-                        }
-                        if (!endAllVirtuals) {
-                            document.querySelectorAll('.virtual-checkbox[data-hook="end"]:checked').forEach(cb => {
+                            // Some or no virtuals selected - collect individual selections
+                            endAllVirtuals = false;
+                            checkedBoxes.forEach(cb => {
                                 const vid = cb.dataset.vid;
                                 const repeats = parseInt(document.querySelector(`.repeat-input[data-hook="end"][data-vid="${vid}"]`)?.value) || 0;
                                 if (repeats > 0) {
@@ -630,38 +635,49 @@
                 });
             });
             
-            // All virtuals checkboxes
+            // All virtuals checkboxes - act as "select all"
             document.getElementById('start-all-virtuals').addEventListener('change', function() {
                 const previousValue = controlStates.get('start-all-virtuals') || false;
                 controlStates.set('start-all-virtuals', this.checked);
-                const listEl = document.getElementById('start-virtuals-list');
-                if (this.checked) {
-                    listEl.style.display = 'none';
-                } else {
-                    listEl.style.display = 'block';
-                    if (listEl.innerHTML.includes('Loading')) {
-                        const hookConfig = configData?.virtuals?.hooks?.start || { virtuals: [], all_virtuals: false };
-                        buildVirtualsList('start', hookConfig.virtuals);
-                    }
-                }
+                
+                // Check/uncheck all individual virtual checkboxes
+                document.querySelectorAll('.virtual-checkbox[data-hook="start"]').forEach(cb => {
+                    cb.checked = this.checked;
+                    // Trigger change event to update state
+                    cb.dispatchEvent(new Event('change'));
+                });
+                
                 autoSave('start-all-virtuals', previousValue);
             });
 
             document.getElementById('end-all-virtuals').addEventListener('change', function() {
                 const previousValue = controlStates.get('end-all-virtuals') || false;
                 controlStates.set('end-all-virtuals', this.checked);
-                const listEl = document.getElementById('end-virtuals-list');
-                if (this.checked) {
-                    listEl.style.display = 'none';
-                } else {
-                    listEl.style.display = 'block';
-                    if (listEl.innerHTML.includes('Loading')) {
-                        const hookConfig = configData?.virtuals?.hooks?.end || { virtuals: [], all_virtuals: false };
-                        buildVirtualsList('end', hookConfig.virtuals);
-                    }
-                }
+                
+                // Check/uncheck all individual virtual checkboxes
+                document.querySelectorAll('.virtual-checkbox[data-hook="end"]').forEach(cb => {
+                    cb.checked = this.checked;
+                    // Trigger change event to update state
+                    cb.dispatchEvent(new Event('change'));
+                });
+                
                 autoSave('end-all-virtuals', previousValue);
             });
+            
+            // Update "All Virtuals" checkbox when individual checkboxes change
+            function updateAllVirtualsCheckbox(hookType) {
+                if (!hasDevices || availableVirtuals.length === 0) return;
+                
+                const allCheckbox = document.getElementById(`${hookType}-all-virtuals`);
+                const allCheckboxes = document.querySelectorAll(`.virtual-checkbox[data-hook="${hookType}"]`);
+                const checkedCount = document.querySelectorAll(`.virtual-checkbox[data-hook="${hookType}"]:checked`).length;
+                
+                // Update "All Virtuals" checkbox based on individual selections
+                if (allCheckboxes.length > 0) {
+                    allCheckbox.checked = checkedCount === allCheckboxes.length;
+                    controlStates.set(`${hookType}-all-virtuals`, allCheckbox.checked);
+                }
+            }
             
             // Listen for changes on checkboxes and inputs
             document.addEventListener('change', function(e) {
@@ -669,6 +685,12 @@
                     const controlId = e.target.id || `${e.target.classList.contains('virtual-checkbox') ? 'virtual' : 'scene'}-${e.target.dataset.hook}-${e.target.dataset.vid || e.target.dataset.sid}`;
                     const previousValue = controlStates.get(controlId) || false;
                     controlStates.set(controlId, e.target.checked);
+                    
+                    // Update "All Virtuals" checkbox when individual virtual checkbox changes
+                    if (e.target.matches('.virtual-checkbox')) {
+                        updateAllVirtualsCheckbox(e.target.dataset.hook);
+                    }
+                    
                     autoSave(controlId, previousValue);
                 }
             });
