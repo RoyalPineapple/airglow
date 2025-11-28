@@ -236,22 +236,136 @@ nav a:hover {
     color: var(--color-error);
 }
 
-.error-message {
-    background-color: #fee;
-    color: var(--color-error);
+.message {
     padding: var(--spacing);
     border-radius: var(--border-radius);
     margin-bottom: var(--spacing);
-    border: 1px solid var(--color-error);
+    border: 1px solid transparent;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: var(--spacing);
+}
+
+.error-message {
+    background-color: #fee;
+    color: var(--color-error);
+    border-color: var(--color-error);
 }
 
 .success-message {
     background-color: #efe;
     color: var(--color-success);
-    padding: var(--spacing);
+    border-color: var(--color-success);
+}
+
+.message-close {
+    background: transparent;
+    border: none;
+    color: inherit;
+    font-size: 1.25rem;
+    cursor: pointer;
+}
+
+.save-status-bar {
+    padding: 0.75rem 1rem;
+    background: var(--color-bg);
     border-radius: var(--border-radius);
+    border: 1px solid var(--color-border);
+    margin-bottom: calc(var(--spacing) * 1.5);
+    font-size: 0.95rem;
+    color: var(--color-text-light);
+}
+
+.save-status-bar.success {
+    color: var(--color-success);
+}
+
+.save-status-bar.error {
+    color: var(--color-error);
+}
+
+.airplay-settings {
+    margin-bottom: calc(var(--spacing) * 2);
+    background: var(--color-bg);
+    border-radius: var(--border-radius);
+    padding: calc(var(--spacing) * 1.5);
+    border: 1px solid var(--color-border);
+}
+
+.airplay-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
     margin-bottom: var(--spacing);
-    border: 1px solid var(--color-success);
+    gap: var(--spacing);
+    flex-wrap: wrap;
+}
+
+.airplay-name-form {
+    display: flex;
+    flex-direction: column;
+    gap: calc(var(--spacing) * 0.75);
+}
+
+.airplay-name-input {
+    width: 100%;
+    padding: 0.75rem 1rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--border-radius);
+    font-size: 1rem;
+}
+
+.airplay-button-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+}
+
+.helper-text {
+    color: var(--color-text-light);
+    font-size: 0.85rem;
+    margin: 0;
+}
+
+.sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    border: 0;
+}
+
+.hook-summary-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: var(--spacing);
+    margin-bottom: calc(var(--spacing) * 2);
+}
+
+.hook-summary-card {
+    padding: calc(var(--spacing) * 1.5);
+    border-radius: var(--border-radius);
+    border: 1px solid var(--color-border);
+    background: var(--color-bg-section);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+
+.hook-summary-card h3 {
+    margin-bottom: 0.5rem;
+}
+
+.summary-status {
+    font-weight: 600;
+    margin-bottom: 0.25rem;
+}
+
+.summary-details {
+    color: var(--color-text-light);
+    margin: 0;
 }
 
 .status-header {
@@ -320,6 +434,16 @@ nav a:hover {
     border-color: white;
 }
 
+.btn-outline {
+    background-color: transparent;
+    color: var(--color-primary);
+    border: 1px solid var(--color-primary);
+}
+
+.btn-outline:hover:not(:disabled) {
+    background-color: rgba(52, 152, 219, 0.1);
+}
+
 .diagnostic-output {
     margin-top: var(--spacing);
     padding: var(--spacing);
@@ -360,6 +484,16 @@ nav a:hover {
     padding: var(--spacing);
     background: var(--color-bg);
     border-radius: var(--border-radius);
+}
+
+.hook-config-section {
+    border: none;
+    padding: 0;
+    margin: 0;
+}
+
+.hook-config-section:disabled {
+    opacity: 0.6;
 }
 
 .config-section h2 {
@@ -453,6 +587,12 @@ nav a:hover {
     border-radius: var(--border-radius);
 }
 
+.list-helper {
+    color: var(--color-text-light);
+    font-size: 0.9rem;
+    margin-bottom: 0.5rem;
+}
+
 .checkbox-label {
     display: flex;
     align-items: center;
@@ -480,35 +620,44 @@ nav a:hover {
     gap: 0.5rem;
 }
 
-.mode-tabs {
+.mode-selector {
     display: flex;
-    gap: 0.5rem;
-    margin-bottom: var(--spacing);
-    border-bottom: 2px solid var(--color-border);
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    margin-bottom: calc(var(--spacing) * 1.5);
 }
 
-.mode-tab {
-    padding: 0.75rem 1.5rem;
-    background: transparent;
-    border: none;
-    border-bottom: 2px solid transparent;
+.mode-option {
+    flex: 1 1 220px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--border-radius);
+    padding: var(--spacing);
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
     cursor: pointer;
-    font-size: 1rem;
-    font-weight: 500;
-    color: var(--color-text-light);
-    transition: all 0.2s;
-    margin-bottom: -2px;
-}
-
-.mode-tab:hover {
-    color: var(--color-text);
     background: var(--color-bg-section);
+    transition: border-color 0.2s, box-shadow 0.2s;
 }
 
-.mode-tab.active {
-    color: var(--color-primary);
-    border-bottom-color: var(--color-primary);
+.mode-option:hover {
+    border-color: var(--color-primary);
+    box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+}
+
+.mode-option input[type="radio"] {
+    margin-top: 0.2rem;
+}
+
+.mode-option-title {
+    display: block;
     font-weight: 600;
+    color: var(--color-text);
+}
+
+.mode-option-description {
+    color: var(--color-text-light);
+    font-size: 0.9rem;
 }
 
 .mode-content {
@@ -533,6 +682,14 @@ nav a:hover {
     background: var(--color-bg-section);
     border: 1px solid var(--color-border);
     border-radius: var(--border-radius);
+}
+
+.virtual-item .virtual-repeats {
+    display: none;
+}
+
+.virtual-item.active .virtual-repeats {
+    display: flex;
 }
 
 .virtual-item .checkbox-label {

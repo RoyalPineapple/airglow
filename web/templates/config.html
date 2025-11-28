@@ -22,8 +22,53 @@
             </nav>
         </header>
 
-        <div id="error-message" class="error-message" style="display: none;"></div>
-        <div id="success-message" class="success-message" style="display: none;"></div>
+        <div id="error-message" class="message error-message" role="alert" style="display: none;">
+            <span id="error-text"></span>
+            <button type="button" class="message-close" data-target="error-message" aria-label="Dismiss error">&times;</button>
+        </div>
+        <div id="success-message" class="message success-message" role="status" style="display: none;">
+            <span id="success-text"></span>
+            <button type="button" class="message-close" data-target="success-message" aria-label="Dismiss message">&times;</button>
+        </div>
+        <div id="save-status" class="save-status-bar" aria-live="polite">Ready to edit hooks.</div>
+
+        <section class="config-section airplay-settings">
+            <div class="airplay-header">
+                <div>
+                    <h2>AirPlay Device Name</h2>
+                    <p class="section-description">Change how this receiver appears in the AirPlay menu. Restart Shairport-Sync after saving to apply the change.</p>
+                </div>
+            </div>
+            <div class="airplay-name-form">
+                <label for="airplay-name-input" class="airplay-name-label">AirPlay device name</label>
+                <input type="text" id="airplay-name-input" maxlength="32" placeholder="Airglow">
+                <p id="airplay-feedback" class="helper-text muted">Max 32 characters. Letters, numbers, spaces only.</p>
+                <div class="airplay-button-row">
+                    <button type="button" id="save-airplay-name-btn" class="btn btn-primary">Save Name</button>
+                    <button type="button" id="restart-shairport-btn" class="btn btn-warning">Restart Shairport-Sync</button>
+                </div>
+                <p class="helper-text warning-text">Restarting will briefly interrupt any active AirPlay sessions.</p>
+            </div>
+        </section>
+
+        <section id="no-devices-banner" class="config-section no-devices" style="display: none;">
+            <h3>No LedFX Devices Detected</h3>
+            <p>Add at least one device in LedFX before configuring AirPlay hooks. Once a device exists, reload this page.</p>
+            <a href="#" id="open-ledfx-link" class="btn btn-outline" target="_blank" rel="noreferrer noopener">Open LedFX</a>
+        </section>
+
+        <section class="hook-summary-grid">
+            <div class="hook-summary-card" id="start-summary-card">
+                <h3>When AirPlay Connects</h3>
+                <p class="summary-status" id="start-summary-status">Enabled</p>
+                <p class="summary-details" id="start-summary-details">No actions configured yet.</p>
+            </div>
+            <div class="hook-summary-card" id="end-summary-card">
+                <h3>When AirPlay Disconnects</h3>
+                <p class="summary-status" id="end-summary-status">Enabled</p>
+                <p class="summary-details" id="end-summary-details">No actions configured yet.</p>
+            </div>
+        </section>
 
         <form id="config-form">
             <!-- When AirPlay Connects Section -->
@@ -38,19 +83,28 @@
                 </div>
                 <p class="section-description">Configure behavior when AirPlay connects</p>
                 
-                <div id="start-hook-config" class="hook-config-section" style="display: none;">
-                    <!-- Mode Tabs -->
-                    <div class="mode-tabs">
-                        <button type="button" class="mode-tab active" data-hook="start" data-mode="toggle">Toggle On</button>
-                        <button type="button" class="mode-tab" data-hook="start" data-mode="scene">Scene</button>
+                <fieldset id="start-hook-config" class="hook-config-section">
+                    <!-- Mode Selector -->
+                    <div class="mode-selector" role="group" aria-label="Start hook mode">
+                        <label class="mode-option">
+                            <input type="radio" name="start-mode" value="toggle" class="mode-radio" data-hook="start" checked>
+                            <span class="mode-option-title">Toggle virtuals</span>
+                            <span class="mode-option-description">Turn specific LedFX virtuals on when AirPlay connects.</span>
+                        </label>
+                        <label class="mode-option">
+                            <input type="radio" name="start-mode" value="scene" class="mode-radio" data-hook="start">
+                            <span class="mode-option-title">Trigger a scene</span>
+                            <span class="mode-option-description">Activate a LedFX scene instead of toggling virtuals.</span>
+                        </label>
                     </div>
 
                     <!-- Toggle Mode Content -->
                     <div id="start-toggle-mode" class="mode-content">
+                        <p class="list-helper">Choose which virtuals should turn on. Use repeats for devices that need the command sent multiple times (e.g., some Govee controllers).</p>
                         <div class="virtual-selection-controls" id="start-virtual-selection-controls" style="display: none;">
                             <label class="checkbox-label all-virtuals-label">
                                 <input type="checkbox" id="start-all-virtuals" class="checkbox-input all-virtuals-checkbox">
-                                <span class="checkbox-text">All Virtuals</span>
+                                <span class="checkbox-text">Select all virtuals</span>
                             </label>
                         </div>
 
@@ -61,11 +115,12 @@
 
                     <!-- Scene Mode Content -->
                     <div id="start-scene-mode" class="mode-content" style="display: none;">
+                        <p class="list-helper">Pick one or more LedFX scenes to activate when AirPlay connects.</p>
                         <div id="start-scenes-list" class="scenes-list">
                             <p class="loading">Loading scenes...</p>
                         </div>
                     </div>
-                </div>
+                </fieldset>
             </section>
 
             <!-- When AirPlay Disconnects Section -->
@@ -80,19 +135,28 @@
                 </div>
                 <p class="section-description">Configure behavior when AirPlay disconnects</p>
                 
-                <div id="end-hook-config" class="hook-config-section" style="display: none;">
-                    <!-- Mode Tabs -->
-                    <div class="mode-tabs">
-                        <button type="button" class="mode-tab active" data-hook="end" data-mode="toggle">Toggle Off</button>
-                        <button type="button" class="mode-tab" data-hook="end" data-mode="scene">Scene</button>
+                <fieldset id="end-hook-config" class="hook-config-section">
+                    <!-- Mode Selector -->
+                    <div class="mode-selector" role="group" aria-label="End hook mode">
+                        <label class="mode-option">
+                            <input type="radio" name="end-mode" value="toggle" class="mode-radio" data-hook="end" checked>
+                            <span class="mode-option-title">Toggle virtuals</span>
+                            <span class="mode-option-description">Turn selected virtuals off when AirPlay disconnects.</span>
+                        </label>
+                        <label class="mode-option">
+                            <input type="radio" name="end-mode" value="scene" class="mode-radio" data-hook="end">
+                            <span class="mode-option-title">Trigger a scene</span>
+                            <span class="mode-option-description">Switch to a LedFX scene when playback stops.</span>
+                        </label>
                     </div>
 
                     <!-- Toggle Mode Content -->
                     <div id="end-toggle-mode" class="mode-content">
+                        <p class="list-helper">Choose which virtuals should turn off. Repeats can send multiple shutdown signals for stubborn devices.</p>
                         <div class="virtual-selection-controls" id="end-virtual-selection-controls" style="display: none;">
                             <label class="checkbox-label all-virtuals-label">
                                 <input type="checkbox" id="end-all-virtuals" class="checkbox-input all-virtuals-checkbox">
-                                <span class="checkbox-text">All Virtuals</span>
+                                <span class="checkbox-text">Select all virtuals</span>
                             </label>
                         </div>
 
@@ -103,11 +167,12 @@
 
                     <!-- Scene Mode Content -->
                     <div id="end-scene-mode" class="mode-content" style="display: none;">
+                        <p class="list-helper">Pick LedFX scenes to activate when AirPlay disconnects.</p>
                         <div id="end-scenes-list" class="scenes-list">
                             <p class="loading">Loading scenes...</p>
                         </div>
                     </div>
-                </div>
+                </fieldset>
             </section>
 
         </form>
@@ -118,10 +183,20 @@
         let availableVirtuals = [];
         let availableScenes = [];
         let hasDevices = false;
-        let refreshInterval = null;
+        let currentAirplayName = '';
+        let airplayRequestInFlight = false;
+        const airplayNameInput = document.getElementById('airplay-name-input');
+        const airplayFeedbackEl = document.getElementById('airplay-feedback');
+        const saveAirplayNameBtn = document.getElementById('save-airplay-name-btn');
+        const restartShairportBtn = document.getElementById('restart-shairport-btn');
+        const noDevicesBanner = document.getElementById('no-devices-banner');
+        const openLedfxLink = document.getElementById('open-ledfx-link');
+        const configForm = document.getElementById('config-form');
         // Track previous state of each control for rollback on failure
         let controlStates = new Map();
         let saveInProgress = false;
+        let lastSavedAt = null;
+        const saveStatusEl = document.getElementById('save-status');
 
         // Escape HTML to prevent XSS
         function escapeHtml(text) {
@@ -130,24 +205,52 @@
             return div.innerHTML;
         }
 
-        // Show error message
+        function updateSaveStatus(message, type = 'info') {
+            if (!saveStatusEl) return;
+            saveStatusEl.textContent = message;
+            saveStatusEl.classList.remove('success', 'error');
+            if (type === 'success') {
+                saveStatusEl.classList.add('success');
+            } else if (type === 'error') {
+                saveStatusEl.classList.add('error');
+            }
+        }
+
+        // Show error message (stays until dismissed)
         function showError(message) {
             const errorEl = document.getElementById('error-message');
-            errorEl.textContent = message;
-            errorEl.style.display = 'block';
-            setTimeout(() => {
-                errorEl.style.display = 'none';
-            }, 5000);
+            const errorText = document.getElementById('error-text');
+            if (errorText) {
+                errorText.textContent = message;
+            } else {
+                errorEl.textContent = message;
+            }
+            errorEl.style.display = 'flex';
+            updateSaveStatus(message, 'error');
+        }
+
+        function initMessageClosers() {
+            document.querySelectorAll('.message-close').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const targetId = btn.dataset.target;
+                    const targetEl = document.getElementById(targetId);
+                    if (targetEl) {
+                        targetEl.style.display = 'none';
+                    }
+                });
+            });
         }
 
         // Show success message
         function showSuccess(message) {
             const successEl = document.getElementById('success-message');
-            successEl.textContent = message;
-            successEl.style.display = 'block';
-            setTimeout(() => {
-                successEl.style.display = 'none';
-            }, 3000);
+            const successText = document.getElementById('success-text');
+            if (successText) {
+                successText.textContent = message;
+            } else {
+                successEl.textContent = message;
+            }
+            successEl.style.display = 'flex';
         }
 
         // Load configuration
@@ -168,6 +271,10 @@
                 availableVirtuals = data.available_virtuals || [];
                 availableScenes = data.available_scenes || [];
                 hasDevices = data.has_devices !== false;
+                if (airplayNameInput) {
+                    currentAirplayName = typeof data.airplay_name === 'string' ? data.airplay_name : '';
+                    airplayNameInput.value = currentAirplayName;
+                }
 
                 // Update hook toggles
                 const startEnabled = data.hooks.start_hook_enabled !== false;
@@ -176,20 +283,21 @@
                 document.getElementById('start-hook-enabled').checked = startEnabled;
                 document.getElementById('end-hook-enabled').checked = endEnabled;
 
-                // Show/hide hook configuration sections based on enabled state
-                document.getElementById('start-hook-config').style.display = startEnabled ? 'block' : 'none';
-                document.getElementById('end-hook-config').style.display = endEnabled ? 'block' : 'none';
+                // Enable/disable hook configuration sections based on enabled state
+                setHookDisabled('start', !startEnabled);
+                setHookDisabled('end', !endEnabled);
 
                 // Update configuration for each hook (only if enabled)
-                if (startEnabled) {
-                    updateHookConfig('start', data.virtuals.hooks?.start);
-                }
-                if (endEnabled) {
-                    updateHookConfig('end', data.virtuals.hooks?.end);
-                }
+                updateHookConfig('start', data.virtuals.hooks?.start);
+                updateHookConfig('end', data.virtuals.hooks?.end);
+
+                updateHookSummary('start', data.virtuals.hooks?.start, startEnabled);
+                updateHookSummary('end', data.virtuals.hooks?.end, endEnabled);
 
                 // Store initial state of all controls for rollback
                 storeControlStates();
+
+                updateSaveStatus('Configuration loaded. Changes auto-save.');
 
             } catch (error) {
                 showError(`Failed to load configuration: ${error.message}`);
@@ -203,16 +311,11 @@
             }
 
             const mode = hookConfig.mode || 'toggle';
-            
-            // Update mode tabs
-            document.querySelectorAll(`.mode-tab[data-hook="${hookType}"]`).forEach(tab => {
-                if (tab.dataset.mode === mode) {
-                    tab.classList.add('active');
-                } else {
-                    tab.classList.remove('active');
-                }
-            });
 
+            document.querySelectorAll(`input[name="${hookType}-mode"]`).forEach(radio => {
+                radio.checked = radio.value === mode;
+            });
+            
             // Show/hide mode content
             const toggleModeEl = document.getElementById(`${hookType}-toggle-mode`);
             const sceneModeEl = document.getElementById(`${hookType}-scene-mode`);
@@ -230,6 +333,38 @@
             } else {
                 updateSceneSelection(hookType, hookConfig);
             }
+        }
+
+        function setHookDisabled(hookType, disabled) {
+            const fieldset = document.getElementById(`${hookType}-hook-config`);
+            if (fieldset) {
+                fieldset.disabled = disabled;
+            }
+        }
+
+        function updateHookSummary(hookType, hookConfig, enabled) {
+            const statusEl = document.getElementById(`${hookType}-summary-status`);
+            const detailsEl = document.getElementById(`${hookType}-summary-details`);
+            if (!statusEl || !detailsEl) return;
+            statusEl.textContent = enabled ? 'Enabled' : 'Disabled';
+            detailsEl.textContent = enabled ? summarizeAction(hookConfig) : 'No actions will run.';
+        }
+
+        function summarizeAction(hookConfig) {
+            if (!hookConfig) return 'Select an action to run.';
+            const mode = hookConfig.mode || 'toggle';
+            if (mode === 'scene') {
+                const scenes = hookConfig.scenes || [];
+                if (scenes.length === 0) return 'Select scenes to trigger.';
+                if (scenes.length === 1) return `Trigger scene ${scenes[0]}.`;
+                return `Trigger ${scenes.length} scenes.`;
+            }
+            if (hookConfig.all_virtuals) {
+                return 'Toggle all virtuals.';
+            }
+            const count = (hookConfig.virtuals || []).length;
+            if (count === 0) return 'Select virtuals to toggle.';
+            return `Toggle ${count} virtual${count === 1 ? '' : 's'}.`;
         }
 
         // Update virtual selection UI for a hook
@@ -290,7 +425,7 @@
 
             if (availableScenes.length === 0) {
                 const ledfxUrl = window.location.protocol + '//' + window.location.hostname + ':8888/#/Scenes';
-                listEl.innerHTML = `<p class="no-virtuals">No scenes available. <a href="${ledfxUrl}" target="_blank">Open LedFX</a> to create scenes first, then refresh this page.</p>`;
+                listEl.innerHTML = `<p class="no-virtuals">No scenes available yet. <a href="${ledfxUrl}" target="_blank">Open LedFX</a> to create scenes, then reload this page.</p>`;
                 return;
             }
 
@@ -307,6 +442,82 @@
             });
         }
 
+        function initAirplayControls() {
+            if (saveAirplayNameBtn) {
+                saveAirplayNameBtn.addEventListener('click', handleAirplayNameSave);
+            }
+            if (restartShairportBtn) {
+                restartShairportBtn.addEventListener('click', handleShairportRestart);
+            }
+        }
+
+        async function handleAirplayNameSave() {
+            if (!airplayNameInput || airplayRequestInFlight) return;
+            const newName = airplayNameInput.value.trim();
+            if (newName.length === 0) {
+                showError('AirPlay name cannot be empty.');
+                return;
+            }
+            if (newName.length > 32) {
+                showError('AirPlay name must be 32 characters or fewer.');
+                return;
+            }
+            if (newName === currentAirplayName) {
+                updateSaveStatus('AirPlay name is already set to that value.');
+                return;
+            }
+
+            airplayRequestInFlight = true;
+            saveAirplayNameBtn.disabled = true;
+            updateSaveStatus('Saving AirPlay name...');
+
+            try {
+                const response = await fetch('/api/airplay-name', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name: newName })
+                });
+                const result = await response.json().catch(() => ({}));
+                if (!response.ok || result.error) {
+                    throw new Error(result.error || 'Failed to update AirPlay name.');
+                }
+                currentAirplayName = result.name || newName;
+                showSuccess('AirPlay name saved. Restart Shairport-Sync to apply changes.');
+                updateSaveStatus('AirPlay name saved. Restart to apply.', 'success');
+            } catch (error) {
+                showError(error.message || 'Failed to update AirPlay name.');
+            } finally {
+                airplayRequestInFlight = false;
+                saveAirplayNameBtn.disabled = false;
+            }
+        }
+
+        async function handleShairportRestart() {
+            if (airplayRequestInFlight) return;
+            if (!restartShairportBtn) return;
+            const confirmed = window.confirm('Restarting Shairport-Sync will interrupt any active AirPlay sessions. Continue?');
+            if (!confirmed) {
+                return;
+            }
+
+            restartShairportBtn.disabled = true;
+            updateSaveStatus('Restarting Shairport-Sync...');
+
+            try {
+                const response = await fetch('/api/shairport/restart', { method: 'POST' });
+                const result = await response.json().catch(() => ({}));
+                if (!response.ok || result.error) {
+                    throw new Error(result.error || 'Failed to restart shairport-sync.');
+                }
+                showSuccess('Shairport-Sync restart triggered. Give it a few seconds to come back online.');
+                updateSaveStatus('Shairport-Sync restarted.', 'success');
+            } catch (error) {
+                showError(error.message || 'Failed to restart shairport-sync.');
+            } finally {
+                restartShairportBtn.disabled = false;
+            }
+        }
+
         // Build virtuals list HTML
         function buildVirtualsList(hookType, selectedVirtuals) {
             const listEl = document.getElementById(`${hookType}-virtuals-list`);
@@ -315,25 +526,25 @@
             // Check for devices first (primary check)
             if (!hasDevices) {
                 const ledfxUrl = window.location.protocol + '//' + window.location.hostname + ':8888/#/Devices';
-                listEl.innerHTML = `<p class="no-virtuals">No LedFX devices configured. <a href="${ledfxUrl}" target="_blank">Open LedFX</a> to add devices first, then refresh this page.</p>`;
+                listEl.innerHTML = `<p class="no-virtuals">No LedFX devices configured. <a href="${ledfxUrl}" target="_blank">Open LedFX</a> to add devices, then reload this page.</p>`;
                 return;
             }
 
             if (availableVirtuals.length === 0) {
                 // Get LedFX URL from window location (same host, different port)
                 const ledfxUrl = window.location.protocol + '//' + window.location.hostname + ':8888/#/Virtuals';
-                listEl.innerHTML = `<p class="no-virtuals">No virtuals available. <a href="${ledfxUrl}" target="_blank">Open LedFX</a> to create virtuals first, then refresh this page.</p>`;
+                listEl.innerHTML = `<p class="no-virtuals">No virtuals available. <a href="${ledfxUrl}" target="_blank">Open LedFX</a> to create them, then reload this page.</p>`;
                 return;
             }
 
             availableVirtuals.forEach(vid => {
                 const virtualConfig = selectedVirtuals.find(v => v.id === vid) || { id: vid, repeats: 1 };
-                
+                const isSelected = selectedVirtuals.some(v => v.id === vid);
                 const virtualDiv = document.createElement('div');
-                virtualDiv.className = 'virtual-item';
+                virtualDiv.className = `virtual-item${isSelected ? ' active' : ''}`;
                 virtualDiv.innerHTML = `
                     <label class="checkbox-label">
-                        <input type="checkbox" class="virtual-checkbox" data-vid="${escapeHtml(vid)}" data-hook="${hookType}" ${selectedVirtuals.some(v => v.id === vid) ? 'checked' : ''}>
+                        <input type="checkbox" class="virtual-checkbox" data-vid="${escapeHtml(vid)}" data-hook="${hookType}" ${isSelected ? 'checked' : ''}>
                         <span class="checkbox-text">${escapeHtml(vid)}</span>
                     </label>
                     <div class="virtual-repeats">
@@ -357,10 +568,10 @@
             controlStates.set('end-hook-enabled', document.getElementById('end-hook-enabled').checked);
             
             // Store mode tabs
-            const startModeTab = document.querySelector('.mode-tab[data-hook="start"].active');
-            const endModeTab = document.querySelector('.mode-tab[data-hook="end"].active');
-            controlStates.set('start-mode', startModeTab ? startModeTab.dataset.mode : 'toggle');
-            controlStates.set('end-mode', endModeTab ? endModeTab.dataset.mode : 'toggle');
+            const startModeSelection = document.querySelector('input[name="start-mode"]:checked');
+            const endModeSelection = document.querySelector('input[name="end-mode"]:checked');
+            controlStates.set('start-mode', startModeSelection ? startModeSelection.value : 'toggle');
+            controlStates.set('end-mode', endModeSelection ? endModeSelection.value : 'toggle');
             
             // Store all virtuals checkboxes
             controlStates.set('start-all-virtuals', document.getElementById('start-all-virtuals').checked);
@@ -397,6 +608,15 @@
                 } else if (type === 'repeat') {
                     const input = document.querySelector(`.repeat-input[data-hook="${hook}"][data-vid="${id}"]`);
                     if (input) input.value = previousValue;
+                } else if (type === 'start' || type === 'end') {
+                    const radio = document.querySelector(`input[name="${type}-mode"][value="${previousValue}"]`);
+                    if (radio) radio.checked = true;
+                    const toggleModeEl = document.getElementById(`${type}-toggle-mode`);
+                    const sceneModeEl = document.getElementById(`${type}-scene-mode`);
+                    if (toggleModeEl && sceneModeEl) {
+                        toggleModeEl.style.display = previousValue === 'toggle' ? 'block' : 'none';
+                        sceneModeEl.style.display = previousValue === 'scene' ? 'block' : 'none';
+                    }
                 }
                 return;
             }
@@ -421,14 +641,12 @@
             try {
                 // Collect current configuration
                 const startEnabled = document.getElementById('start-hook-enabled').checked;
-                let startMode = 'toggle';
+                const activeStartMode = document.querySelector('input[name="start-mode"]:checked');
+                let startMode = activeStartMode ? activeStartMode.value : 'toggle';
                 let startAllVirtuals = true;
                 let startVirtuals = [];
                 let startScenes = [];
                 if (startEnabled) {
-                    const activeStartTab = document.querySelector(`.mode-tab[data-hook="start"].active`);
-                    startMode = activeStartTab ? activeStartTab.dataset.mode : 'toggle';
-                    
                     if (startMode === 'toggle') {
                         // Check if all virtuals are selected
                         const checkedBoxes = document.querySelectorAll('.virtual-checkbox[data-hook="start"]:checked');
@@ -455,14 +673,12 @@
                 }
 
                 const endEnabled = document.getElementById('end-hook-enabled').checked;
-                let endMode = 'toggle';
+                const activeEndMode = document.querySelector('input[name="end-mode"]:checked');
+                let endMode = activeEndMode ? activeEndMode.value : 'toggle';
                 let endAllVirtuals = true;
                 let endVirtuals = [];
                 let endScenes = [];
                 if (endEnabled) {
-                    const activeEndTab = document.querySelector(`.mode-tab[data-hook="end"].active`);
-                    endMode = activeEndTab ? activeEndTab.dataset.mode : 'toggle';
-                    
                     if (endMode === 'toggle') {
                         // Check if all virtuals are selected
                         const checkedBoxes = document.querySelectorAll('.virtual-checkbox[data-hook="end"]:checked');
@@ -520,16 +736,34 @@
 
                 const data = await response.json();
                 
+                configData = configData || {};
+                configData.hooks = {
+                    start_hook_enabled: startEnabled,
+                    end_hook_enabled: endEnabled
+                };
+                configData.virtuals = configData.virtuals || {};
+                configData.virtuals.hooks = configData.virtuals.hooks || {};
+                configData.virtuals.hooks.start = configPayload.start_hook;
+                configData.virtuals.hooks.end = configPayload.end_hook;
+
+                updateHookSummary('start', configPayload.start_hook, startEnabled);
+                updateHookSummary('end', configPayload.end_hook, endEnabled);
+                
                 // Update stored states on success
                 storeControlStates();
                 
                 // Show brief success indicator
                 showControlFeedback(controlId, true);
+
+                lastSavedAt = new Date();
+                const timeStr = lastSavedAt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+                updateSaveStatus(`Last saved at ${timeStr}`, 'success');
                 
             } catch (error) {
                 // Revert the control that failed
                 revertControl(controlId, previousValue);
                 showControlFeedback(controlId, false, error.message);
+                showError(error.message);
             } finally {
                 saveInProgress = false;
             }
@@ -571,10 +805,11 @@
             document.getElementById('start-hook-enabled').addEventListener('change', function() {
                 const previousValue = controlStates.get('start-hook-enabled') || false;
                 controlStates.set('start-hook-enabled', this.checked);
-                const configSection = document.getElementById('start-hook-config');
-                configSection.style.display = this.checked ? 'block' : 'none';
-                if (this.checked && configData) {
-                    updateHookConfig('start', configData.virtuals.hooks?.start);
+                setHookDisabled('start', !this.checked);
+                if (configData) {
+                    configData.hooks = configData.hooks || {};
+                    configData.hooks.start_hook_enabled = this.checked;
+                    updateHookSummary('start', configData.virtuals?.hooks?.start, this.checked);
                 }
                 autoSave('start-hook-enabled', previousValue);
             });
@@ -582,10 +817,11 @@
             document.getElementById('end-hook-enabled').addEventListener('change', function() {
                 const previousValue = controlStates.get('end-hook-enabled') || false;
                 controlStates.set('end-hook-enabled', this.checked);
-                const configSection = document.getElementById('end-hook-config');
-                configSection.style.display = this.checked ? 'block' : 'none';
-                if (this.checked && configData) {
-                    updateHookConfig('end', configData.virtuals.hooks?.end);
+                setHookDisabled('end', !this.checked);
+                if (configData) {
+                    configData.hooks = configData.hooks || {};
+                    configData.hooks.end_hook_enabled = this.checked;
+                    updateHookSummary('end', configData.virtuals?.hooks?.end, this.checked);
                 }
                 autoSave('end-hook-enabled', previousValue);
             });
@@ -643,8 +879,10 @@
                 // Check/uncheck all individual virtual checkboxes
                 document.querySelectorAll('.virtual-checkbox[data-hook="start"]').forEach(cb => {
                     cb.checked = this.checked;
-                    // Trigger change event to update state
-                    cb.dispatchEvent(new Event('change'));
+                    const container = cb.closest('.virtual-item');
+                    if (container) container.classList.toggle('active', cb.checked);
+                    const id = cb.dataset.vid;
+                    controlStates.set(`virtual-start-${id}`, cb.checked);
                 });
                 
                 autoSave('start-all-virtuals', previousValue);
@@ -657,11 +895,45 @@
                 // Check/uncheck all individual virtual checkboxes
                 document.querySelectorAll('.virtual-checkbox[data-hook="end"]').forEach(cb => {
                     cb.checked = this.checked;
-                    // Trigger change event to update state
-                    cb.dispatchEvent(new Event('change'));
+                    const container = cb.closest('.virtual-item');
+                    if (container) container.classList.toggle('active', cb.checked);
+                    const id = cb.dataset.vid;
+                    controlStates.set(`virtual-end-${id}`, cb.checked);
                 });
                 
                 autoSave('end-all-virtuals', previousValue);
+            });
+
+            document.querySelectorAll('.mode-radio').forEach(radio => {
+                radio.addEventListener('change', function() {
+                    if (!this.checked) return;
+                    const hookType = this.dataset.hook;
+                    const previousMode = controlStates.get(`${hookType}-mode`) || 'toggle';
+                    controlStates.set(`${hookType}-mode`, this.value);
+
+                    const toggleModeEl = document.getElementById(`${hookType}-toggle-mode`);
+                    const sceneModeEl = document.getElementById(`${hookType}-scene-mode`);
+                    if (toggleModeEl && sceneModeEl) {
+                        toggleModeEl.style.display = this.value === 'toggle' ? 'block' : 'none';
+                        sceneModeEl.style.display = this.value === 'scene' ? 'block' : 'none';
+                    }
+
+                    const virtualSelectionControls = document.getElementById(`${hookType}-virtual-selection-controls`);
+                    if (virtualSelectionControls) {
+                        const shouldShow = this.value === 'toggle' && hasDevices && availableVirtuals.length > 0;
+                        virtualSelectionControls.style.display = shouldShow ? 'block' : 'none';
+                    }
+
+                    if (this.value === 'toggle') {
+                        const hookConfig = configData?.virtuals?.hooks?.[hookType] || { virtuals: [], all_virtuals: false };
+                        updateVirtualSelection(hookType, hookConfig);
+                    } else {
+                        const hookConfig = configData?.virtuals?.hooks?.[hookType] || { scenes: [] };
+                        updateSceneSelection(hookType, hookConfig);
+                    }
+
+                    autoSave(`${hookType}-mode`, previousMode);
+                });
             });
             
             // Update "All Virtuals" checkbox when individual checkboxes change
@@ -682,13 +954,20 @@
             // Listen for changes on checkboxes and inputs
             document.addEventListener('change', function(e) {
                 if (e.target.matches('.virtual-checkbox, .scene-checkbox')) {
-                    const controlId = e.target.id || `${e.target.classList.contains('virtual-checkbox') ? 'virtual' : 'scene'}-${e.target.dataset.hook}-${e.target.dataset.vid || e.target.dataset.sid}`;
+                    const hook = e.target.dataset.hook;
+                    const identifier = e.target.dataset.vid || e.target.dataset.sid || '';
+                    const typePrefix = e.target.classList.contains('virtual-checkbox') ? 'virtual' : 'scene';
+                    const controlId = e.target.id || `${typePrefix}-${hook}-${identifier}`;
                     const previousValue = controlStates.get(controlId) || false;
                     controlStates.set(controlId, e.target.checked);
                     
                     // Update "All Virtuals" checkbox when individual virtual checkbox changes
                     if (e.target.matches('.virtual-checkbox')) {
-                        updateAllVirtualsCheckbox(e.target.dataset.hook);
+                        const container = e.target.closest('.virtual-item');
+                        if (container) {
+                            container.classList.toggle('active', e.target.checked);
+                        }
+                        updateAllVirtualsCheckbox(hook);
                     }
                     
                     autoSave(controlId, previousValue);
@@ -712,47 +991,14 @@
             });
         }
 
-
-        // Auto-refresh available virtuals and scenes lists
-        async function refreshLists() {
-            try {
-                const response = await fetch('/api/config');
-                if (response.ok) {
-                    const data = await response.json();
-                    const newVirtuals = data.available_virtuals || [];
-                    const newScenes = data.available_scenes || [];
-                    
-                    // Only update if lists changed
-                    if (JSON.stringify(newVirtuals) !== JSON.stringify(availableVirtuals) ||
-                        JSON.stringify(newScenes) !== JSON.stringify(availableScenes)) {
-                        availableVirtuals = newVirtuals;
-                        availableScenes = newScenes;
-                        if (configData) {
-                            updateHookConfig('start', configData.virtuals.hooks?.start);
-                            updateHookConfig('end', configData.virtuals.hooks?.end);
-                        }
-                    }
-                }
-            } catch (error) {
-                // Silently fail on refresh
-            }
-        }
-
-        // Clear refresh interval on page unload
-        window.addEventListener('beforeunload', (e) => {
-            if (refreshInterval) {
-                clearInterval(refreshInterval);
-            }
-        });
-
         // Initial load
         loadConfig();
 
         // Add form change listeners
         addFormChangeListeners();
-
-        // Refresh virtuals and scenes lists every 10 seconds
-        refreshInterval = setInterval(refreshLists, 10000);
+        initMessageClosers();
+        initAirplayControls();
+        updateSaveStatus('Ready to edit hooks.');
     </script>
 </body>
 </html>

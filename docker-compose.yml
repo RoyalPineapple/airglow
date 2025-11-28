@@ -67,7 +67,7 @@ services:
       # Shairport configuration (AirPlay device name, audio settings) - READ ONLY
       - ./configs/shairport-sync.conf:/etc/shairport-sync.conf:ro
       # LedFx hook configuration (YAML format, created dynamically by web app, read by hook scripts)
-      # Note: Mounted via ./configs:/configs:rw in airglow-web service
+      - ./configs:/configs:ro
       # PulseAudio socket for audio output to LedFX
       - ./pulse:/pulse
       # Session hook scripts triggered on AirPlay start/stop
