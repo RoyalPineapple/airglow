@@ -504,11 +504,17 @@ nav a:hover {
 
 .mode-content {
     margin-top: var(--spacing);
+    background: transparent;
+    border: none;
+    padding: 0;
 }
 
 .virtuals-list,
 .scenes-list {
     margin-top: var(--spacing);
+    background: transparent;
+    border: none;
+    padding: 0;
 }
 
 .virtual-item,
@@ -587,8 +593,10 @@ nav a:hover {
 .no-virtuals {
     color: var(--color-text-light);
     font-style: italic;
-    padding: var(--spacing);
+    padding: 0;
     text-align: center;
+    background: transparent;
+    border: none;
 }
 
 code {
