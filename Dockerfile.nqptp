@@ -1,0 +1,42 @@
+FROM alpine:latest
+
+# Install build dependencies
+RUN apk add --no-cache \
+    build-base \
+    autoconf \
+    automake \
+    libtool \
+    git \
+    libpopt-dev \
+    libconfig-dev
+
+# Build NQPTP from source
+WORKDIR /tmp
+RUN git clone --depth 1 https://github.com/mikebrady/nqptp.git && \
+    cd nqptp && \
+    autoreconf -fi && \
+    ./configure --prefix=/usr/local && \
+    make -j$(nproc) && \
+    make install && \
+    (ldconfig 2>/dev/null || true) && \
+    cd .. && \
+    rm -rf nqptp
+
+# Clean up build dependencies
+RUN apk del \
+    build-base \
+    autoconf \
+    automake \
+    libtool \
+    git
+
+# Verify installation
+RUN test -f /usr/local/bin/nqptp && nqptp -V || (echo "ERROR: nqptp binary not found" && exit 1)
+
+# Create startup script
+RUN echo '#!/bin/sh' > /start.sh && \
+    echo 'exec nqptp' >> /start.sh && \
+    chmod +x /start.sh
+
+ENTRYPOINT ["/start.sh"]
+

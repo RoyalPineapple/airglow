@@ -253,6 +253,13 @@ function copy_configs() {
             }
         fi
         
+        if [[ -f "${SCRIPT_DIR}/Dockerfile.nqptp" ]]; then
+            cp "${SCRIPT_DIR}/Dockerfile.nqptp" "${INSTALL_DIR}/" || {
+                msg_error "Failed to copy Dockerfile.nqptp"
+                exit 1
+            }
+        fi
+        
         # Copy web application directory
         if [[ -d "${SCRIPT_DIR}/web" ]]; then
             cp -r "${SCRIPT_DIR}/web" "${INSTALL_DIR}/" || {

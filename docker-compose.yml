@@ -8,11 +8,13 @@
 # - ledfx: Bridge networking (ports 8888, 5568, 6454, 21324, 4048, 8889, 4002, 4003 exposed)
 #   Note: Philips Hue uses outbound HTTP/HTTPS (80/443) - no ports exposed
 # - avahi: Host networking (handles mDNS/Bonjour on physical network with reflector enabled)
+# - nqptp: Host networking (provides AirPlay 2 timing synchronization, ports 319, 320)
 # - shairport-sync: Bridge networking (connects to Avahi via D-Bus, ports 7000, 5000, 319, 320 exposed)
 #
-# Note: All services now use bridge networking except Avahi, which requires host networking
-# for mDNS/Bonjour discovery on the physical network. Avahi reflector is enabled to forward
-# mDNS traffic between network interfaces.
+# Note: All services now use bridge networking except Avahi and NQPTP, which require host networking
+# for mDNS/Bonjour discovery and PTP timing on the physical network. Avahi reflector is enabled
+# to forward mDNS traffic between network interfaces. NQPTP and shairport-sync communicate via
+# shared memory (/dev/shm) for AirPlay 2 timing synchronization.
 
 networks:
   airglow-network:
@@ -34,6 +36,22 @@ services:
       - ./configs/avahi-daemon.conf:/etc/avahi/avahi-daemon.conf:ro
       # D-Bus socket for shairport-sync to connect
       - /var/run/dbus:/var/run/dbus:rw
+    
+    restart: unless-stopped
+
+  nqptp:
+    # NQPTP - Network Quality Precision Time Protocol for AirPlay 2
+    # Provides timing synchronization required for AirPlay 2
+    # Communicates with shairport-sync via shared memory
+    build:
+      context: .
+      dockerfile: Dockerfile.nqptp
+    container_name: nqptp
+    network_mode: host
+    
+    # Share /dev/shm with shairport-sync for shared memory communication
+    volumes:
+      - /dev/shm:/dev/shm:rw
     
     restart: unless-stopped
 
@@ -136,21 +154,10 @@ services:
       # D-Bus connection to Avahi container
       - DBUS_SYSTEM_BUS_ADDRESS=unix:path=/var/run/dbus/system_bus_socket
 
-    volumes:
-      # Shairport configuration (AirPlay device name, audio settings) - READ ONLY
-      - ./configs/shairport-sync.conf:/etc/shairport-sync.conf:ro
-      # LedFX hook configuration (YAML format, created dynamically by web app, read by hook scripts)
-      - ./configs:/configs:ro
-      # PulseAudio socket for audio output to LedFX
-      - ./pulse:/pulse
-      # Session hook scripts triggered on AirPlay start/stop
-      - ./scripts:/scripts:ro
-      # D-Bus socket to connect to Avahi container
-      - /var/run/dbus:/var/run/dbus:ro
-
-    # Ensure Avahi and LedFX start first
+    # Ensure Avahi, NQPTP, and LedFX start first
     depends_on:
       - avahi
+      - nqptp
       - ledfx
 
     restart: unless-stopped
