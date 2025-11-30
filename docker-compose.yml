@@ -48,8 +48,9 @@ services:
     restart: unless-stopped
 
     # Health check to verify LedFX API is responding
+    # Use 127.0.0.1 instead of localhost for bridge networking
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8888/api/info"]
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:8888/api/info"]
       interval: 30s
       timeout: 10s
       retries: 3
