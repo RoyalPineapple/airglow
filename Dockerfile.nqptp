@@ -7,7 +7,7 @@ RUN apk add --no-cache \
     automake \
     libtool \
     git \
-    libpopt-dev \
+    popt-dev \
     libconfig-dev
 
 # Build NQPTP from source
