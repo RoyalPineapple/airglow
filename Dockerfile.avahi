@@ -14,6 +14,16 @@ RUN echo '#!/bin/sh' > /start.sh && \
     echo 'sleep 2' >> /start.sh && \
     echo 'avahi-daemon -D' >> /start.sh && \
     echo 'sleep 1' >> /start.sh && \
+    echo '# Write host IP to shared file for shairport-sync to read' >> /start.sh && \
+    echo '# Avahi runs on host networking, so it can see the actual host interfaces' >> /start.sh && \
+    echo 'HOST_IP=$(ip route get 8.8.8.8 2>/dev/null | awk '"'"'{print $7}'"'"' | head -1)' >> /start.sh && \
+    echo 'if [ -z "$HOST_IP" ] || [ "$HOST_IP" = "127.0.0.1" ]; then' >> /start.sh && \
+    echo '  HOST_IP=$(ip addr show | grep -E "inet " | grep -v "127.0.0.1" | grep -vE "172\\.(1[6-9]|2[0-9]|3[0-1])\\." | awk '"'"'{print $2}'"'"' | cut -d/ -f1 | head -1)' >> /start.sh && \
+    echo 'fi' >> /start.sh && \
+    echo 'if [ -n "$HOST_IP" ] && [ "$HOST_IP" != "127.0.0.1" ]; then' >> /start.sh && \
+    echo '  echo "$HOST_IP" > /var/run/avahi-daemon/host-ip.txt' >> /start.sh && \
+    echo '  echo "Avahi detected host IP: $HOST_IP"' >> /start.sh && \
+    echo 'fi' >> /start.sh && \
     echo 'exec tail -f /dev/null' >> /start.sh && \
     chmod +x /start.sh
 
