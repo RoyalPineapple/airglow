@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AirGlow - AirPlay Browser</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="banner-container">
+        <img src="https://raw.githubusercontent.com/RoyalPineapple/airglow/master/web/static/banner.jpg" alt="Aurora Borealis" class="banner-image" onerror="this.parentElement.style.display='none'">
+        <div class="banner-overlay">
+            <h1 class="banner-title">AirGlow</h1>
+            <p class="banner-tagline">AirPlay Browser</p>
+        </div>
+    </div>
+    <div class="container">
+        <header>
+            <nav>
+                <a href="/">Home</a>
+                <a href="/status">Status Dashboard</a>
+                <a href="/config">Configuration</a>
+                <a href="http://{{ request.host.split(':')[0] }}:8888" target="_blank">LedFX Web Interface</a>
+            </nav>
+        </header>
+
+        <div class="status-header">
+            <label class="checkbox-label" style="align-items: center; gap: 0.5rem;">
+                <input type="checkbox" id="auto-refresh-toggle" class="checkbox-input" checked>
+                <span class="checkbox-text">Auto-refresh</span>
+            </label>
+            <button id="refresh-btn" class="btn btn-primary" title="Refresh browser">
+                <span id="refresh-icon">🔄</span> Refresh
+            </button>
+            <div id="last-update" class="last-update"></div>
+        </div>
+
+        <div id="error-message" class="message error-message" role="alert" style="display: none;">
+            <span id="error-text"></span>
+            <button type="button" class="message-close" data-target="error-message" aria-label="Dismiss error">&times;</button>
+        </div>
+
+        <!-- AirPlay 2 Services Section -->
+        <section class="status-section">
+            <h2>AirPlay 2 Services (_raop._tcp)</h2>
+            <p class="section-description">Raw avahi-browse output for AirPlay 2 devices</p>
+            <div id="airplay2-loading" class="loading" style="display: none;">Loading...</div>
+            <div id="airplay2-error" class="error" style="display: none;"></div>
+            <div id="airplay2-output" class="diagnostic-output" style="display: none;">
+                <pre id="airplay2-pre"></pre>
+            </div>
+        </section>
+
+        <!-- AirPlay 1 Services Section -->
+        <section class="status-section">
+            <h2>AirPlay 1 Services (_airplay._tcp)</h2>
+            <p class="section-description">Raw avahi-browse output for AirPlay 1 devices</p>
+            <div id="airplay1-loading" class="loading" style="display: none;">Loading...</div>
+            <div id="airplay1-error" class="error" style="display: none;"></div>
+            <div id="airplay1-output" class="diagnostic-output" style="display: none;">
+                <pre id="airplay1-pre"></pre>
+            </div>
+        </section>
+    </div>
+
+    <script>
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        let autoRefreshInterval = null;
+        const AUTO_REFRESH_INTERVAL = 20000; // 20 seconds
+
+        function showError(message) {
+            const errorEl = document.getElementById('error-message');
+            const errorText = document.getElementById('error-text');
+            if (errorText) {
+                errorText.textContent = message;
+            } else {
+                errorEl.textContent = message;
+            }
+            errorEl.style.display = 'flex';
+        }
+
+        function initMessageClosers() {
+            document.querySelectorAll('.message-close').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const targetId = btn.dataset.target;
+                    const targetEl = document.getElementById(targetId);
+                    if (targetEl) {
+                        targetEl.style.display = 'none';
+                    }
+                });
+            });
+        }
+
+        async function refreshBrowser() {
+            // Show loading states
+            document.getElementById('airplay2-loading').style.display = 'block';
+            document.getElementById('airplay2-error').style.display = 'none';
+            document.getElementById('airplay2-output').style.display = 'none';
+            document.getElementById('airplay1-loading').style.display = 'block';
+            document.getElementById('airplay1-error').style.display = 'none';
+            document.getElementById('airplay1-output').style.display = 'none';
+
+            // Disable refresh button during load
+            const refreshBtn = document.getElementById('refresh-btn');
+            const refreshIcon = document.getElementById('refresh-icon');
+            refreshBtn.disabled = true;
+            if (refreshIcon) {
+                refreshIcon.style.animation = 'spin 0.5s linear infinite';
+            }
+
+            try {
+                const response = await fetch('/api/browser');
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+                const data = await response.json();
+
+                // Update AirPlay 2 section
+                const airplay2Loading = document.getElementById('airplay2-loading');
+                const airplay2Error = document.getElementById('airplay2-error');
+                const airplay2Output = document.getElementById('airplay2-output');
+                const airplay2Pre = document.getElementById('airplay2-pre');
+
+                airplay2Loading.style.display = 'none';
+
+                if (data.airplay2.error) {
+                    airplay2Error.textContent = `Error: ${escapeHtml(data.airplay2.error)}`;
+                    airplay2Error.style.display = 'block';
+                } else if (data.airplay2.output) {
+                    airplay2Pre.textContent = data.airplay2.output;
+                    airplay2Output.style.display = 'block';
+                } else {
+                    airplay2Pre.textContent = 'No AirPlay 2 services found.';
+                    airplay2Output.style.display = 'block';
+                }
+
+                // Update AirPlay 1 section
+                const airplay1Loading = document.getElementById('airplay1-loading');
+                const airplay1Error = document.getElementById('airplay1-error');
+                const airplay1Output = document.getElementById('airplay1-output');
+                const airplay1Pre = document.getElementById('airplay1-pre');
+
+                airplay1Loading.style.display = 'none';
+
+                if (data.airplay1.error) {
+                    airplay1Error.textContent = `Error: ${escapeHtml(data.airplay1.error)}`;
+                    airplay1Error.style.display = 'block';
+                } else if (data.airplay1.output) {
+                    airplay1Pre.textContent = data.airplay1.output;
+                    airplay1Output.style.display = 'block';
+                } else {
+                    airplay1Pre.textContent = 'No AirPlay 1 services found.';
+                    airplay1Output.style.display = 'block';
+                }
+
+                // Update timestamp
+                if (data.timestamp) {
+                    const timestamp = new Date(data.timestamp);
+                    const timeStr = timestamp.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', second: '2-digit' });
+                    document.getElementById('last-update').textContent = `Last updated: ${timeStr}`;
+                }
+
+            } catch (error) {
+                console.error('Error fetching browser data:', error);
+                showError(`Error loading browser data: ${escapeHtml(error.message)}`);
+                document.getElementById('airplay2-loading').style.display = 'none';
+                document.getElementById('airplay1-loading').style.display = 'none';
+            } finally {
+                refreshBtn.disabled = false;
+                if (refreshIcon) {
+                    refreshIcon.style.animation = '';
+                }
+            }
+        }
+
+        function startAutoRefresh() {
+            if (autoRefreshInterval) {
+                clearInterval(autoRefreshInterval);
+            }
+            autoRefreshInterval = setInterval(refreshBrowser, AUTO_REFRESH_INTERVAL);
+        }
+
+        function stopAutoRefresh() {
+            if (autoRefreshInterval) {
+                clearInterval(autoRefreshInterval);
+                autoRefreshInterval = null;
+            }
+        }
+
+        // Initialize
+        initMessageClosers();
+
+        // Refresh button handler
+        const refreshBtn = document.getElementById('refresh-btn');
+        if (refreshBtn) {
+            refreshBtn.addEventListener('click', () => {
+                refreshBrowser();
+            });
+        }
+
+        // Auto-refresh toggle
+        const autoRefreshToggle = document.getElementById('auto-refresh-toggle');
+        if (autoRefreshToggle) {
+            autoRefreshToggle.addEventListener('change', function() {
+                if (this.checked) {
+                    startAutoRefresh();
+                } else {
+                    stopAutoRefresh();
+                }
+            });
+        }
+
+        // Initial load
+        refreshBrowser();
+
+        // Start auto-refresh if enabled
+        if (autoRefreshToggle && autoRefreshToggle.checked) {
+            startAutoRefresh();
+        }
+
+        // Cleanup on page unload
+        window.addEventListener('beforeunload', () => {
+            stopAutoRefresh();
+        });
+    </script>
+</body>
+</html>
+

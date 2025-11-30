@@ -12,6 +12,7 @@ import yaml
 from flask import Flask, render_template, jsonify, request
 from functools import wraps
 from time import time
+from datetime import datetime
 
 app = Flask(__name__)
 
@@ -555,6 +556,12 @@ def config():
     return render_template('config.html')
 
 
+@app.route('/browser')
+def browser():
+    """AirPlay browser page"""
+    return render_template('browser.html')
+
+
 def get_diagnostic_warnings():
     """Run a quick diagnostic check and return warning/error counts"""
     warnings = 0
@@ -931,6 +938,62 @@ def diagnose():
             'error': 'An error occurred while running diagnostics' if not app.debug else str(e),
             'returncode': -1
         }), 500
+
+
+@app.route('/api/browser')
+def get_airplay_devices():
+    """Get AirPlay devices using avahi-browse"""
+    result = {
+        'airplay2': {'output': '', 'error': None},
+        'airplay1': {'output': '', 'error': None},
+        'timestamp': datetime.now().isoformat()
+    }
+    
+    # Check if avahi container is running
+    avahi_status = check_container_status('avahi')
+    if not avahi_status['running']:
+        error_msg = 'Avahi container is not running'
+        result['airplay2']['error'] = error_msg
+        result['airplay1']['error'] = error_msg
+        return jsonify(result)
+    
+    # Browse AirPlay 2 services (_raop._tcp)
+    try:
+        airplay2_result = subprocess.run(
+            ['docker', 'exec', 'avahi', 'avahi-browse', '-rt', '_raop._tcp'],
+            capture_output=True,
+            text=True,
+            timeout=10
+        )
+        if airplay2_result.returncode == 0:
+            result['airplay2']['output'] = airplay2_result.stdout
+        else:
+            result['airplay2']['error'] = airplay2_result.stderr or 'Command failed'
+    except subprocess.TimeoutExpired:
+        result['airplay2']['error'] = 'Command timed out after 10 seconds'
+    except Exception as e:
+        logger.error(f"Error browsing AirPlay 2 services: {e}")
+        result['airplay2']['error'] = str(e) if app.debug else 'Error executing avahi-browse'
+    
+    # Browse AirPlay 1 services (_airplay._tcp)
+    try:
+        airplay1_result = subprocess.run(
+            ['docker', 'exec', 'avahi', 'avahi-browse', '-rt', '_airplay._tcp'],
+            capture_output=True,
+            text=True,
+            timeout=10
+        )
+        if airplay1_result.returncode == 0:
+            result['airplay1']['output'] = airplay1_result.stdout
+        else:
+            result['airplay1']['error'] = airplay1_result.stderr or 'Command failed'
+    except subprocess.TimeoutExpired:
+        result['airplay1']['error'] = 'Command timed out after 10 seconds'
+    except Exception as e:
+        logger.error(f"Error browsing AirPlay 1 services: {e}")
+        result['airplay1']['error'] = str(e) if app.debug else 'Error executing avahi-browse'
+    
+    return jsonify(result)
 
 
 if __name__ == '__main__':
