@@ -558,21 +558,25 @@ def config():
 @app.route('/api/status')
 def status():
     """Get comprehensive status information"""
-    # Get container statuses with versions
-    ledfx_status = check_container_status('ledfx')
-    shairport_status = check_container_status('shairport-sync')
+    # Get container statuses with versions for all containers
+    containers = {
+        'avahi': check_container_status('avahi'),
+        'nqptp': check_container_status('nqptp'),
+        'ledfx': check_container_status('ledfx'),
+        'shairport_sync': check_container_status('shairport-sync'),
+        'airglow_web': check_container_status('airglow-web')
+    }
+    
+    # Format container data
+    container_data = {}
+    for name, status in containers.items():
+        container_data[name] = {
+            'running': status['running'],
+            'version': status.get('version')
+        }
     
     status_data = {
-        'containers': {
-            'ledfx': {
-                'running': ledfx_status['running'],
-                'version': ledfx_status.get('version')
-            },
-            'shairport_sync': {
-                'running': shairport_status['running'],
-                'version': shairport_status.get('version')
-            }
-        },
+        'containers': container_data,
         'ledfx': get_ledfx_info(),
         'ledfx_audio_device': get_ledfx_audio_device(),
         'virtuals': get_ledfx_virtuals(),
@@ -797,6 +801,44 @@ def rate_limit_diagnose(f):
         
         return f(*args, **kwargs)
     return decorated_function
+
+
+@app.route('/api/container/<container_name>/restart', methods=['POST'])
+def restart_container(container_name):
+    """Restart a specific container"""
+    # Validate container name (security: only allow known containers)
+    allowed_containers = ['avahi', 'nqptp', 'ledfx', 'shairport-sync', 'airglow-web']
+    if container_name not in allowed_containers:
+        return jsonify({'error': 'Invalid container name'}), 400
+    
+    try:
+        result = subprocess.run(
+            ['docker', 'restart', container_name],
+            capture_output=True,
+            text=True,
+            timeout=30
+        )
+        if result.returncode == 0:
+            return jsonify({
+                'success': True,
+                'message': f'Container {container_name} restarted successfully'
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': result.stderr or 'Failed to restart container'
+            }), 500
+    except subprocess.TimeoutExpired:
+        return jsonify({
+            'success': False,
+            'error': 'Restart operation timed out'
+        }), 500
+    except Exception as e:
+        logger.error(f"Error restarting container {container_name}: {e}", exc_info=True)
+        return jsonify({
+            'success': False,
+            'error': 'An error occurred while restarting the container' if not app.debug else str(e)
+        }), 500
 
 
 @app.route('/api/diagnose', methods=['POST'])

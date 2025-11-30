@@ -181,6 +181,32 @@ nav a:hover {
     gap: 0.5rem;
 }
 
+.status-item-with-action {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+}
+
+.status-item-content {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex: 1;
+}
+
+.btn-sm {
+    padding: 0.25rem 0.75rem;
+    font-size: 0.875rem;
+    min-width: auto;
+}
+
+.btn-success {
+    background-color: var(--color-success);
+    color: white;
+    border-color: var(--color-success);
+}
+
 .status-label {
     font-weight: 700;
     color: var(--color-text-light);

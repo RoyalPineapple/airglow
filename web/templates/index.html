@@ -83,7 +83,25 @@
                 let html = '';
 
                 // Calculate overall system health
-                const containersRunning = data.containers.ledfx.running && data.containers.shairport_sync.running;
+                const containers = data.containers || {};
+                // Order containers by dependency: avahi -> nqptp -> ledfx -> shairport-sync -> airglow-web
+                const containerOrder = ['avahi', 'nqptp', 'ledfx', 'shairport_sync', 'airglow_web'];
+                const containerNames = {
+                    'avahi': 'Avahi',
+                    'nqptp': 'NQPTP',
+                    'ledfx': 'LedFX',
+                    'shairport_sync': 'Shairport-Sync',
+                    'airglow_web': 'Airglow Web'
+                };
+                
+                let runningCount = 0;
+                let totalCount = 0;
+                for (const [key, container] of Object.entries(containers)) {
+                    totalCount++;
+                    if (container.running) runningCount++;
+                }
+                
+                const containersRunning = runningCount === totalCount;
                 const audioSystemOk = data.audio?.pulseaudio?.available;
                 const shairportPlaying = data.audio?.shairport_connected && !data.audio?.shairport_corked;
                 const ledfxProcessing = data.audio?.ledfx_streaming_flag;
@@ -106,7 +124,7 @@
                 html += '<div class="summary-stats">';
                 html += '<div class="summary-stat">';
                 html += '<span class="summary-label">Containers:</span> ';
-                html += containersRunning ? '<span class="summary-value success">2 Running</span>' : '<span class="summary-value error">Issues</span>';
+                html += containersRunning ? `<span class="summary-value success">${runningCount}/${totalCount} Running</span>` : `<span class="summary-value error">${runningCount}/${totalCount} Running</span>`;
                 html += '</div>';
                 html += '<div class="summary-stat">';
                 html += '<span class="summary-label">Audio System:</span> ';
@@ -128,8 +146,27 @@
                 html += '<section class="status-section">';
                 html += '<h2>Container Status</h2>';
                 html += '<div class="status-grid">';
-                html += `<div class="status-item"><span class="status-label">LedFX:</span> ${formatStatus(data.containers.ledfx.running, 'Running', 'Stopped')}${formatVersion(data.containers.ledfx.version)}</div>`;
-                html += `<div class="status-item"><span class="status-label">Shairport-Sync:</span> ${formatStatus(data.containers.shairport_sync.running, 'Running', 'Stopped')}${formatVersion(data.containers.shairport_sync.version)}</div>`;
+                
+                // Display all containers with restart buttons, ordered by dependency
+                for (const key of containerOrder) {
+                    if (!containers[key]) continue; // Skip if container not in data
+                    
+                    const container = containers[key];
+                    const displayName = containerNames[key] || key;
+                    const containerName = key === 'shairport_sync' ? 'shairport-sync' : 
+                                         key === 'airglow_web' ? 'airglow-web' : key;
+                    const statusHtml = formatStatus(container.running, 'Running', 'Stopped');
+                    const versionHtml = formatVersion(container.version);
+                    const restartBtnId = `restart-${key}`;
+                    
+                    html += `<div class="status-item status-item-with-action">`;
+                    html += `<div class="status-item-content">`;
+                    html += `<span class="status-label">${escapeHtml(displayName)}:</span> ${statusHtml}${versionHtml}`;
+                    html += `</div>`;
+                    html += `<button id="${restartBtnId}" class="btn btn-sm btn-outline" data-container="${containerName}">Restart</button>`;
+                    html += `</div>`;
+                }
+                
                 html += '</div>';
                 html += '</section>';
 
@@ -172,6 +209,19 @@
                 const diagnosticBtn = document.getElementById('run-diagnostic');
                 if (diagnosticBtn) {
                     diagnosticBtn.addEventListener('click', runDiagnostic);
+                }
+                
+                // Attach restart button handlers for all containers (in dependency order)
+                for (const key of containerOrder) {
+                    if (!containers[key]) continue;
+                    const restartBtnId = `restart-${key}`;
+                    const restartBtn = document.getElementById(restartBtnId);
+                    if (restartBtn) {
+                        restartBtn.addEventListener('click', () => {
+                            const containerName = restartBtn.getAttribute('data-container');
+                            restartContainer(containerName, restartBtn);
+                        });
+                    }
                 }
 
                 // Update last update time (simplified format)
