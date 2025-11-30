@@ -32,9 +32,8 @@ services:
       - "21324:21324/udp" # WLED UDP protocol (unicast)
       - "4048:4048/udp"  # DDP protocol (unicast)
 
-    # Security options for LXC containers (allow sysctl access)
-    security_opt:
-      - seccomp=unconfined
+    # Privileged mode required for LXC containers (allows sysctl access)
+    privileged: true
 
     volumes:
       # PulseAudio configuration and socket for inter-container audio
@@ -110,9 +109,8 @@ services:
     ports:
       - "8080:80"
 
-    # Security options for LXC containers (allow sysctl access)
-    security_opt:
-      - seccomp=unconfined
+    # Privileged mode required for LXC containers (allows sysctl access)
+    privileged: true
 
     environment:
       # LedFX API connection - use container name for service discovery
