@@ -5,7 +5,8 @@
 #
 # Network Architecture:
 # - airglow-web: Bridge networking (port 8080 exposed)
-# - ledfx: Bridge networking (ports 8888, 5568, 21324, 4048, 4002, 4003 exposed)
+# - ledfx: Bridge networking (ports 8888, 5568, 6454, 21324, 4048, 8889, 4002, 4003 exposed)
+#   Note: Philips Hue uses outbound HTTP/HTTPS (80/443) - no ports exposed
 # - shairport-sync: Host networking (required for mDNS/Bonjour AirPlay discovery)
 #
 # Note: shairport-sync uses host networking for mDNS/Bonjour AirPlay discovery.
@@ -29,10 +30,34 @@ services:
     ports:
       - "8888:8888"      # Web UI and API (HTTP)
       - "5568:5568/udp"  # E1.31/sACN protocol (multicast)
+      - "6454:6454/udp"  # ArtNet protocol (DMX over Ethernet)
       - "21324:21324/udp" # WLED UDP protocol (unicast)
       - "4048:4048/udp"  # DDP protocol (unicast)
-      - "4002:4002/udp"  # Govee device communication (source port)
-      - "4003:4003/udp"  # Govee device communication (destination port)
+      - "8889:8889/udp"  # WLED device discovery (optional but recommended)
+      - "4002:4002/udp"  # Govee device responses (receive port)
+      - "4003:4003/udp"  # Govee device control (send commands to device)
+      # Note: Philips Hue uses outbound HTTP/HTTPS (ports 80/443) to Hue Bridge
+      # No ports need to be exposed - LEDFX makes outbound connections to the bridge
+      # Note: LIFX uses outbound UDP (port 56700) for device communication
+      # No ports need to be exposed - LEDFX sends commands and receives responses automatically
+      # Note: Nanoleaf uses outbound HTTP (port 16021) and UDP (port 60222/60221) for device communication
+      # No ports need to be exposed - LEDFX makes outbound connections to the device
+      # Note: OpenPixelControl uses outbound UDP (port 7890) for device communication
+      # No ports need to be exposed - LEDFX sends pixel data to OPC devices
+      # Note: OpenRGB uses outbound TCP (port 6742 default) to OpenRGB SDK server
+      # No ports need to be exposed - LEDFX connects to OpenRGB server on host/network
+      # Note: OSC (Open Sound Control) uses outbound UDP (port 9000 default, configurable)
+      # No ports need to be exposed - LEDFX sends OSC messages to OSC servers
+      # Note: Novation Launchpad uses USB MIDI (via rtmidi library)
+      # No network ports needed - requires USB device passthrough if used
+      # Note: RPi WS281X uses Raspberry Pi GPIO pins (local hardware interface)
+      # No network ports needed - requires GPIO access and /dev/mem if used in Docker
+      # Note: Twinkly Squares uses outbound HTTP/HTTPS and UDP (port 7777) for real-time frames
+      # No ports need to be exposed - LEDFX connects to Twinkly devices
+      # Note: Zengge/MagicHome/FluxLED uses outbound UDP (port 5577) for device control
+      # No ports need to be exposed - LEDFX sends commands to FluxLED devices
+      # Note: UDP Realtime Device uses configurable UDP ports (default 21324, same as WLED UDP)
+      # No additional ports needed - uses same ports as WLED UDP protocol
 
     volumes:
       # PulseAudio configuration and socket for inter-container audio
