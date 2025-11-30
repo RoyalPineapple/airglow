@@ -22,15 +22,9 @@ services:
     image: ghcr.io/ledfx/ledfx:latest
     container_name: ledfx
 
-    # Bridge networking - port mappings for web UI and LED protocols
-    networks:
-      - airglow-network
-
-    ports:
-      - "8888:8888"      # Web UI and API (HTTP)
-      - "5568:5568/udp"  # E1.31/sACN protocol (multicast)
-      - "21324:21324/udp" # WLED UDP protocol (unicast)
-      - "4048:4048/udp"  # DDP protocol (unicast)
+    # Host networking required for LED device communication across subnets
+    # Devices on 192.168.42.x may reject connections from Docker bridge IPs (172.18.x.x)
+    network_mode: host
 
     volumes:
       # PulseAudio configuration and socket for inter-container audio
@@ -68,8 +62,7 @@ services:
       # Connect to LedFX's PulseAudio server via shared Unix socket
       - PULSE_SERVER=unix:/pulse/pulseaudio.socket
       - PULSE_COOKIE=/pulse/cookie
-      # LedFx API connection for session hooks - use localhost since shairport-sync is on host networking
-      # and can access ledfx via the mapped port 8888
+      # LedFx API connection for session hooks - use localhost since both are on host networking
       - LEDFX_HOST=localhost
       - LEDFX_PORT=8888
       # Optional log location for the session hook prototype
@@ -86,6 +79,7 @@ services:
       - ./scripts:/scripts:ro
 
     # Ensure LedFX starts first to create PulseAudio server
+    # Note: depends_on doesn't work with network_mode: host, but we keep it for documentation
     depends_on:
       - ledfx
 
