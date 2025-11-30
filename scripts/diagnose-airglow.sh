@@ -54,7 +54,7 @@ docker_cmd() {
 
 echo "═══════════════════════════════════════════════════════════════"
 echo "  Airglow Diagnostic Tool"
-echo "  Checking audio flow: AirPlay → Shairport-Sync → PulseAudio → LedFx"
+echo "  Checking audio flow: AirPlay → Avahi → Shairport-Sync → NQPTP → PulseAudio → LedFx"
 echo "═══════════════════════════════════════════════════════════════"
 echo
 
@@ -145,9 +145,108 @@ else
 fi
 
 # ============================================================================
-# 2. PULSEAUDIO (Audio Bridge)
+# 2. AVAHI (mDNS/Bonjour Service Discovery)
 # ============================================================================
-section "2. PulseAudio (Audio Bridge)"
+section "2. Avahi (mDNS/Bonjour Service Discovery)"
+
+# Check if container is running
+if docker_cmd ps --format '{{.Names}}' | grep -q '^avahi$'; then
+    check_ok "Container is running"
+    
+    # Check Avahi daemon process
+    if docker_cmd exec avahi pgrep -f avahi-daemon > /dev/null 2>&1; then
+        check_ok "Avahi daemon process is running"
+    else
+        check_fail "Avahi daemon process not found"
+    fi
+    
+    # Check D-Bus
+    if docker_cmd exec avahi test -S /var/run/dbus/system_bus_socket 2>/dev/null; then
+        check_ok "D-Bus socket exists"
+    else
+        check_warn "D-Bus socket not found"
+    fi
+    
+    # Check if AirPlay service is advertised
+    echo
+    echo "  mDNS Services:"
+    AIRPLAY_SERVICES=$(docker_cmd exec avahi avahi-browse -a -r 2>&1 | grep -i 'airplay\|raop' | wc -l | tr -d ' ')
+    if [ "$AIRPLAY_SERVICES" -gt 0 ]; then
+        check_ok "Found $AIRPLAY_SERVICES AirPlay service(s) on network"
+        
+        # Check if our service is advertised
+        if docker_cmd exec avahi avahi-browse -a -r 2>&1 | grep -qi 'airglow'; then
+            check_ok "Airglow service is being advertised"
+        else
+            check_warn "Airglow service not found in mDNS browse (may need to wait for advertisement)"
+        fi
+    else
+        check_warn "No AirPlay services found on network"
+    fi
+    
+    # Check reflector mode
+    if docker_cmd exec avahi grep -q 'enable-reflector=yes' /etc/avahi/avahi-daemon.conf 2>/dev/null; then
+        check_ok "Reflector mode enabled"
+    else
+        check_warn "Reflector mode not enabled (may affect bridge networking)"
+    fi
+    
+else
+    check_fail "Container is not running"
+fi
+
+# ============================================================================
+# 3. NQPTP (AirPlay 2 Timing Synchronization)
+# ============================================================================
+section "3. NQPTP (AirPlay 2 Timing Synchronization)"
+
+# Check if container is running
+if docker_cmd ps --format '{{.Names}}' | grep -q '^nqptp$'; then
+    check_ok "Container is running"
+    
+    # Check NQPTP process
+    if docker_cmd exec nqptp pgrep -f nqptp > /dev/null 2>&1; then
+        check_ok "NQPTP process is running"
+        
+        # Get version
+        VERSION=$(docker_cmd exec nqptp nqptp -V 2>&1 | head -1 || echo "unknown")
+        if [ "$VERSION" != "unknown" ]; then
+            check_ok "Version: $VERSION"
+        fi
+    else
+        check_fail "NQPTP process not found"
+    fi
+    
+    # Check port bindings (319, 320 UDP)
+    echo
+    echo "  Port Status:"
+    if run_cmd "ss -unlp 2>/dev/null | grep -q ':319.*nqptp'"; then
+        check_ok "Port 319/UDP bound (PTP event)"
+    else
+        check_warn "Port 319/UDP not bound"
+    fi
+    
+    if run_cmd "ss -unlp 2>/dev/null | grep -q ':320.*nqptp'"; then
+        check_ok "Port 320/UDP bound (PTP general)"
+    else
+        check_warn "Port 320/UDP not bound"
+    fi
+    
+    # Check shared memory interface
+    if docker_cmd exec nqptp test -d /dev/shm 2>/dev/null; then
+        check_ok "Shared memory directory accessible"
+    else
+        check_warn "Shared memory directory not accessible"
+    fi
+    
+else
+    check_fail "Container is not running"
+fi
+
+# ============================================================================
+# 4. PULSEAUDIO (Audio Bridge)
+# ============================================================================
+section "4. PulseAudio (Audio Bridge)"
 
 # Check if LedFx container is running (hosts PulseAudio)
 if docker_cmd ps --format '{{.Names}}' | grep -q '^ledfx$'; then
@@ -193,9 +292,9 @@ else
 fi
 
 # ============================================================================
-# 3. LEDFX (Visualization Engine)
+# 5. LEDFX (Visualization Engine)
 # ============================================================================
-section "3. LedFx (Visualization Engine)"
+section "5. LedFx (Visualization Engine)"
 
 # Check if container is running
 if docker_cmd ps --format '{{.Names}}' | grep -q '^ledfx$'; then
@@ -307,18 +406,22 @@ fi
 section "Summary"
 
 echo "Audio Flow Status:"
-echo "  [AirPlay] → [Shairport-Sync] → [PulseAudio] → [LedFx] → [LEDs]"
+echo "  [AirPlay] → [Avahi/mDNS] → [Shairport-Sync] → [NQPTP] → [PulseAudio] → [LedFx] → [LEDs]"
 echo
 echo "Next steps if issues found:"
 if [ "$REMOTE" = true ]; then
-    echo "  1. Check Shairport-Sync logs: ssh root@${TARGET_HOST} 'docker logs shairport-sync'"
-    echo "  2. Check LedFx logs: ssh root@${TARGET_HOST} 'docker logs ledfx'"
-    echo "  3. Check hook logs: ssh root@${TARGET_HOST} 'docker exec shairport-sync cat /var/log/shairport-sync/ledfx-session-hook.log'"
+    echo "  1. Check Avahi logs: ssh root@${TARGET_HOST} 'docker logs avahi'"
+    echo "  2. Check NQPTP logs: ssh root@${TARGET_HOST} 'docker logs nqptp'"
+    echo "  3. Check Shairport-Sync logs: ssh root@${TARGET_HOST} 'docker logs shairport-sync'"
+    echo "  4. Check LedFx logs: ssh root@${TARGET_HOST} 'docker logs ledfx'"
+    echo "  5. Check hook logs: ssh root@${TARGET_HOST} 'docker exec shairport-sync cat /var/log/shairport-sync/ledfx-session-hook.log'"
 else
-    echo "  1. Check Shairport-Sync logs: docker logs shairport-sync"
-    echo "  2. Check LedFx logs: docker logs ledfx"
-    echo "  3. Check hook logs: docker exec shairport-sync cat /var/log/shairport-sync/ledfx-session-hook.log"
+    echo "  1. Check Avahi logs: docker logs avahi"
+    echo "  2. Check NQPTP logs: docker logs nqptp"
+    echo "  3. Check Shairport-Sync logs: docker logs shairport-sync"
+    echo "  4. Check LedFx logs: docker logs ledfx"
+    echo "  5. Check hook logs: docker exec shairport-sync cat /var/log/shairport-sync/ledfx-session-hook.log"
 fi
-echo "  4. Verify AirPlay connection from your device"
+echo "  6. Verify AirPlay connection from your device"
 echo
 
