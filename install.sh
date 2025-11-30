@@ -741,6 +741,29 @@ function start_stack() {
         exit 1
     }
 
+    # Detect host IP for shairport-sync mDNS advertisement
+    # This ensures clients can connect from outside the Docker network
+    msg_info "Detecting host IP address for AirPlay advertisement..."
+    local host_ip
+    host_ip=$(ip route get 8.8.8.8 2>/dev/null | awk '{print $7}' | head -1)
+    
+    # Fallback methods if primary detection fails
+    if [[ -z "$host_ip" ]] || [[ "$host_ip" == "127.0.0.1" ]]; then
+        host_ip=$(ip route | grep default | awk '{print $9}' | head -1)
+    fi
+    if [[ -z "$host_ip" ]] || [[ "$host_ip" == "127.0.0.1" ]]; then
+        host_ip=$(hostname -I | awk '{print $1}')
+    fi
+    
+    if [[ -n "$host_ip" ]] && [[ "$host_ip" != "127.0.0.1" ]]; then
+        msg_ok "Detected host IP: $host_ip"
+        export HOST_IP="$host_ip"
+    else
+        msg_warn "Could not detect host IP - shairport-sync may advertise Docker bridge IP"
+        msg_warn "AirPlay connections may fail from outside the Docker network"
+        export HOST_IP=""
+    fi
+
     # Pull pre-built images (non-fatal for build-based services)
     msg_info "Pulling pre-built Docker images..."
     docker compose pull 2>/dev/null || {
