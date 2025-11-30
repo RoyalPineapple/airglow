@@ -310,6 +310,10 @@ function copy_configs() {
                 msg_error "Failed to copy web directory"
                 exit 1
             }
+            # Verify critical files were copied
+            if [[ ! -f "${INSTALL_DIR}/web/templates/browser.html" ]]; then
+                msg_warn "browser.html not found in web directory - this may indicate an incomplete copy"
+            fi
         fi
         
         # Copy scripts directory
@@ -447,6 +451,10 @@ function copy_configs() {
                 msg_error "Failed to copy web directory"
                 exit 1
             }
+            # Verify critical files were copied
+            if [[ ! -f "${INSTALL_DIR}/web/templates/browser.html" ]]; then
+                msg_warn "browser.html not found in web directory - this may indicate an incomplete copy"
+            fi
         fi
         
         # Copy scripts directory
@@ -758,6 +766,11 @@ function start_stack() {
             exit 1
         fi
         
+        # Always rebuild web container to ensure latest code is included
+        msg_info "Rebuilding web container to ensure latest code..."
+        docker compose build airglow-web || {
+            msg_warn "Failed to rebuild web container, continuing with existing image"
+        }
         docker compose up -d --build || {
             msg_error "Failed to start Docker stack"
             msg_error "Check logs with: docker compose -f ${INSTALL_DIR}/docker-compose.yml logs"
@@ -775,6 +788,11 @@ function start_stack() {
         fi
     else
         msg_info "Starting services..."
+        # Always rebuild web container to ensure latest code is included
+        msg_info "Rebuilding web container to ensure latest code..."
+        docker compose build airglow-web || {
+            msg_warn "Failed to rebuild web container, continuing with existing image"
+        }
         docker compose up -d || {
             msg_error "Failed to start Docker stack"
             msg_error "Check logs with: docker compose -f ${INSTALL_DIR}/docker-compose.yml logs"
