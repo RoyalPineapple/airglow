@@ -339,22 +339,25 @@ function copy_configs() {
                 if [[ -f "${config_file}" ]] && [[ "${basename_file}" != "ledfx-hooks.yaml" ]] && [[ "${basename_file}" != "ledfx-config.json" ]]; then
                     local target_file="${INSTALL_DIR}/configs/${basename_file}"
                     # Preserve user-editable config files (shairport-sync.conf) if they exist
+                    # NEVER overwrite shairport-sync.conf if it already exists (user may have customized the AirPlay name)
                     if [[ "${basename_file}" == "shairport-sync.conf" ]] && [[ -f "${target_file}" ]]; then
                         msg_info "Preserving existing ${basename_file} (user customizations will be kept)"
-                        # Only copy if target doesn't exist or is empty
-                        if [[ ! -s "${target_file}" ]]; then
-                            cp "${config_file}" "${target_file}" || {
-                                msg_error "Failed to copy ${basename_file}"
-                                exit 1
-                            }
-                        fi
-                    else
-                        # Always copy other config files (avahi-daemon.conf, etc.)
+                        # Skip copying - always preserve existing shairport-sync.conf
+                        continue
+                    fi
+                    if [[ "${basename_file}" == "shairport-sync.conf" ]] && [[ ! -f "${target_file}" ]]; then
+                        # Only copy if target doesn't exist (fresh install)
                         cp "${config_file}" "${target_file}" || {
                             msg_error "Failed to copy ${basename_file}"
                             exit 1
                         }
+                        continue
                     fi
+                    # Always copy other config files (avahi-daemon.conf, etc.)
+                    cp "${config_file}" "${target_file}" || {
+                        msg_error "Failed to copy ${basename_file}"
+                        exit 1
+                    }
                 fi
             done
         fi
@@ -474,22 +477,25 @@ function copy_configs() {
                 if [[ -f "${config_file}" ]] && [[ "${basename_file}" != "ledfx-hooks.yaml" ]] && [[ "${basename_file}" != "ledfx-config.json" ]]; then
                     local target_file="${INSTALL_DIR}/configs/${basename_file}"
                     # Preserve user-editable config files (shairport-sync.conf) if they exist
+                    # NEVER overwrite shairport-sync.conf if it already exists (user may have customized the AirPlay name)
                     if [[ "${basename_file}" == "shairport-sync.conf" ]] && [[ -f "${target_file}" ]]; then
                         msg_info "Preserving existing ${basename_file} (user customizations will be kept)"
-                        # Only copy if target doesn't exist or is empty
-                        if [[ ! -s "${target_file}" ]]; then
-                            cp "${config_file}" "${target_file}" || {
-                                msg_error "Failed to copy ${basename_file}"
-                                exit 1
-                            }
-                        fi
-                    else
-                        # Always copy other config files (avahi-daemon.conf, etc.)
+                        # Skip copying - always preserve existing shairport-sync.conf
+                        continue
+                    fi
+                    if [[ "${basename_file}" == "shairport-sync.conf" ]] && [[ ! -f "${target_file}" ]]; then
+                        # Only copy if target doesn't exist (fresh install)
                         cp "${config_file}" "${target_file}" || {
                             msg_error "Failed to copy ${basename_file}"
                             exit 1
                         }
+                        continue
                     fi
+                    # Always copy other config files (avahi-daemon.conf, etc.)
+                    cp "${config_file}" "${target_file}" || {
+                        msg_error "Failed to copy ${basename_file}"
+                        exit 1
+                    }
                 fi
             done
         fi
