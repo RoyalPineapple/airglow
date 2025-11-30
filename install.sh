@@ -180,19 +180,40 @@ function setup_directory() {
             docker compose -f "${INSTALL_DIR}/docker-compose.yml" down
         fi
 
-        # Backup only user-editable config files that will be preserved
+        # Backup user-editable config files and data that will be preserved
         local backup_dir="${INSTALL_DIR}.backup.$(date +%Y%m%d_%H%M%S)"
         mkdir -p "${backup_dir}/configs"
+        
+        msg_info "Backing up user configurations and data..."
+        
+        # Backup shairport-sync.conf (AirPlay name and settings)
         if [[ -f "${INSTALL_DIR}/configs/shairport-sync.conf" ]]; then
-            cp "${INSTALL_DIR}/configs/shairport-sync.conf" "${backup_dir}/configs/" 2>/dev/null || true
+            cp "${INSTALL_DIR}/configs/shairport-sync.conf" "${backup_dir}/configs/" && {
+                msg_info "  ✓ Backed up shairport-sync.conf"
+            } || {
+                msg_warn "  ⚠ Failed to backup shairport-sync.conf"
+            }
         fi
+        
+        # Backup ledfx-hooks.yaml (hook configurations)
         if [[ -f "${INSTALL_DIR}/configs/ledfx-hooks.yaml" ]]; then
-            cp "${INSTALL_DIR}/configs/ledfx-hooks.yaml" "${backup_dir}/configs/" 2>/dev/null || true
+            cp "${INSTALL_DIR}/configs/ledfx-hooks.yaml" "${backup_dir}/configs/" && {
+                msg_info "  ✓ Backed up ledfx-hooks.yaml"
+            } || {
+                msg_warn "  ⚠ Failed to backup ledfx-hooks.yaml"
+            }
         fi
+        
+        # Backup ledfx-data directory (devices, virtuals, effects, presets)
         if [[ -d "${INSTALL_DIR}/ledfx-data" ]]; then
-            cp -r "${INSTALL_DIR}/ledfx-data" "${backup_dir}/" 2>/dev/null || true
+            if cp -r "${INSTALL_DIR}/ledfx-data" "${backup_dir}/" 2>/dev/null; then
+                msg_info "  ✓ Backed up ledfx-data directory (devices, virtuals, effects, presets)"
+            else
+                msg_warn "  ⚠ Failed to backup ledfx-data directory"
+            fi
         fi
-        msg_ok "User configurations backed up to: ${backup_dir}"
+        
+        msg_ok "User configurations and data backed up to: ${backup_dir}"
     fi
 
     # Create directory structure (preserve existing directories)
