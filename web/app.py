@@ -1020,24 +1020,64 @@ def parse_avahi_browse_output(output):
                     if ft_match:
                         feature_flags = ft_match.group(1)
                 
-                # Use device name as key to avoid duplicates (same device on IPv4 and IPv6)
-                # Prefer IPv4 addresses over IPv6 for display
-                device_key = device_name.lower()
-                if device_key not in device_map or (protocol == 'IPv4' and device_map[device_key].get('protocol') == 'IPv6'):
-                    device_map[device_key] = {
-                        'name': device_name,
-                        'interface': interface,
-                        'protocol': protocol,
-                        'hostname': hostname,
-                        'address': address,
-                        'port': port,
-                        'firmware_version': firmware_version,
-                        'feature_flags': feature_flags
-                    }
+                # Use hostname as key to deduplicate (same device may appear on IPv4 and IPv6)
+                # Consolidate multiple addresses for the same hostname
+                if hostname:
+                    device_key = hostname.lower()
+                    if device_key not in device_map:
+                        # New device - create entry
+                        device_map[device_key] = {
+                            'name': device_name,
+                            'interface': interface,
+                            'protocol': protocol,
+                            'hostname': hostname,
+                            'address': address,
+                            'addresses': [address] if address else [],  # Track all addresses
+                            'port': port,
+                            'firmware_version': firmware_version,
+                            'feature_flags': feature_flags
+                        }
+                    else:
+                        # Existing device - consolidate information
+                        existing = device_map[device_key]
+                        # Prefer IPv4 over IPv6 for primary address
+                        if protocol == 'IPv4' and existing.get('protocol') == 'IPv6':
+                            existing['address'] = address
+                            existing['protocol'] = protocol
+                        # Add address to list if not already present
+                        if address and address not in existing.get('addresses', []):
+                            existing['addresses'].append(address)
+                        # Update firmware/features if missing
+                        if not existing.get('firmware_version') and firmware_version:
+                            existing['firmware_version'] = firmware_version
+                        if not existing.get('feature_flags') and feature_flags:
+                            existing['feature_flags'] = feature_flags
+                else:
+                    # No hostname - use device name as fallback key
+                    device_key = device_name.lower()
+                    if device_key not in device_map or (protocol == 'IPv4' and device_map[device_key].get('protocol') == 'IPv6'):
+                        device_map[device_key] = {
+                            'name': device_name,
+                            'interface': interface,
+                            'protocol': protocol,
+                            'hostname': hostname,
+                            'address': address,
+                            'addresses': [address] if address else [],
+                            'port': port,
+                            'firmware_version': firmware_version,
+                            'feature_flags': feature_flags
+                        }
     
-    # Convert device map to list, only including devices with address or hostname
+    # Convert device map to list, format addresses for display
     for device in device_map.values():
         if device.get('address') or device.get('hostname'):
+            # Format multiple addresses for display
+            addresses = device.get('addresses', [])
+            if len(addresses) > 1:
+                # Show primary address, with note about multiple
+                device['address_display'] = f"{device.get('address', '')} (+{len(addresses) - 1} more)"
+            else:
+                device['address_display'] = device.get('address', '—')
             devices.append(device)
     
     return devices
