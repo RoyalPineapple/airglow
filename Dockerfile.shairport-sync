@@ -104,23 +104,18 @@ RUN echo '#!/bin/sh' > /usr/local/bin/start.sh && \
     echo '  sleep 1' >> /usr/local/bin/start.sh && \
     echo 'done' >> /usr/local/bin/start.sh && \
     echo 'echo "D-Bus socket found, starting shairport-sync..."' >> /usr/local/bin/start.sh && \
-    echo '# Get host IP from environment variable (set by install script or docker-compose.yml)' >> /usr/local/bin/start.sh && \
-    echo '# If not set, query Avahi via D-Bus to get the host IP (Avahi runs on host networking)' >> /usr/local/bin/start.sh && \
-    echo 'if [ -z "$HOST_IP" ] || [ "$HOST_IP" = "127.0.0.1" ] || [ "$HOST_IP" = "" ]; then' >> /usr/local/bin/start.sh && \
-    echo '  echo "HOST_IP not set, querying Avahi for host IP..."' >> /usr/local/bin/start.sh && \
-    echo '  # Query Avahi container via D-Bus to get network interface IP' >> /usr/local/bin/start.sh && \
-    echo '  # Avahi runs on host networking, so it can tell us the host IP' >> /usr/local/bin/start.sh && \
-    echo '  # Use dbus-send to query Avahi for the IP of the primary network interface' >> /usr/local/bin/start.sh && \
-    echo '  # Get the first non-loopback IPv4 address from any service Avahi is advertising' >> /usr/local/bin/start.sh && \
-    echo '  # We can query avahi-browse from the Avahi container (it has host network access)' >> /usr/local/bin/start.sh && \
-    echo '  # But we need docker socket access - instead, use a simpler approach:' >> /usr/local/bin/start.sh && \
-    echo '  # Query D-Bus for Avahi network interface info, or wait for service registration' >> /usr/local/bin/start.sh && \
-    echo '  # For now, use fallback detection methods since we are in bridge network' >> /usr/local/bin/start.sh && \
-    echo '  # If that failed, try fallback methods' >> /usr/local/bin/start.sh && \
-    echo '  if [ -z "$HOST_IP" ] || [ "$HOST_IP" = "127.0.0.1" ]; then' >> /usr/local/bin/start.sh && \
-    echo '    echo "Avahi query failed, trying fallback detection..."' >> /usr/local/bin/start.sh && \
-    echo '    HOST_IP=$(ip route get 8.8.8.8 2>/dev/null | awk '"'"'{print $7}'"'"' | head -1)' >> /usr/local/bin/start.sh && \
-    echo '  fi' >> /usr/local/bin/start.sh && \
+    echo '# Get host IP by querying Avahi (which runs on host networking)' >> /usr/local/bin/start.sh && \
+    echo '# Avahi knows the host IP since it runs on host network mode' >> /usr/local/bin/start.sh && \
+    echo 'echo "Querying Avahi for host IP address..."' >> /usr/local/bin/start.sh && \
+    echo '# Wait for Avahi to be ready' >> /usr/local/bin/start.sh && \
+    echo 'sleep 2' >> /usr/local/bin/start.sh && \
+    echo '# Query Avahi hostname resolution to get the host IP' >> /usr/local/bin/start.sh && \
+    echo '# Avahi hostname is set in avahi-daemon.conf (default: airglow.local)' >> /usr/local/bin/start.sh && \
+    echo 'HOST_IP=$(avahi-resolve -n airglow.local 2>/dev/null | awk '"'"'{print $2}'"'"' | head -1 || echo "")' >> /usr/local/bin/start.sh && \
+    echo '# If that failed, try fallback detection methods' >> /usr/local/bin/start.sh && \
+    echo 'if [ -z "$HOST_IP" ] || [ "$HOST_IP" = "127.0.0.1" ]; then' >> /usr/local/bin/start.sh && \
+    echo '  echo "Avahi query failed, trying fallback detection..."' >> /usr/local/bin/start.sh && \
+    echo '  HOST_IP=$(ip route get 8.8.8.8 2>/dev/null | awk '"'"'{print $7}'"'"' | head -1)' >> /usr/local/bin/start.sh && \
     echo '  if [ -z "$HOST_IP" ] || [ "$HOST_IP" = "127.0.0.1" ]; then' >> /usr/local/bin/start.sh && \
     echo '    HOST_IP=$(ip route | grep default | awk '"'"'{print $9}'"'"' | head -1)' >> /usr/local/bin/start.sh && \
     echo '  fi' >> /usr/local/bin/start.sh && \
