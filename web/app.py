@@ -973,6 +973,7 @@ def parse_avahi_browse_output(output):
             event_type = parts[0] if parts else ''
             
             # Only process resolved service entries (= means resolved service with all info)
+            # Format: =;interface;protocol;name;type;domain;hostname;address;port;txt_record
             if event_type == '=' and len(parts) >= 10:
                 interface = parts[1]
                 protocol = parts[2]
@@ -982,7 +983,8 @@ def parse_avahi_browse_output(output):
                 hostname = parts[6] if len(parts) > 6 else ''
                 address = parts[7] if len(parts) > 7 else ''
                 port = parts[8] if len(parts) > 8 else ''
-                txt_record = parts[9] if len(parts) > 9 else ''
+                # TXT record is everything from index 9 onwards (join in case of any edge cases)
+                txt_record = ';'.join(parts[9:]) if len(parts) > 9 else ''
                 
                 # Decode escaped device name (e.g., \064 = @, \032 = space, \126 = ~)
                 # Format is typically: DEVICEID\064DeviceName
