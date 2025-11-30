@@ -109,6 +109,9 @@ services:
       context: .
       dockerfile: Dockerfile.shairport-sync
     container_name: shairport-sync
+    
+    # Override entrypoint to use our custom startup script that connects to Avahi
+    entrypoint: ["/bin/sh", "-c", "while [ ! -S /var/run/dbus/system_bus_socket ]; do echo 'Waiting for D-Bus socket from Avahi...'; sleep 1; done; exec shairport-sync"]
 
     # Bridge networking - connect to Avahi via D-Bus
     networks:
