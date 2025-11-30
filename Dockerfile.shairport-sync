@@ -47,9 +47,7 @@ RUN apk add --no-cache \
     libgcrypt \
     # Utilities for hook scripts
     jq \
-    yq \
-    # Docker CLI for querying Avahi container network interfaces
-    docker
+    yq
 
 # Build shairport-sync with AirPlay 2 support (ALAC support removed per user request)
 RUN (git clone --depth 1 --branch ${SHAIRPORT_SYNC_VERSION} https://github.com/mikebrady/shairport-sync.git || \
@@ -104,17 +102,19 @@ RUN echo '#!/bin/sh' > /usr/local/bin/start.sh && \
     echo '  sleep 1' >> /usr/local/bin/start.sh && \
     echo 'done' >> /usr/local/bin/start.sh && \
     echo 'echo "D-Bus socket found, starting shairport-sync..."' >> /usr/local/bin/start.sh && \
-    echo '# Get host IP by querying Avahi container network interfaces directly' >> /usr/local/bin/start.sh && \
-    echo '# Avahi runs on host networking, so it has direct access to host network interfaces' >> /usr/local/bin/start.sh && \
-    echo 'echo "Querying Avahi container for host IP address..."' >> /usr/local/bin/start.sh && \
+    echo '# Get host IP by querying Avahi via D-Bus for network interface information' >> /usr/local/bin/start.sh && \
+    echo '# Avahi runs on host networking, so it knows the host network interfaces' >> /usr/local/bin/start.sh && \
+    echo 'echo "Querying Avahi for host IP address via D-Bus..."' >> /usr/local/bin/start.sh && \
     echo '# Wait for Avahi to be ready' >> /usr/local/bin/start.sh && \
     echo 'sleep 2' >> /usr/local/bin/start.sh && \
-    echo '# Query Avahi container to get the primary host network interface IP' >> /usr/local/bin/start.sh && \
-    echo '# Avahi runs on host networking, so it can see the actual host interfaces' >> /usr/local/bin/start.sh && \
-    echo 'HOST_IP=$(docker exec avahi ip route get 8.8.8.8 2>/dev/null | awk '"'"'{print $7}'"'"' | head -1 || echo "")' >> /usr/local/bin/start.sh && \
-    echo '# Fallback: Get first non-loopback, non-Docker IP from Avahi container interfaces' >> /usr/local/bin/start.sh && \
+    echo '# Query Avahi D-Bus interface to get network interface information' >> /usr/local/bin/start.sh && \
+    echo '# Try to get the IP from Avahi hostname resolution (Avahi knows its own host IP)' >> /usr/local/bin/start.sh && \
+    echo '# Since Avahi runs on host networking, it can resolve its own hostname to the host IP' >> /usr/local/bin/start.sh && \
+    echo 'HOST_IP=$(avahi-resolve -n airglow.local 2>/dev/null | awk '"'"'{print $2}'"'"' | head -1 || echo "")' >> /usr/local/bin/start.sh && \
+    echo '# If that resolved to wrong host (network-wide resolution), try D-Bus query' >> /usr/local/bin/start.sh && \
     echo 'if [ -z "$HOST_IP" ] || [ "$HOST_IP" = "127.0.0.1" ] || echo "$HOST_IP" | grep -qE "^172\\.(1[6-9]|2[0-9]|3[0-1])\\."; then' >> /usr/local/bin/start.sh && \
-    echo '  HOST_IP=$(docker exec avahi ip addr show 2>/dev/null | grep -E "inet " | grep -v "127.0.0.1" | grep -vE "172\\.(1[6-9]|2[0-9]|3[0-1])\\." | awk '"'"'{print $2}'"'"' | cut -d/ -f1 | head -1 || echo "")' >> /usr/local/bin/start.sh && \
+    echo '  # Query any advertised service to get the IP Avahi is using (it uses host IP)' >> /usr/local/bin/start.sh && \
+    echo '  HOST_IP=$(timeout 3 avahi-browse -rpt _raop._tcp 2>/dev/null | grep -E "^=" | head -1 | cut -d";" -f8 | grep -oE "[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}" | head -1 || echo "")' >> /usr/local/bin/start.sh && \
     echo 'fi' >> /usr/local/bin/start.sh && \
     echo '# Final fallback: try to detect from our own network (may not work in bridge network)' >> /usr/local/bin/start.sh && \
     echo 'if [ -z "$HOST_IP" ] || [ "$HOST_IP" = "127.0.0.1" ]; then' >> /usr/local/bin/start.sh && \
