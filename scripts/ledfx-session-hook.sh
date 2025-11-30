@@ -30,8 +30,9 @@ check_hook_enabled() {
 }
 
 # Allow override via environment variables
+# Default to 'ledfx' container name for bridge networking
 VIRTUAL_IDS="${LEDFX_VIRTUAL_IDS:-${VIRTUAL_IDS:-}}"
-LEDFX_HOST="${LEDFX_HOST:-localhost}"
+LEDFX_HOST="${LEDFX_HOST:-ledfx}"
 LEDFX_PORT="${LEDFX_PORT:-8888}"
 LOG_FILE="${LEDFX_HOOK_LOG:-/var/log/shairport-sync/ledfx-session-hook.log}"
 

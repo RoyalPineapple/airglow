@@ -3,13 +3,17 @@
 # This stack provides AirPlay 2 audio streaming to LedFX for real-time LED visualization.
 # Audio flows: AirPlay Device → Shairport-Sync → PulseAudio → LedFX → LED Devices
 #
-# Host networking is required for:
-# - mDNS/Bonjour discovery (AirPlay device detection)
-# - E1.31/UDP LED protocols (direct host network access)
-# - Simplified audio routing between containers
+# Network Architecture:
+# - airglow-web: Bridge networking (port 80 exposed)
+# - ledfx: Bridge networking (ports 8888, 5568, 21324, 4048 exposed)
+# - shairport-sync: Host networking (required for mDNS/Bonjour AirPlay discovery)
 #
-# Security Note: Host networking gives containers direct network access.
-# Only run this on trusted networks.
+# Note: shairport-sync still uses host networking for mDNS/Bonjour discovery.
+# This is the minimal host networking exposure needed for AirPlay functionality.
+
+networks:
+  airglow-network:
+    driver: bridge
 
 services:
   ledfx:
@@ -18,8 +22,15 @@ services:
     image: ghcr.io/ledfx/ledfx:latest
     container_name: ledfx
 
-    # Host networking required for E1.31/UDP LED protocols and mDNS
-    network_mode: host
+    # Bridge networking - port mappings for web UI and LED protocols
+    networks:
+      - airglow-network
+
+    ports:
+      - "8888:8888"      # Web UI and API (HTTP)
+      - "5568:5568/udp"  # E1.31/sACN protocol (multicast)
+      - "21324:21324/udp" # WLED UDP protocol (unicast)
+      - "4048:4048/udp"  # DDP protocol (unicast)
 
     volumes:
       # PulseAudio configuration and socket for inter-container audio
@@ -57,7 +68,8 @@ services:
       # Connect to LedFX's PulseAudio server via shared Unix socket
       - PULSE_SERVER=unix:/pulse/pulseaudio.socket
       - PULSE_COOKIE=/pulse/cookie
-      # LedFx API connection for session hooks (can be overridden in config file)
+      # LedFx API connection for session hooks - use localhost since shairport-sync is on host networking
+      # and can access ledfx via the mapped port 8888
       - LEDFX_HOST=localhost
       - LEDFX_PORT=8888
       # Optional log location for the session hook prototype
@@ -87,12 +99,16 @@ services:
       dockerfile: Dockerfile.web
     container_name: airglow-web
 
-    # Host networking required to access LedFX API and Docker socket
-    network_mode: host
+    # Bridge networking - uses container name 'ledfx' for API access
+    networks:
+      - airglow-network
+
+    ports:
+      - "80:80"
 
     environment:
-      # LedFX API connection
-      - LEDFX_HOST=localhost
+      # LedFX API connection - use container name for service discovery
+      - LEDFX_HOST=ledfx
       - LEDFX_PORT=8888
 
     volumes:

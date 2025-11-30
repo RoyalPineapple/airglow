@@ -23,7 +23,8 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Configuration
-LEDFX_HOST = os.environ.get('LEDFX_HOST', 'localhost')
+# Default to 'ledfx' container name for bridge networking, can be overridden via env var
+LEDFX_HOST = os.environ.get('LEDFX_HOST', 'ledfx')
 LEDFX_PORT = os.environ.get('LEDFX_PORT', '8888')
 LEDFX_URL = f"http://{LEDFX_HOST}:{LEDFX_PORT}"
 

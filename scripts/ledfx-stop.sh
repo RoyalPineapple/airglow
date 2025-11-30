@@ -5,14 +5,15 @@
 set -eu
 
 # Load configuration from YAML (preferred) or legacy .conf file
-LEDFX_HOST="localhost"
+# Default to 'ledfx' container name for bridge networking
+LEDFX_HOST="ledfx"
 LEDFX_PORT="8888"
 VIRTUAL_IDS=""
 ALL_VIRTUALS=true
 
 # Try YAML config first
 if [ -f /configs/ledfx-hooks.yaml ]; then
-  LEDFX_HOST=$(yq eval '.ledfx.host // "localhost"' /configs/ledfx-hooks.yaml 2>/dev/null || echo "localhost")
+  LEDFX_HOST=$(yq eval '.ledfx.host // "ledfx"' /configs/ledfx-hooks.yaml 2>/dev/null || echo "ledfx")
   LEDFX_PORT=$(yq eval '.ledfx.port // 8888' /configs/ledfx-hooks.yaml 2>/dev/null || echo "8888")
   
   # Check if all virtuals should be controlled (explicit flag)
@@ -28,7 +29,7 @@ fi
 
 # Override with command-line arguments if provided
 VIRTUAL_IDS="${1:-${VIRTUAL_IDS:-}}"
-LEDFX_HOST="${2:-${LEDFX_HOST:-localhost}}"
+LEDFX_HOST="${2:-${LEDFX_HOST:-ledfx}}"
 LEDFX_PORT="${3:-${LEDFX_PORT:-8888}}"
 BASE_URL="http://${LEDFX_HOST}:${LEDFX_PORT}"
 

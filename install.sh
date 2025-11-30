@@ -14,6 +14,7 @@ REPO_URL="https://github.com/RoyalPineapple/airglow.git"
 REPO_RAW_URL="https://raw.githubusercontent.com/RoyalPineapple/airglow/master"
 DRY_RUN=false
 WITH_ALAC=false
+BRANCH="${BRANCH:-master}"
 
 # Color output functions
 function msg_info() {
@@ -44,6 +45,7 @@ Options:
     -v, --version       Show version information
     -n, --dry-run       Show what would be done without making changes
     -d, --dir DIR       Set installation directory (default: /opt/airglow)
+    -b, --branch BRANCH Git branch to install from (default: master)
     --with-alac         Build shairport-sync from source with Apple ALAC decoder
                         (adds 5-10 minutes to installation, allows use of Apple Lossless)
 
@@ -303,8 +305,8 @@ function copy_configs() {
         rm -rf "${temp_repo_dir}"
         
         msg_info "Cloning AirGlow repository..."
-        # Use BRANCH environment variable if set, otherwise default to master
-        local branch="${BRANCH:-master}"
+        # Use BRANCH variable (set via --branch flag or environment variable)
+        local branch="${BRANCH}"
         
         git clone --depth 1 --branch "${branch}" "${repo_git_url}" "${temp_repo_dir}" || {
             # Fallback to master if branch doesn't exist
@@ -774,6 +776,10 @@ function parse_args() {
                 ;;
             -d|--dir)
                 INSTALL_DIR="$2"
+                shift 2
+                ;;
+            -b|--branch)
+                BRANCH="$2"
                 shift 2
                 ;;
             --with-alac)
