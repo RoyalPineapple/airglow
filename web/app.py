@@ -555,6 +555,44 @@ def config():
     return render_template('config.html')
 
 
+def get_diagnostic_warnings():
+    """Run a quick diagnostic check and return warning/error counts"""
+    warnings = 0
+    errors = 0
+    warning_messages = []
+    
+    try:
+        # Run diagnostic script and parse output
+        result = subprocess.run(
+            ['/scripts/diagnose-airglow.sh'],
+            capture_output=True,
+            text=True,
+            timeout=30,
+            cwd='/scripts'
+        )
+        
+        if result.returncode == 0:
+            # Count warnings and errors
+            for line in result.stdout.split('\n'):
+                if '[WARN]' in line:
+                    warnings += 1
+                    # Extract warning message (everything after [WARN])
+                    msg = line.split('[WARN]', 1)[1].strip() if '[WARN]' in line else ''
+                    if msg and msg not in warning_messages:
+                        warning_messages.append(msg)
+                elif '[ERROR]' in line:
+                    errors += 1
+    except (subprocess.TimeoutExpired, subprocess.SubprocessError, FileNotFoundError) as e:
+        logger.warning(f"Could not run diagnostic check: {e}")
+        # Don't fail status check if diagnostic script is unavailable
+    
+    return {
+        'warnings': warnings,
+        'errors': errors,
+        'warning_messages': warning_messages[:5]  # Limit to first 5 warnings
+    }
+
+
 @app.route('/api/status')
 def status():
     """Get comprehensive status information"""
@@ -574,13 +612,17 @@ def status():
             'version': status.get('version')
         }
     
+    # Get diagnostic warnings
+    diagnostics = get_diagnostic_warnings()
+    
     status_data = {
         'containers': container_data,
         'ledfx': get_ledfx_info(),
         'ledfx_audio_device': get_ledfx_audio_device(),
         'virtuals': get_ledfx_virtuals(),
         'devices': get_ledfx_devices(),
-        'audio': get_audio_status()
+        'audio': get_audio_status(),
+        'diagnostics': diagnostics
     }
     return jsonify(status_data)
 
