@@ -4,12 +4,14 @@
 # Audio flows: AirPlay Device → Shairport-Sync → PulseAudio → LedFX → LED Devices
 #
 # Network Architecture:
-# - airglow-web: Bridge networking (port 80 exposed)
-# - ledfx: Bridge networking (ports 8888, 5568, 21324, 4048 exposed)
+# - airglow-web: Bridge networking (port 8080 exposed)
+# - ledfx: Host networking (required for LED device communication across subnets)
 # - shairport-sync: Host networking (required for mDNS/Bonjour AirPlay discovery)
 #
-# Note: shairport-sync still uses host networking for mDNS/Bonjour discovery.
-# This is the minimal host networking exposure needed for AirPlay functionality.
+# Note: Both ledfx and shairport-sync use host networking:
+# - shairport-sync: Required for mDNS/Bonjour AirPlay discovery
+# - ledfx: Required to communicate with LED devices on different subnets (e.g., 192.168.42.x)
+#   Some devices may filter by source IP and only accept connections from specific IPs.
 
 networks:
   airglow-network:
