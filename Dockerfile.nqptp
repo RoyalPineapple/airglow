@@ -8,7 +8,8 @@ RUN apk add --no-cache \
     libtool \
     git \
     popt-dev \
-    libconfig-dev
+    libconfig-dev \
+    libdaemon-dev
 
 # Build NQPTP from source
 WORKDIR /tmp
@@ -22,13 +23,17 @@ RUN git clone --depth 1 https://github.com/mikebrady/nqptp.git && \
     cd .. && \
     rm -rf nqptp
 
-# Clean up build dependencies
+# Clean up build dependencies (keep runtime deps: popt, libconfig, libdaemon)
 RUN apk del \
     build-base \
     autoconf \
     automake \
     libtool \
-    git
+    git && \
+    apk add --no-cache \
+    popt \
+    libconfig \
+    libdaemon
 
 # Verify installation
 RUN test -f /usr/local/bin/nqptp && nqptp -V || (echo "ERROR: nqptp binary not found" && exit 1)
