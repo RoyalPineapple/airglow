@@ -567,6 +567,7 @@ def get_diagnostic_warnings():
     warnings = 0
     errors = 0
     warning_messages = []
+    error_messages = []
     
     try:
         # Run diagnostic script with --json flag for structured output
@@ -587,6 +588,7 @@ def get_diagnostic_warnings():
                 warnings = diagnostic_data.get('warnings', 0)
                 errors = diagnostic_data.get('errors', 0)
                 warning_messages = diagnostic_data.get('warning_messages', [])[:5]  # Limit to first 5
+                error_messages = diagnostic_data.get('error_messages', [])[:5]  # Limit to first 5
             except json.JSONDecodeError:
                 # Fallback to text parsing if JSON parsing fails
                 for line in result.stdout.split('\n'):
@@ -597,6 +599,9 @@ def get_diagnostic_warnings():
                             warning_messages.append(msg)
                     elif '[ERROR]' in line:
                         errors += 1
+                        msg = line.split('[ERROR]', 1)[1].strip() if '[ERROR]' in line else ''
+                        if msg and msg not in error_messages:
+                            error_messages.append(msg)
     except (subprocess.TimeoutExpired, subprocess.SubprocessError, FileNotFoundError) as e:
         logger.warning(f"Could not run diagnostic check: {e}")
         # Don't fail status check if diagnostic script is unavailable
@@ -604,7 +609,8 @@ def get_diagnostic_warnings():
     return {
         'warnings': warnings,
         'errors': errors,
-        'warning_messages': warning_messages
+        'warning_messages': warning_messages,
+        'error_messages': error_messages
     }
 
 
@@ -636,7 +642,7 @@ def status():
     except Exception as e:
         logger.warning(f"Could not get diagnostics quickly: {e}")
         # Return empty diagnostics - frontend can load them separately
-        diagnostics = {'warnings': 0, 'errors': 0, 'warning_messages': []}
+        diagnostics = {'warnings': 0, 'errors': 0, 'warning_messages': [], 'error_messages': []}
     
     status_data = {
         'containers': container_data,
