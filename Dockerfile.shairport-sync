@@ -92,12 +92,15 @@ RUN mkdir -p /etc /var/log/shairport-sync /var/run/dbus
 # Verify installation
 RUN test -f /usr/local/bin/shairport-sync && shairport-sync -V || (echo "ERROR: shairport-sync binary not found or not executable" && exit 1)
 
-# Create startup script to run avahi-daemon and shairport-sync
+# Create startup script - connect to external Avahi via D-Bus
+# Avahi runs in a separate container on host networking
 RUN echo '#!/bin/sh' > /usr/local/bin/start.sh && \
-    echo 'dbus-daemon --system --nofork --nopidfile &' >> /usr/local/bin/start.sh && \
-    echo 'sleep 1' >> /usr/local/bin/start.sh && \
-    echo 'avahi-daemon -D' >> /usr/local/bin/start.sh && \
-    echo 'sleep 1' >> /usr/local/bin/start.sh && \
+    echo '# Wait for D-Bus socket from Avahi container' >> /usr/local/bin/start.sh && \
+    echo 'while [ ! -S /var/run/dbus/system_bus_socket ]; do' >> /usr/local/bin/start.sh && \
+    echo '  echo "Waiting for D-Bus socket from Avahi container..."' >> /usr/local/bin/start.sh && \
+    echo '  sleep 1' >> /usr/local/bin/start.sh && \
+    echo 'done' >> /usr/local/bin/start.sh && \
+    echo 'echo "D-Bus socket found, starting shairport-sync..."' >> /usr/local/bin/start.sh && \
     echo 'exec shairport-sync "$@"' >> /usr/local/bin/start.sh && \
     chmod +x /usr/local/bin/start.sh
 

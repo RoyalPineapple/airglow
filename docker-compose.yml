@@ -7,16 +7,36 @@
 # - airglow-web: Bridge networking (port 8080 exposed)
 # - ledfx: Bridge networking (ports 8888, 5568, 6454, 21324, 4048, 8889, 4002, 4003 exposed)
 #   Note: Philips Hue uses outbound HTTP/HTTPS (80/443) - no ports exposed
-# - shairport-sync: Host networking (required for mDNS/Bonjour AirPlay discovery)
+# - avahi: Host networking (handles mDNS/Bonjour on physical network with reflector enabled)
+# - shairport-sync: Bridge networking (connects to Avahi via D-Bus, ports 7000, 5000, 319, 320 exposed)
 #
-# Note: shairport-sync uses host networking for mDNS/Bonjour AirPlay discovery.
-# ledfx uses bridge networking with port mappings for LED device communication.
+# Note: All services now use bridge networking except Avahi, which requires host networking
+# for mDNS/Bonjour discovery on the physical network. Avahi reflector is enabled to forward
+# mDNS traffic between network interfaces.
 
 networks:
   airglow-network:
     driver: bridge
 
 services:
+  avahi:
+    # Avahi - mDNS/Bonjour service for AirPlay discovery
+    # Runs on host networking to access physical network for mDNS
+    # Reflector mode enabled to forward mDNS traffic between interfaces
+    build:
+      context: .
+      dockerfile: Dockerfile.avahi
+    container_name: avahi
+    network_mode: host
+    
+    volumes:
+      # Avahi configuration with reflector enabled
+      - ./configs/avahi-daemon.conf:/etc/avahi/avahi-daemon.conf:ro
+      # D-Bus socket for shairport-sync to connect
+      - /var/run/dbus:/var/run/dbus:rw
+    
+    restart: unless-stopped
+
   ledfx:
     # LedFX - Real-time LED visualization from audio input
     # Web UI: http://localhost:8888
@@ -84,38 +104,50 @@ services:
     # Shairport-Sync - AirPlay 2 receiver
     # Receives AirPlay audio and outputs to PulseAudio
     # Custom image includes jq for JSON parsing in hook scripts
+    # Now on bridge networking, connects to Avahi via D-Bus for mDNS
     build:
       context: .
       dockerfile: Dockerfile.shairport-sync
     container_name: shairport-sync
 
-    # Host networking required for mDNS/Bonjour AirPlay discovery
-    network_mode: host
+    # Bridge networking - connect to Avahi via D-Bus
+    networks:
+      - airglow-network
+
+    ports:
+      - "7000:7000"      # AirPlay control (TCP)
+      - "5000:5000"      # AirPlay audio (TCP)
+      - "5000:5000/udp"  # AirPlay audio (UDP)
+      - "319:319/udp"    # NQPTP (AirPlay 2 timing)
+      - "320:320/udp"    # NQPTP (AirPlay 2 timing)
 
     environment:
       # Connect to LedFX's PulseAudio server via shared Unix socket
       - PULSE_SERVER=unix:/pulse/pulseaudio.socket
       - PULSE_COOKIE=/pulse/cookie
-      # LedFx API connection for session hooks - use host IP since shairport-sync is on host networking
-      # and can access ledfx via the mapped port 8888
-      - LEDFX_HOST=192.168.2.201
+      # LedFX API connection - use container name for service discovery
+      - LEDFX_HOST=ledfx
       - LEDFX_PORT=8888
       # Optional log location for the session hook prototype
       - LEDFX_HOOK_LOG=/var/log/shairport-sync/ledfx-session-hook.log
+      # D-Bus connection to Avahi container
+      - DBUS_SYSTEM_BUS_ADDRESS=unix:path=/var/run/dbus/system_bus_socket
 
     volumes:
       # Shairport configuration (AirPlay device name, audio settings) - READ ONLY
       - ./configs/shairport-sync.conf:/etc/shairport-sync.conf:ro
-      # LedFx hook configuration (YAML format, created dynamically by web app, read by hook scripts)
+      # LedFX hook configuration (YAML format, created dynamically by web app, read by hook scripts)
       - ./configs:/configs:ro
       # PulseAudio socket for audio output to LedFX
       - ./pulse:/pulse
       # Session hook scripts triggered on AirPlay start/stop
       - ./scripts:/scripts:ro
+      # D-Bus socket to connect to Avahi container
+      - /var/run/dbus:/var/run/dbus:ro
 
-    # Ensure LedFX starts first to create PulseAudio server
-    # Note: depends_on doesn't work with network_mode: host, but we keep it for documentation
+    # Ensure Avahi and LedFX start first
     depends_on:
+      - avahi
       - ledfx
 
     restart: unless-stopped

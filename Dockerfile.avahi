@@ -1,0 +1,21 @@
+FROM alpine:latest
+
+RUN apk add --no-cache avahi avahi-tools dbus
+
+# Create directories
+RUN mkdir -p /var/run/dbus /var/run/avahi-daemon
+
+# Copy Avahi config (will be overridden by volume mount)
+COPY configs/avahi-daemon.conf /etc/avahi/avahi-daemon.conf
+
+# Startup script
+RUN echo '#!/bin/sh' > /start.sh && \
+    echo 'dbus-daemon --system --nofork --nopidfile &' >> /start.sh && \
+    echo 'sleep 2' >> /start.sh && \
+    echo 'avahi-daemon -D' >> /start.sh && \
+    echo 'sleep 1' >> /start.sh && \
+    echo 'exec tail -f /dev/null' >> /start.sh && \
+    chmod +x /start.sh
+
+ENTRYPOINT ["/start.sh"]
+

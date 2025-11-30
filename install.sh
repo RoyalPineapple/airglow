@@ -246,6 +246,13 @@ function copy_configs() {
             }
         fi
         
+        if [[ -f "${SCRIPT_DIR}/Dockerfile.avahi" ]]; then
+            cp "${SCRIPT_DIR}/Dockerfile.avahi" "${INSTALL_DIR}/" || {
+                msg_error "Failed to copy Dockerfile.avahi"
+                exit 1
+            }
+        fi
+        
         # Copy web application directory
         if [[ -d "${SCRIPT_DIR}/web" ]]; then
             cp -r "${SCRIPT_DIR}/web" "${INSTALL_DIR}/" || {
@@ -344,6 +351,13 @@ function copy_configs() {
         if [[ -f "${temp_repo_dir}/Dockerfile.shairport-sync" ]]; then
             cp "${temp_repo_dir}/Dockerfile.shairport-sync" "${INSTALL_DIR}/" || {
                 msg_error "Failed to copy Dockerfile.shairport-sync"
+                exit 1
+            }
+        fi
+        
+        if [[ -f "${temp_repo_dir}/Dockerfile.avahi" ]]; then
+            cp "${temp_repo_dir}/Dockerfile.avahi" "${INSTALL_DIR}/" || {
+                msg_error "Failed to copy Dockerfile.avahi"
                 exit 1
             }
         fi
