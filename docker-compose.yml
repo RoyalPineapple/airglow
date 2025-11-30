@@ -169,6 +169,8 @@ services:
       - /var/run/dbus:/var/run/dbus:ro
       # Shared memory for NQPTP to communicate with shairport-sync
       - /dev/shm:/dev/shm
+      # Docker socket for querying Avahi container to get host IP
+      - /var/run/docker.sock:/var/run/docker.sock:ro
 
     # Ensure Avahi, NQPTP, and LedFX start first
     depends_on:
