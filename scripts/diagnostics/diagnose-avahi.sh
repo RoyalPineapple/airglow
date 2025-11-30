@@ -27,17 +27,38 @@ if docker_cmd ps --format '{{.Names}}' | grep -q '^avahi$'; then
     echo
     echo "  mDNS Services:"
     # Use timeout to prevent hanging - avahi-browse can be slow
-    AIRPLAY_SERVICES=$(timeout 5 docker_cmd exec avahi avahi-browse -a -r 2>&1 | grep -i 'airplay\|raop' | wc -l 2>/dev/null | tr -d ' \n' || echo "0")
+    AIRPLAY_SERVICES=$(timeout 5 docker_cmd exec avahi avahi-browse -a -r 2>&1 | grep -i 'airplay\|raop\|airtunes' | wc -l 2>/dev/null | tr -d ' \n' || echo "0")
     # Ensure we have a valid integer (default to 0 if empty or invalid)
     AIRPLAY_SERVICES=${AIRPLAY_SERVICES:-0}
     if [ "${AIRPLAY_SERVICES}" -gt 0 ] 2>/dev/null; then
         check_ok "Found $AIRPLAY_SERVICES AirPlay service(s) on network"
         
+        # Get the AirPlay device name from shairport-sync config
+        AIRPLAY_NAME=""
+        if docker_cmd exec shairport-sync test -f /etc/shairport-sync.conf 2>/dev/null; then
+            # Extract name from config file (format: name = "AirGlow-Staging";)
+            AIRPLAY_NAME=$(docker_cmd exec shairport-sync grep -i '^[[:space:]]*name[[:space:]]*=' /etc/shairport-sync.conf 2>/dev/null | sed -n 's/.*name[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' | head -1 | tr -d ' \n' || echo "")
+        fi
+        
+        # If we couldn't get it from config, try from shairport-sync displayConfig
+        if [ -z "$AIRPLAY_NAME" ]; then
+            AIRPLAY_NAME=$(docker_cmd exec shairport-sync shairport-sync --displayConfig 2>&1 | grep -i 'name =' | sed -n 's/.*name[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' | head -1 | tr -d ' \n' || echo "")
+        fi
+        
         # Check if our service is advertised (with timeout)
-        if timeout 5 docker_cmd exec avahi avahi-browse -a -r 2>&1 | grep -qi 'airglow'; then
-            check_ok "Airglow service is being advertised"
+        if [ -n "$AIRPLAY_NAME" ]; then
+            if timeout 5 docker_cmd exec avahi avahi-browse -a -r 2>&1 | grep -qi "$AIRPLAY_NAME"; then
+                check_ok "Airglow service '$AIRPLAY_NAME' is being advertised"
+            else
+                check_warn "Airglow service '$AIRPLAY_NAME' not found in mDNS browse (may need to wait for advertisement)"
+            fi
         else
-            check_warn "Airglow service not found in mDNS browse (may need to wait for advertisement)"
+            # Fallback to generic search if we can't determine the name
+            if timeout 5 docker_cmd exec avahi avahi-browse -a -r 2>&1 | grep -qi 'airglow'; then
+                check_ok "Airglow service is being advertised (name not determined)"
+            else
+                check_warn "Airglow service not found in mDNS browse (may need to wait for advertisement)"
+            fi
         fi
     else
         check_warn "No AirPlay services found on network (or mDNS browse timed out)"
