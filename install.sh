@@ -369,6 +369,13 @@ function copy_configs() {
             }
         fi
         
+        if [[ -f "${temp_repo_dir}/Dockerfile.nqptp" ]]; then
+            cp "${temp_repo_dir}/Dockerfile.nqptp" "${INSTALL_DIR}/" || {
+                msg_error "Failed to copy Dockerfile.nqptp"
+                exit 1
+            }
+        fi
+        
         # Copy web directory
         if [[ -d "${temp_repo_dir}/web" ]]; then
             cp -r "${temp_repo_dir}/web" "${INSTALL_DIR}/" || {
