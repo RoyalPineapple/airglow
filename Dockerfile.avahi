@@ -21,8 +21,7 @@ RUN echo '#!/bin/sh' > /start.sh && \
     echo 'fi' >> /start.sh && \
     echo 'if [ -n "$HOST_IP" ] && [ "$HOST_IP" != "127.0.0.1" ]; then' >> /start.sh && \
     echo '  echo "Avahi detected host IP: $HOST_IP"' >> /start.sh && \
-    echo '  # Make IP available via D-Bus by writing to a well-known location' >> /start.sh && \
-    echo '  # shairport-sync will query this via dbus-send' >> /start.sh && \
+    echo '  # Write IP to shared file for shairport-sync to read' >> /start.sh && \
     echo '  echo "$HOST_IP" > /var/run/avahi-daemon/host-ip.txt' >> /start.sh && \
     echo 'fi' >> /start.sh && \
     echo 'exec tail -f /dev/null' >> /start.sh && \
