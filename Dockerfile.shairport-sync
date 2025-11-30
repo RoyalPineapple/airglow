@@ -36,7 +36,6 @@ RUN apk add --no-cache \
     pulseaudio \
     avahi \
     avahi-libs \
-    avahi-tools \
     openssl \
     libconfig \
     soxr \
