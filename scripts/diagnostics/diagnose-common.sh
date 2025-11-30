@@ -2,17 +2,32 @@
 # Common functions for Airglow diagnostic scripts
 # This file is sourced by individual component diagnostic scripts
 
+# JSON output mode flag
+JSON_OUTPUT="${JSON_OUTPUT:-false}"
+
 # Plain text output functions
 check_ok() {
-    echo "[OK] $1"
+    if [ "$JSON_OUTPUT" = "true" ]; then
+        echo "{\"status\":\"ok\",\"message\":\"$1\"}"
+    else
+        echo "[OK] $1"
+    fi
 }
 
 check_fail() {
-    echo "[ERROR] $1"
+    if [ "$JSON_OUTPUT" = "true" ]; then
+        echo "{\"status\":\"error\",\"message\":\"$1\"}"
+    else
+        echo "[ERROR] $1"
+    fi
 }
 
 check_warn() {
-    echo "[WARN] $1"
+    if [ "$JSON_OUTPUT" = "true" ]; then
+        echo "{\"status\":\"warn\",\"message\":\"$1\"}"
+    else
+        echo "[WARN] $1"
+    fi
 }
 
 section() {

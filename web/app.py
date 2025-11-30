@@ -562,9 +562,9 @@ def get_diagnostic_warnings():
     warning_messages = []
     
     try:
-        # Run diagnostic script and parse output
+        # Run diagnostic script with --json flag for structured output
         result = subprocess.run(
-            ['/scripts/diagnose-airglow.sh'],
+            ['/scripts/diagnose-airglow.sh', '--json'],
             capture_output=True,
             text=True,
             timeout=30,
@@ -572,16 +572,22 @@ def get_diagnostic_warnings():
         )
         
         if result.returncode == 0:
-            # Count warnings and errors
-            for line in result.stdout.split('\n'):
-                if '[WARN]' in line:
-                    warnings += 1
-                    # Extract warning message (everything after [WARN])
-                    msg = line.split('[WARN]', 1)[1].strip() if '[WARN]' in line else ''
-                    if msg and msg not in warning_messages:
-                        warning_messages.append(msg)
-                elif '[ERROR]' in line:
-                    errors += 1
+            try:
+                # Parse JSON output
+                diagnostic_data = json.loads(result.stdout)
+                warnings = diagnostic_data.get('warnings', 0)
+                errors = diagnostic_data.get('errors', 0)
+                warning_messages = diagnostic_data.get('warning_messages', [])[:5]  # Limit to first 5
+            except json.JSONDecodeError:
+                # Fallback to text parsing if JSON parsing fails
+                for line in result.stdout.split('\n'):
+                    if '[WARN]' in line:
+                        warnings += 1
+                        msg = line.split('[WARN]', 1)[1].strip() if '[WARN]' in line else ''
+                        if msg and msg not in warning_messages:
+                            warning_messages.append(msg)
+                    elif '[ERROR]' in line:
+                        errors += 1
     except (subprocess.TimeoutExpired, subprocess.SubprocessError, FileNotFoundError) as e:
         logger.warning(f"Could not run diagnostic check: {e}")
         # Don't fail status check if diagnostic script is unavailable
@@ -589,7 +595,7 @@ def get_diagnostic_warnings():
     return {
         'warnings': warnings,
         'errors': errors,
-        'warning_messages': warning_messages[:5]  # Limit to first 5 warnings
+        'warning_messages': warning_messages
     }
 
 

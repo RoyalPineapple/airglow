@@ -180,12 +180,12 @@
                 
                 html += '</section>';
 
-                // Container Status
+                // Container Status - Display as cards
                 html += '<section class="status-section">';
                 html += '<h2>Container Status</h2>';
-                html += '<div class="status-grid">';
+                html += '<div class="container-cards-grid">';
                 
-                // Display all containers with restart buttons, ordered by dependency
+                // Display all containers as cards, ordered by dependency
                 for (const key of containerOrder) {
                     if (!containers[key]) continue; // Skip if container not in data
                     
@@ -197,11 +197,21 @@
                     const versionHtml = formatVersion(container.version);
                     const restartBtnId = `restart-${key}`;
                     
-                    html += `<div class="status-item status-item-with-action">`;
-                    html += `<div class="status-item-content">`;
-                    html += `<span class="status-label">${escapeHtml(displayName)}:</span> ${statusHtml}${versionHtml}`;
+                    html += `<div class="container-card">`;
+                    html += `<div class="container-card-header">`;
+                    html += `<h3 class="container-card-title">${escapeHtml(displayName)}</h3>`;
+                    html += `${statusHtml}`;
                     html += `</div>`;
+                    html += `<div class="container-card-body">`;
+                    if (container.version) {
+                        html += `<div class="container-card-version">Version: ${escapeHtml(container.version)}</div>`;
+                    } else {
+                        html += `<div class="container-card-version">Version: N/A</div>`;
+                    }
+                    html += `</div>`;
+                    html += `<div class="container-card-footer">`;
                     html += `<button id="${restartBtnId}" class="btn btn-sm btn-outline" data-container="${containerName}">Restart</button>`;
+                    html += `</div>`;
                     html += `</div>`;
                 }
                 
