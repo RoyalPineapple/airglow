@@ -2,27 +2,28 @@ FROM alpine:latest
 
 RUN apk add --no-cache avahi avahi-tools dbus
 
-# Create directories
+# Create directories  
 RUN mkdir -p /var/run/dbus /var/run/avahi-daemon
 
 # Copy Avahi config (will be overridden by volume mount)
 COPY configs/avahi-daemon.conf /etc/avahi/avahi-daemon.conf
 
-# Startup script
+# Startup script - detect host IP and make it available via D-Bus
 RUN echo '#!/bin/sh' > /start.sh && \
     echo 'dbus-daemon --system --nofork --nopidfile &' >> /start.sh && \
     echo 'sleep 2' >> /start.sh && \
     echo 'avahi-daemon -D' >> /start.sh && \
     echo 'sleep 1' >> /start.sh && \
-    echo '# Write host IP to shared file for shairport-sync to read' >> /start.sh && \
-    echo '# Avahi runs on host networking, so it can see the actual host interfaces' >> /start.sh && \
+    echo '# Detect host IP (Avahi runs on host networking)' >> /start.sh && \
     echo 'HOST_IP=$(ip route get 8.8.8.8 2>/dev/null | awk '"'"'{print $7}'"'"' | head -1)' >> /start.sh && \
     echo 'if [ -z "$HOST_IP" ] || [ "$HOST_IP" = "127.0.0.1" ]; then' >> /start.sh && \
     echo '  HOST_IP=$(ip addr show | grep -E "inet " | grep -v "127.0.0.1" | grep -vE "172\\.(1[6-9]|2[0-9]|3[0-1])\\." | awk '"'"'{print $2}'"'"' | cut -d/ -f1 | head -1)' >> /start.sh && \
     echo 'fi' >> /start.sh && \
     echo 'if [ -n "$HOST_IP" ] && [ "$HOST_IP" != "127.0.0.1" ]; then' >> /start.sh && \
-    echo '  echo "$HOST_IP" > /var/run/avahi-daemon/host-ip.txt' >> /start.sh && \
     echo '  echo "Avahi detected host IP: $HOST_IP"' >> /start.sh && \
+    echo '  # Make IP available via D-Bus by writing to a well-known location' >> /start.sh && \
+    echo '  # shairport-sync will query this via dbus-send' >> /start.sh && \
+    echo '  echo "$HOST_IP" > /var/run/avahi-daemon/host-ip.txt' >> /start.sh && \
     echo 'fi' >> /start.sh && \
     echo 'exec tail -f /dev/null' >> /start.sh && \
     chmod +x /start.sh

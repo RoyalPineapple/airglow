@@ -102,15 +102,20 @@ RUN echo '#!/bin/sh' > /usr/local/bin/start.sh && \
     echo '  sleep 1' >> /usr/local/bin/start.sh && \
     echo 'done' >> /usr/local/bin/start.sh && \
     echo 'echo "D-Bus socket found, starting shairport-sync..."' >> /usr/local/bin/start.sh && \
-    echo '# Get host IP from file written by Avahi container' >> /usr/local/bin/start.sh && \
-    echo '# Avahi runs on host networking, so it can detect the host IP and write it to a shared file' >> /usr/local/bin/start.sh && \
-    echo 'echo "Reading host IP from Avahi..."' >> /usr/local/bin/start.sh && \
-    echo '# Wait for Avahi to write the host IP file' >> /usr/local/bin/start.sh && \
+    echo '# Get host IP from Avahi via D-Bus (querying the file through D-Bus)' >> /usr/local/bin/start.sh && \
+    echo '# Avahi runs on host networking and writes IP to a file' >> /usr/local/bin/start.sh && \
+    echo '# We use D-Bus to ensure Avahi is ready, then read the file' >> /usr/local/bin/start.sh && \
+    echo 'echo "Querying Avahi for host IP..."' >> /usr/local/bin/start.sh && \
+    echo '# Wait for Avahi D-Bus service to be ready' >> /usr/local/bin/start.sh && \
     echo 'for i in $(seq 1 10); do' >> /usr/local/bin/start.sh && \
-    echo '  if [ -f /var/run/avahi-daemon/host-ip.txt ]; then' >> /usr/local/bin/start.sh && \
-    echo '    HOST_IP=$(cat /var/run/avahi-daemon/host-ip.txt 2>/dev/null | tr -d '"'"' \n'"'"')' >> /usr/local/bin/start.sh && \
-    echo '    if [ -n "$HOST_IP" ] && [ "$HOST_IP" != "127.0.0.1" ] && ! echo "$HOST_IP" | grep -qE "^172\\.(1[6-9]|2[0-9]|3[0-1])\\."; then' >> /usr/local/bin/start.sh && \
-    echo '      break' >> /usr/local/bin/start.sh && \
+    echo '  # Check if Avahi D-Bus service is available' >> /usr/local/bin/start.sh && \
+    echo '  if dbus-send --system --print-reply --dest=org.freedesktop.Avahi /org/freedesktop/Avahi/Server org.freedesktop.DBus.Peer.Ping 2>/dev/null >/dev/null; then' >> /usr/local/bin/start.sh && \
+    echo '    # Avahi is ready, try to read IP from shared location' >> /usr/local/bin/start.sh && \
+    echo '    if [ -f /var/run/avahi-daemon/host-ip.txt ]; then' >> /usr/local/bin/start.sh && \
+    echo '      HOST_IP=$(cat /var/run/avahi-daemon/host-ip.txt 2>/dev/null | tr -d '"'"' \n'"'"')' >> /usr/local/bin/start.sh && \
+    echo '      if [ -n "$HOST_IP" ] && [ "$HOST_IP" != "127.0.0.1" ] && ! echo "$HOST_IP" | grep -qE "^172\\.(1[6-9]|2[0-9]|3[0-1])\\."; then' >> /usr/local/bin/start.sh && \
+    echo '        break' >> /usr/local/bin/start.sh && \
+    echo '      fi' >> /usr/local/bin/start.sh && \
     echo '    fi' >> /usr/local/bin/start.sh && \
     echo '  fi' >> /usr/local/bin/start.sh && \
     echo '  sleep 1' >> /usr/local/bin/start.sh && \
