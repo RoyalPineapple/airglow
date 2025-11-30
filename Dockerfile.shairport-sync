@@ -47,7 +47,9 @@ RUN apk add --no-cache \
     libgcrypt \
     # Utilities for hook scripts
     jq \
-    yq
+    yq \
+    # curl for querying services (used by startup script)
+    curl
 
 # Build shairport-sync with AirPlay 2 support (ALAC support removed per user request)
 RUN (git clone --depth 1 --branch ${SHAIRPORT_SYNC_VERSION} https://github.com/mikebrady/shairport-sync.git || \
@@ -106,12 +108,14 @@ RUN echo '#!/bin/sh' > /usr/local/bin/start.sh && \
     echo '# If not set, query Avahi via D-Bus to get the host IP (Avahi runs on host networking)' >> /usr/local/bin/start.sh && \
     echo 'if [ -z "$HOST_IP" ] || [ "$HOST_IP" = "127.0.0.1" ] || [ "$HOST_IP" = "" ]; then' >> /usr/local/bin/start.sh && \
     echo '  echo "HOST_IP not set, querying Avahi for host IP..."' >> /usr/local/bin/start.sh && \
-    echo '  # Query Avahi to get the IP address it is advertising for our service' >> /usr/local/bin/start.sh && \
-    echo '  # Avahi runs on host networking, so it knows the host IP' >> /usr/local/bin/start.sh && \
-    echo '  # First, wait a moment for shairport-sync to register with Avahi' >> /usr/local/bin/start.sh && \
-    echo '  sleep 2' >> /usr/local/bin/start.sh && \
-    echo '  # Try to get IP from avahi-browse output (Avahi container can see host network)' >> /usr/local/bin/start.sh && \
-    echo '  HOST_IP=$(docker exec avahi avahi-browse -rpt _raop._tcp 2>/dev/null | grep -i "Airglow-Staging" | grep -oE "[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}" | head -1 || echo "")' >> /usr/local/bin/start.sh && \
+    echo '  # Query Avahi container via D-Bus to get network interface IP' >> /usr/local/bin/start.sh && \
+    echo '  # Avahi runs on host networking, so it can tell us the host IP' >> /usr/local/bin/start.sh && \
+    echo '  # Use dbus-send to query Avahi for the IP of the primary network interface' >> /usr/local/bin/start.sh && \
+    echo '  # Get the first non-loopback IPv4 address from any service Avahi is advertising' >> /usr/local/bin/start.sh && \
+    echo '  # We can query avahi-browse from the Avahi container (it has host network access)' >> /usr/local/bin/start.sh && \
+    echo '  # But we need docker socket access - instead, use a simpler approach:' >> /usr/local/bin/start.sh && \
+    echo '  # Query D-Bus for Avahi network interface info, or wait for service registration' >> /usr/local/bin/start.sh && \
+    echo '  # For now, use fallback detection methods since we are in bridge network' >> /usr/local/bin/start.sh && \
     echo '  # If that failed, try fallback methods' >> /usr/local/bin/start.sh && \
     echo '  if [ -z "$HOST_IP" ] || [ "$HOST_IP" = "127.0.0.1" ]; then' >> /usr/local/bin/start.sh && \
     echo '    echo "Avahi query failed, trying fallback detection..."' >> /usr/local/bin/start.sh && \
