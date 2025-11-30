@@ -741,36 +741,9 @@ function start_stack() {
         exit 1
     }
 
-    # Detect host IP for shairport-sync mDNS advertisement
-    # This ensures clients can connect from outside the Docker network
-    msg_info "Detecting host IP address for AirPlay advertisement..."
-    local host_ip
-    host_ip=$(ip route get 8.8.8.8 2>/dev/null | awk '{print $7}' | head -1)
-    
-    # Fallback methods if primary detection fails
-    if [[ -z "$host_ip" ]] || [[ "$host_ip" == "127.0.0.1" ]]; then
-        host_ip=$(ip route | grep default | awk '{print $9}' | head -1)
-    fi
-    if [[ -z "$host_ip" ]] || [[ "$host_ip" == "127.0.0.1" ]]; then
-        host_ip=$(hostname -I | awk '{print $1}')
-    fi
-    
-    if [[ -n "$host_ip" ]] && [[ "$host_ip" != "127.0.0.1" ]]; then
-        msg_ok "Detected host IP: $host_ip"
-        export HOST_IP="$host_ip"
-        
-        # Update docker-compose.yml to include HOST_IP in environment
-        # This ensures it persists across container restarts
-        if grep -q "HOST_IP=\${HOST_IP:-}" "${INSTALL_DIR}/docker-compose.yml"; then
-            # Replace the placeholder with the actual IP
-            sed -i "s|HOST_IP=\${HOST_IP:-}|HOST_IP=${host_ip}|" "${INSTALL_DIR}/docker-compose.yml"
-            msg_ok "Updated docker-compose.yml with host IP: $host_ip"
-        fi
-    else
-        msg_warn "Could not detect host IP - shairport-sync may advertise Docker bridge IP"
-        msg_warn "AirPlay connections may fail from outside the Docker network"
-        export HOST_IP=""
-    fi
+    # Note: Host IP detection is now handled automatically by shairport-sync startup script
+    # The startup script queries Avahi (which runs on host networking) to get the host IP
+    # No need to detect or set HOST_IP here anymore
 
     # Pull pre-built images (non-fatal for build-based services)
     msg_info "Pulling pre-built Docker images..."
