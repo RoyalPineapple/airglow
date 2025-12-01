@@ -270,9 +270,13 @@ function copy_configs() {
 
     local repo_git_url="https://github.com/RoyalPineapple/airglow.git"
     
+    # Recalculate absolute paths in case we're in a subshell or script was piped
+    local script_dir_abs="$(cd "${SCRIPT_DIR}" 2>/dev/null && pwd -P || echo "${SCRIPT_DIR}")"
+    local install_dir_abs="$(cd "${INSTALL_DIR}" 2>/dev/null && pwd -P || echo "${INSTALL_DIR}")"
+    
     # Try local files first, fallback to cloning from GitHub
     # Skip local copy if SCRIPT_DIR is the same as INSTALL_DIR (running from install directory)
-    if [[ -f "${SCRIPT_DIR}/docker-compose.yml" ]] && [[ "${SCRIPT_DIR_ABS}" != "${INSTALL_DIR_ABS}" ]]; then
+    if [[ -f "${SCRIPT_DIR}/docker-compose.yml" ]] && [[ "${script_dir_abs}" != "${install_dir_abs}" ]]; then
         msg_info "Using local configuration files..."
         # Only copy if source and destination are different files
         if [[ "${SCRIPT_DIR}/docker-compose.yml" != "${INSTALL_DIR}/docker-compose.yml" ]]; then
