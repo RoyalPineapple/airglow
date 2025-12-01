@@ -317,7 +317,7 @@ function copy_configs() {
         fi
         
         # Copy web application directory
-        if [[ -d "${SCRIPT_DIR}/web" ]]; then
+        if [[ -d "${SCRIPT_DIR}/web" ]] && [[ "${SCRIPT_DIR}/web" != "${INSTALL_DIR}/web" ]]; then
             cp -r "${SCRIPT_DIR}/web" "${INSTALL_DIR}/" || {
                 msg_error "Failed to copy web directory"
                 exit 1
@@ -329,7 +329,7 @@ function copy_configs() {
         fi
         
         # Copy scripts directory
-        if [[ -d "${SCRIPT_DIR}/scripts" ]]; then
+        if [[ -d "${SCRIPT_DIR}/scripts" ]] && [[ "${SCRIPT_DIR}/scripts" != "${INSTALL_DIR}/scripts" ]]; then
             cp -r "${SCRIPT_DIR}/scripts" "${INSTALL_DIR}/" || {
                 msg_error "Failed to copy scripts directory"
                 exit 1
