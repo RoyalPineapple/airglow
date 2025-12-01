@@ -268,7 +268,8 @@ function copy_configs() {
     local repo_git_url="https://github.com/RoyalPineapple/airglow.git"
     
     # Try local files first, fallback to cloning from GitHub
-    if [[ -f "${SCRIPT_DIR}/docker-compose.yml" ]]; then
+    # Skip local copy if SCRIPT_DIR is the same as INSTALL_DIR (running from install directory)
+    if [[ -f "${SCRIPT_DIR}/docker-compose.yml" ]] && [[ "${SCRIPT_DIR}" != "${INSTALL_DIR}" ]]; then
         msg_info "Using local configuration files..."
         # Only copy if source and destination are different files
         if [[ "${SCRIPT_DIR}/docker-compose.yml" != "${INSTALL_DIR}/docker-compose.yml" ]]; then
