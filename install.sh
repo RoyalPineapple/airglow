@@ -274,9 +274,18 @@ function copy_configs() {
     local script_dir_abs="$(cd "${SCRIPT_DIR}" 2>/dev/null && pwd -P || echo "${SCRIPT_DIR}")"
     local install_dir_abs="$(cd "${INSTALL_DIR}" 2>/dev/null && pwd -P || echo "${INSTALL_DIR}")"
     
+    # Check if script is being piped (stdin is not a terminal)
+    # When piped, ${BASH_SOURCE[0]} resolves to current directory, not script location
+    local is_piped=false
+    if [[ ! -t 0 ]]; then
+        is_piped=true
+    fi
+    
     # Try local files first, fallback to cloning from GitHub
-    # Skip local copy if SCRIPT_DIR is the same as INSTALL_DIR (running from install directory)
-    if [[ -f "${SCRIPT_DIR}/docker-compose.yml" ]] && [[ "${script_dir_abs}" != "${install_dir_abs}" ]]; then
+    # Skip local copy if:
+    # 1. Script is being piped (can't reliably detect script location)
+    # 2. SCRIPT_DIR is the same as INSTALL_DIR (running from install directory)
+    if [[ "${is_piped}" == "false" ]] && [[ -f "${SCRIPT_DIR}/docker-compose.yml" ]] && [[ "${script_dir_abs}" != "${install_dir_abs}" ]]; then
         msg_info "Using local configuration files..."
         # Only copy if source and destination are different files
         if [[ "${SCRIPT_DIR}/docker-compose.yml" != "${INSTALL_DIR}/docker-compose.yml" ]]; then
