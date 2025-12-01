@@ -164,17 +164,23 @@ function setup_directory() {
     # Restore LedFX data from backup if it exists
     if [[ -n "${backup_dir:-}" ]] && [[ -d "${backup_dir}/ledfx-data" ]]; then
         msg_info "Restoring LedFX devices and configuration from backup..."
-        cp -r "${backup_dir}/ledfx-data/"* "${INSTALL_DIR}/ledfx-data/" 2>/dev/null || {
-            msg_warn "Failed to restore LedFX data from backup"
-        }
+        # Use rsync to preserve all files, permissions, and structure
+        if command -v rsync >/dev/null 2>&1; then
+            rsync -a "${backup_dir}/ledfx-data/" "${INSTALL_DIR}/ledfx-data/" || {
+                msg_warn "rsync failed, trying cp..."
+                cp -r "${backup_dir}/ledfx-data/"* "${INSTALL_DIR}/ledfx-data/" 2>/dev/null || {
+                    msg_warn "Failed to restore LedFX data from backup"
+                }
+            }
+        else
+            cp -r "${backup_dir}/ledfx-data/"* "${INSTALL_DIR}/ledfx-data/" 2>/dev/null || {
+                msg_warn "Failed to restore LedFX data from backup"
+            }
+        fi
         msg_ok "LedFX data restored from backup"
     fi
 
     # Set ownership for Pulse and LedFX data directories (LedFX runs as UID 1000)
-    chown -R 1000:1000 "${INSTALL_DIR}/pulse" || {
-        msg_warn "Failed to set ownership on pulse directory"
-        msg_warn "You may need to manually run: sudo chown -R 1000:1000 ${INSTALL_DIR}/pulse"
-    }
     chown -R 1000:1000 "${INSTALL_DIR}/pulse" || {
         msg_warn "Failed to set ownership on pulse directory"
         msg_warn "You may need to manually run: sudo chown -R 1000:1000 ${INSTALL_DIR}/pulse"
@@ -185,10 +191,11 @@ function setup_directory() {
     }
 
     # Copy default LedFX config file only if it doesn't exist (idempotent)
+    # IMPORTANT: This check happens AFTER restore, so we don't overwrite restored configs
     local ledfx_config="${INSTALL_DIR}/ledfx-data/config.json"
     local default_config="${SCRIPT_DIR}/configs/ledfx-config.json"
     if [[ ! -f "${ledfx_config}" ]] && [[ -f "${default_config}" ]]; then
-        msg_info "Copying default LedFX config file with pulse audio device..."
+        msg_info "No existing LedFX config found, copying default config with pulse audio device..."
         cp "${default_config}" "${ledfx_config}" || {
             msg_warn "Failed to copy LedFX config file"
         }
@@ -196,6 +203,8 @@ function setup_directory() {
             msg_warn "Failed to set ownership on LedFX config file"
         }
         msg_ok "LedFX config file created with pulse audio device"
+    elif [[ -f "${ledfx_config}" ]]; then
+        msg_info "LedFX config already exists, preserving existing devices and configuration"
     fi
 
     msg_ok "Directory structure created"
