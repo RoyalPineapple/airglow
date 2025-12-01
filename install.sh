@@ -136,8 +136,23 @@ function setup_directory() {
 
         local backup_dir="${INSTALL_DIR}.backup.$(date +%Y%m%d_%H%M%S)"
         msg_info "Backing up existing installation to: ${backup_dir}"
+        
+        # Preserve LedFX data before moving directory
+        local ledfx_data_backup="${backup_dir}/ledfx-data"
+        if [[ -d "${INSTALL_DIR}/ledfx-data" ]]; then
+            mkdir -p "${backup_dir}"
+            cp -r "${INSTALL_DIR}/ledfx-data" "${ledfx_data_backup}" || {
+                msg_warn "Failed to backup LedFX data"
+            }
+        fi
+        
         mv "${INSTALL_DIR}" "${backup_dir}"
         msg_ok "Backup created"
+        
+        # Restore LedFX data after creating new directory
+        if [[ -d "${ledfx_data_backup}" ]]; then
+            msg_info "Preserving LedFX devices and configuration..."
+        fi
     fi
 
     # Create directory structure
@@ -145,6 +160,15 @@ function setup_directory() {
     mkdir -p "${INSTALL_DIR}/configs"
     mkdir -p "${INSTALL_DIR}/pulse"
     mkdir -p "${INSTALL_DIR}/ledfx-data"
+    
+    # Restore LedFX data from backup if it exists
+    if [[ -n "${backup_dir:-}" ]] && [[ -d "${backup_dir}/ledfx-data" ]]; then
+        msg_info "Restoring LedFX devices and configuration from backup..."
+        cp -r "${backup_dir}/ledfx-data/"* "${INSTALL_DIR}/ledfx-data/" 2>/dev/null || {
+            msg_warn "Failed to restore LedFX data from backup"
+        }
+        msg_ok "LedFX data restored from backup"
+    fi
 
     # Set ownership for Pulse and LedFX data directories (LedFX runs as UID 1000)
     chown -R 1000:1000 "${INSTALL_DIR}/pulse" || {
