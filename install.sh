@@ -9,9 +9,19 @@ VERSION="1.0.0"
 
 # Configuration
 INSTALL_DIR="/opt/airglow"
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
+# Detect if script is being piped (stdin is not a terminal)
+# When piped, ${BASH_SOURCE[0]} resolves to current directory, not script location
+# In that case, we'll use a placeholder that won't match INSTALL_DIR
+if [[ -t 0 ]]; then
+    # Not piped - can reliably detect script location
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
+else
+    # Piped - use a placeholder that won't match INSTALL_DIR
+    # This forces the script to clone from GitHub instead of using local files
+    SCRIPT_DIR="/tmp/airglow-install-script"
+fi
 # Normalize paths for comparison (resolve symlinks and relative paths)
-SCRIPT_DIR_ABS="$(cd "${SCRIPT_DIR}" && pwd -P)"
+SCRIPT_DIR_ABS="$(cd "${SCRIPT_DIR}" 2>/dev/null && pwd -P || echo "${SCRIPT_DIR}")"
 INSTALL_DIR_ABS="$(cd "${INSTALL_DIR}" 2>/dev/null && pwd -P || echo "${INSTALL_DIR}")"
 REPO_URL="https://github.com/RoyalPineapple/airglow.git"
 REPO_RAW_URL="https://raw.githubusercontent.com/RoyalPineapple/airglow/master"
