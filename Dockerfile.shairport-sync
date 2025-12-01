@@ -1,5 +1,5 @@
-# Shairport-Sync with Apple ALAC decoder support
-# Built from source with --with-apple-alac flag
+# Shairport-Sync with AirPlay 2 support
+# Built from source with --with-airplay-2 flag (ALAC support removed)
 FROM alpine:latest
 
 # Version pins for reproducibility
@@ -49,25 +49,12 @@ RUN apk add --no-cache \
     jq \
     yq
 
-# Build ALAC library
-WORKDIR /tmp
-RUN git clone --depth 1 https://github.com/mikebrady/alac.git && \
-    cd alac && \
-    autoreconf -fi && \
-    ./configure --prefix=/usr/local && \
-    make -j$(nproc) && \
-    make install && \
-    (ldconfig 2>/dev/null || true) && \
-    cd .. && \
-    rm -rf alac
-
-# Build shairport-sync with Apple ALAC support
+# Build shairport-sync with AirPlay 2 support (ALAC support removed per user request)
 RUN (git clone --depth 1 --branch ${SHAIRPORT_SYNC_VERSION} https://github.com/mikebrady/shairport-sync.git || \
      git clone --depth 1 https://github.com/mikebrady/shairport-sync.git) && \
     cd shairport-sync && \
     autoreconf -fi && \
-    PKG_CONFIG_PATH=/usr/local/lib/pkgconfig:$PKG_CONFIG_PATH ./configure \
-        --with-apple-alac \
+    ./configure \
         --with-pa \
         --with-avahi \
         --with-ssl=openssl \
