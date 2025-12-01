@@ -1,116 +1,9 @@
-# Shairport-Sync with Apple ALAC decoder support
-# Built from source with --with-apple-alac flag
-FROM alpine:latest
+# Custom Shairport-Sync image with jq for JSON parsing and yq for YAML parsing
+# Extends pre-built mikebrady/shairport-sync:latest (includes AirPlay 2 support)
+FROM mikebrady/shairport-sync:latest
 
-# Version pins for reproducibility
-ARG SHAIRPORT_SYNC_VERSION=4.3.7
-ARG ALAC_VERSION=master
-
-# Install build dependencies
-RUN apk add --no-cache \
-    # Build tools (build-base includes gcc, g++, make, libc-dev, etc.)
-    build-base \
-    autoconf \
-    automake \
-    libtool \
-    git \
-    pkgconfig \
-    musl-dev \
-    linux-headers \
-    # Development headers
-    pulseaudio-dev \
-    avahi-dev \
-    openssl-dev \
-    libconfig-dev \
-    soxr-dev \
-    dbus-dev \
-    popt-dev \
-    # AirPlay 2 dependencies
-    libplist-dev \
-    libsodium-dev \
-    ffmpeg-dev \
-    util-linux-dev \
-    libgcrypt-dev \
-    vim \
-    # Runtime dependencies (will be needed later)
-    pulseaudio \
-    avahi \
-    avahi-libs \
-    openssl \
-    libconfig \
-    soxr \
-    dbus \
-    popt \
-    libplist \
-    libsodium \
-    ffmpeg \
-    libgcrypt \
-    # Utilities for hook scripts
-    jq \
-    yq
-
-# Build ALAC library
-WORKDIR /tmp
-RUN git clone --depth 1 https://github.com/mikebrady/alac.git && \
-    cd alac && \
-    autoreconf -fi && \
-    ./configure --prefix=/usr/local && \
-    make -j$(nproc) && \
-    make install && \
-    (ldconfig 2>/dev/null || true) && \
-    cd .. && \
-    rm -rf alac
-
-# Build shairport-sync with Apple ALAC support
-RUN (git clone --depth 1 --branch ${SHAIRPORT_SYNC_VERSION} https://github.com/mikebrady/shairport-sync.git || \
-     git clone --depth 1 https://github.com/mikebrady/shairport-sync.git) && \
-    cd shairport-sync && \
-    autoreconf -fi && \
-    PKG_CONFIG_PATH=/usr/local/lib/pkgconfig:$PKG_CONFIG_PATH ./configure \
-        --with-apple-alac \
-        --with-pa \
-        --with-avahi \
-        --with-ssl=openssl \
-        --with-soxr \
-        --with-metadata \
-        --with-airplay-2 \
-        --sysconfdir=/etc \
-        --prefix=/usr/local && \
-    make -j$(nproc) && \
-    make install && \
-    (ldconfig 2>/dev/null || true) && \
-    cd .. && \
-    rm -rf shairport-sync
-
-# Clean up build dependencies to reduce image size
-# Keep perl for config file modification (works with mounted files)
-RUN apk del \
-    build-base \
-    autoconf \
-    automake \
-    libtool \
-    git \
-    pkgconfig \
-    musl-dev \
-    linux-headers \
-    pulseaudio-dev \
-    avahi-dev \
-    openssl-dev \
-    libconfig-dev \
-    soxr-dev \
-    dbus-dev \
-    libplist-dev \
-    libsodium-dev \
-    ffmpeg-dev \
-    util-linux-dev \
-    libgcrypt-dev && \
-    apk add --no-cache perl
-
-# Create directory for configuration and logs
-RUN mkdir -p /etc /var/log/shairport-sync /var/run/dbus
-
-# Verify installation
-RUN test -f /usr/local/bin/shairport-sync && shairport-sync -V || (echo "ERROR: shairport-sync binary not found or not executable" && exit 1)
+# Install jq for JSON parsing and yq for YAML parsing in hook scripts
+RUN apk add --no-cache jq yq perl
 
 # Create startup script - connect to external Avahi via D-Bus
 # Avahi runs in a separate container on host networking
@@ -163,5 +56,5 @@ RUN echo '#!/bin/sh' > /usr/local/bin/start.sh && \
     echo 'exec shairport-sync "$@"' >> /usr/local/bin/start.sh && \
     chmod +x /usr/local/bin/start.sh
 
-# Set entrypoint
+# Override entrypoint to use our custom startup script
 ENTRYPOINT ["/usr/local/bin/start.sh"]
