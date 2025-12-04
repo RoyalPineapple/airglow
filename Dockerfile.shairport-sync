@@ -6,52 +6,16 @@ FROM mikebrady/shairport-sync:latest
 RUN apk add --no-cache jq yq perl
 
 # Create startup script - connect to external Avahi via D-Bus
-# Avahi runs in a separate container on host networking
-# The script will dynamically determine the host IP and configure shairport-sync to advertise it
+# Avahi already advertises the host IP, so we just wait for D-Bus readiness
 RUN echo '#!/bin/sh' > /usr/local/bin/start.sh && \
     echo '# Wait for D-Bus socket from Avahi container' >> /usr/local/bin/start.sh && \
     echo 'while [ ! -S /var/run/dbus/system_bus_socket ]; do' >> /usr/local/bin/start.sh && \
     echo '  echo "Waiting for D-Bus socket from Avahi container..."' >> /usr/local/bin/start.sh && \
     echo '  sleep 1' >> /usr/local/bin/start.sh && \
     echo 'done' >> /usr/local/bin/start.sh && \
-    echo 'echo "D-Bus socket found, starting shairport-sync..."' >> /usr/local/bin/start.sh && \
-    echo '# Get host IP from file written by Avahi container' >> /usr/local/bin/start.sh && \
-    echo '# Avahi runs on host networking, so it can detect the host IP and write it to a shared file' >> /usr/local/bin/start.sh && \
-    echo 'echo "Reading host IP from Avahi..."' >> /usr/local/bin/start.sh && \
-    echo '# Wait for Avahi to write the host IP file' >> /usr/local/bin/start.sh && \
-    echo 'for i in $(seq 1 10); do' >> /usr/local/bin/start.sh && \
-    echo '  if [ -f /var/run/avahi-daemon/host-ip.txt ]; then' >> /usr/local/bin/start.sh && \
-    echo '    HOST_IP=$(cat /var/run/avahi-daemon/host-ip.txt 2>/dev/null | tr -d '"'"' \n'"'"')' >> /usr/local/bin/start.sh && \
-    echo '    if [ -n "$HOST_IP" ] && [ "$HOST_IP" != "127.0.0.1" ] && ! echo "$HOST_IP" | grep -qE "^172\\.(1[6-9]|2[0-9]|3[0-1])\\."; then' >> /usr/local/bin/start.sh && \
-    echo '      break' >> /usr/local/bin/start.sh && \
-    echo '    fi' >> /usr/local/bin/start.sh && \
-    echo '  fi' >> /usr/local/bin/start.sh && \
-    echo '  sleep 1' >> /usr/local/bin/start.sh && \
-    echo 'done' >> /usr/local/bin/start.sh && \
-    echo '# Fallback: try to detect from our own network (may not work in bridge network)' >> /usr/local/bin/start.sh && \
-    echo 'if [ -z "$HOST_IP" ] || [ "$HOST_IP" = "127.0.0.1" ] || echo "$HOST_IP" | grep -qE "^172\\.(1[6-9]|2[0-9]|3[0-1])\\."; then' >> /usr/local/bin/start.sh && \
-    echo '  echo "Avahi IP file not available, trying fallback detection..."' >> /usr/local/bin/start.sh && \
-    echo '  HOST_IP=$(ip route get 8.8.8.8 2>/dev/null | awk '"'"'{print $7}'"'"' | head -1)' >> /usr/local/bin/start.sh && \
-    echo '  if [ -z "$HOST_IP" ] || [ "$HOST_IP" = "127.0.0.1" ]; then' >> /usr/local/bin/start.sh && \
-    echo '    HOST_IP=$(ip route | grep default | awk '"'"'{print $9}'"'"' | head -1)' >> /usr/local/bin/start.sh && \
-    echo '  fi' >> /usr/local/bin/start.sh && \
-    echo '  if [ -z "$HOST_IP" ] || [ "$HOST_IP" = "127.0.0.1" ]; then' >> /usr/local/bin/start.sh && \
-    echo '    HOST_IP=$(hostname -I | awk '"'"'{print $1}'"'"')' >> /usr/local/bin/start.sh && \
-    echo '  fi' >> /usr/local/bin/start.sh && \
-    echo 'fi' >> /usr/local/bin/start.sh && \
-    echo 'if [ -n "$HOST_IP" ] && [ "$HOST_IP" != "127.0.0.1" ]; then' >> /usr/local/bin/start.sh && \
-    echo '  echo "Configuring shairport-sync to advertise host IP: $HOST_IP"' >> /usr/local/bin/start.sh && \
-    echo '  # Update config file to use host IP (if interfaces setting exists, update it; otherwise add it)' >> /usr/local/bin/start.sh && \
-    echo '  # Copy config to writable location and modify it there' >> /usr/local/bin/start.sh && \
-    echo '  # Remove any existing interfaces lines first to avoid duplicates' >> /usr/local/bin/start.sh && \
-    echo '  cp /etc/shairport-sync.conf /tmp/shairport-sync.conf' >> /usr/local/bin/start.sh && \
-    echo '  sed -i "/^[[:space:]]*interfaces[[:space:]]*=/d" /tmp/shairport-sync.conf' >> /usr/local/bin/start.sh && \
-    echo '  # Add interfaces setting after mdns_backend' >> /usr/local/bin/start.sh && \
-    echo '  awk -v ip="$HOST_IP" '"'"'/mdns_backend = "avahi";/ { print; print "\tinterfaces = \"" ip "\";"; next }1'"'"' /tmp/shairport-sync.conf > /tmp/shairport-sync.conf.new && mv /tmp/shairport-sync.conf.new /tmp/shairport-sync.conf' >> /usr/local/bin/start.sh && \
-    echo '  # Replace original with modified version' >> /usr/local/bin/start.sh && \
-    echo '  cat /tmp/shairport-sync.conf > /etc/shairport-sync.conf' >> /usr/local/bin/start.sh && \
-    echo 'else' >> /usr/local/bin/start.sh && \
-    echo '  echo "Warning: HOST_IP not set or invalid, shairport-sync may advertise Docker bridge IP"' >> /usr/local/bin/start.sh && \
+    echo 'if [ -f /var/run/avahi-daemon/host-ip.txt ]; then' >> /usr/local/bin/start.sh && \
+    echo '  HOST_IP=$(cat /var/run/avahi-daemon/host-ip.txt 2>/dev/null | tr -d '"'"' \n'"'"')' >> /usr/local/bin/start.sh && \
+    echo '  [ -n "$HOST_IP" ] && echo "Avahi reports host IP: $HOST_IP"' >> /usr/local/bin/start.sh && \
     echo 'fi' >> /usr/local/bin/start.sh && \
     echo 'exec shairport-sync "$@"' >> /usr/local/bin/start.sh && \
     chmod +x /usr/local/bin/start.sh
