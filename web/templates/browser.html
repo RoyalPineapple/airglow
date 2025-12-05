@@ -84,7 +84,42 @@
             });
         }
 
-        function formatAvahiLine(line) {
+        function formatAvahiData(rawLines) {
+            if (!rawLines || rawLines.length === 0) {
+                return '';
+            }
+            
+            // Group lines by service type to avoid duplicates
+            const entriesByType = {};
+            
+            rawLines.forEach(line => {
+                if (!line || !line.includes(';')) {
+                    return;
+                }
+                
+                const parts = line.split(';');
+                if (parts.length < 10) {
+                    return;
+                }
+                
+                const serviceType = parts[4];
+                if (!entriesByType[serviceType]) {
+                    entriesByType[serviceType] = [];
+                }
+                entriesByType[serviceType].push(line);
+            });
+            
+            // Format each unique service type entry
+            let formatted = '';
+            for (const [serviceType, lines] of Object.entries(entriesByType)) {
+                // Use the first line for each service type (they should be similar)
+                formatted += formatAvahiLine(lines[0], serviceType, lines.length > 1);
+            }
+            
+            return formatted;
+        }
+
+        function formatAvahiLine(line, serviceTypeLabel = null, hasMultiple = false) {
             if (!line || !line.includes(';')) {
                 return escapeHtml(line);
             }
@@ -123,7 +158,11 @@
             let formatted = '<div class="avahi-entry">';
             formatted += '<div class="avahi-header">';
             formatted += `<span class="avahi-event">${escapeHtml(eventType)}</span> `;
-            formatted += `<span class="avahi-service">${escapeHtml(serviceType)}</span>`;
+            const displayServiceType = serviceTypeLabel || serviceType;
+            formatted += `<span class="avahi-service">${escapeHtml(displayServiceType)}</span>`;
+            if (hasMultiple) {
+                formatted += ' <span class="avahi-multiple">(multiple entries)</span>';
+            }
             formatted += '</div>';
             
             formatted += '<div class="avahi-fields">';
@@ -180,7 +219,7 @@
                         <div class="device-detail-content">
                             <h4>Raw Avahi Data</h4>
                             <div class="avahi-data-container">
-                                ${device.raw_avahi_data.map(line => formatAvahiLine(line)).join('')}
+                                ${formatAvahiData(device.raw_avahi_data)}
                             </div>
                             <details class="raw-data-toggle">
                                 <summary>Show Raw Text</summary>
