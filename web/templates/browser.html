@@ -219,9 +219,7 @@
                 formatted += '<div class="avahi-field-group">';
                 formatted += '<h5>TXT Record Fields</h5>';
                 for (const [key, value] of Object.entries(txtFields)) {
-                    const description = getFieldDescription(key);
-                    const labelText = description ? `${escapeHtml(key)} (${escapeHtml(description)})` : escapeHtml(key);
-                    formatted += `<div class="avahi-field"><span class="field-label">${labelText}:</span> <span class="field-value">${escapeHtml(value)}</span></div>`;
+                    formatted += `<div class="avahi-field"><span class="field-label">${escapeHtml(key)}:</span> <span class="field-value">${escapeHtml(value)}</span></div>`;
                 }
                 formatted += '</div>';
             }
