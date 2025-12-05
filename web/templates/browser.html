@@ -122,6 +122,38 @@
             return fieldNameExpansions[fieldName] || fieldName;
         }
 
+        function formatDeviceSupport(device) {
+            if (!device.raw_avahi_data || device.raw_avahi_data.length === 0) {
+                return '—';
+            }
+            
+            let hasAudio = false;
+            let hasVideo = false;
+            
+            // Check raw Avahi data for service types
+            device.raw_avahi_data.forEach(line => {
+                if (!line || !line.includes(';')) return;
+                const parts = line.split(';');
+                if (parts.length < 5) return;
+                const serviceType = parts[4].toLowerCase();
+                if (serviceType.includes('_raop._tcp')) {
+                    hasAudio = true;
+                } else if (serviceType.includes('_airplay._tcp')) {
+                    hasVideo = true;
+                }
+            });
+            
+            const badges = [];
+            if (hasAudio) {
+                badges.push('<span class="support-badge support-audio" title="Audio Support"><span class="material-icons">volume_up</span></span>');
+            }
+            if (hasVideo) {
+                badges.push('<span class="support-badge support-video" title="Video Support"><span class="material-icons">videocam</span></span>');
+            }
+            
+            return badges.length > 0 ? badges.join(' ') : '—';
+        }
+
         function formatAvahiData(rawLines) {
             if (!rawLines || rawLines.length === 0) {
                 return '';
