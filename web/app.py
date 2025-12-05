@@ -1346,6 +1346,7 @@ def get_airplay_devices():
         logger.error(f"Error browsing AirPlay 1 services: {e}")
     
     # Combine devices and merge raw data
+    # IMPORTANT: Return ALL devices - no filtering
     for device in all_devices.values():
         versions = []
         if device.get('airplay2'):
@@ -1362,6 +1363,7 @@ def get_airplay_devices():
             raw_data.extend(device['raw_avahi_data_ap1'])
         device['raw_avahi_data'] = raw_data
         
+        # Add ALL devices to result - no filtering
         result['devices'].append(device)
     
     return jsonify(result)

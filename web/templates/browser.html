@@ -829,6 +829,7 @@
             });
             
             // Update existing or add new devices
+            // IMPORTANT: Process ALL devices - no filtering
             devices.forEach((device, index) => {
                 const key = getDeviceKey(device);
                 const existing = deviceRowMap.get(key);
@@ -838,8 +839,8 @@
                     updateDeviceRow(existing.row, device, existing.deviceId);
                     // Update index in case order changed
                     existing.index = index;
-            } else {
-                    // Add new row
+                } else {
+                    // Add new row - ensure ALL devices are added
                     createDeviceRow(device, index, tbody);
                 }
             });
