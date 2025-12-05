@@ -764,6 +764,14 @@ def status():
         # Return empty diagnostics - frontend can load them separately
         diagnostics = {'warnings': 0, 'errors': 0, 'warning_messages': [], 'error_messages': []}
     
+    # Get AirPlay status (non-blocking - return None if it fails)
+    airplay_status = None
+    try:
+        airplay_status = get_airplay_status()
+    except Exception as e:
+        logger.warning(f"Could not get AirPlay status: {e}")
+        # Return None if it fails - frontend can handle missing data
+    
     status_data = {
         'containers': container_data,
         'ledfx': get_ledfx_info(),
@@ -771,6 +779,7 @@ def status():
         'virtuals': get_ledfx_virtuals(),
         'devices': get_ledfx_devices(),
         'audio': get_audio_status(),
+        'airplay': airplay_status,
         'diagnostics': diagnostics
     }
     return jsonify(status_data)
