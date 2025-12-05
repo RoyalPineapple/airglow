@@ -84,41 +84,41 @@
             });
         }
 
-        // Field descriptions for AirPlay TXT record fields
-        const fieldDescriptions = {
-            'vv': 'Version - AirPlay protocol version',
-            'ov': 'OS Version - Operating system version of the device',
-            'vs': 'Source Version - Version of the AirPlay source/client',
-            'vn': 'Version Number - Internal version identifier',
-            'tp': 'Transport Protocol - Audio transport (UDP or TCP)',
-            'pk': 'Public Key - Device public key for secure pairing',
-            'am': 'Audio Model - Device model identifier (e.g., AppleTV14,1)',
-            'md': 'Model - Device capabilities (0=audio, 1=video, 2=photo)',
-            'sf': 'Status Flags - Device status and state flags (hex)',
-            'ft': 'Feature Flags - Device capabilities and supported features (hex)',
-            'et': 'Encryption Types - Supported encryption methods (0=none, 3=FairPlay)',
-            'da': 'Device Authentication - Whether device authentication is required (true/false)',
-            'cn': 'Codec Numbers - Supported audio codecs (0=ALAC, 1=AAC, 2=PCM, 3=MP3)',
-            'osvers': 'OS Version String - Human-readable OS version',
-            'srcvers': 'Source Version String - Human-readable source version',
-            'psi': 'Pairing Session ID - Session identifier for pairing',
-            'pi': 'Pairing ID - Device pairing identifier',
-            'protovers': 'Protocol Version - AirPlay protocol version string',
-            'model': 'Model String - Device model name',
-            'gcgl': 'Game Controller GL - Game controller support flag',
-            'igl': 'iTunes Game Library - iTunes game library support',
-            'gid': 'Group ID - Device group identifier',
-            'flags': 'Flags - General device flags (hex)',
-            'features': 'Features - Extended feature flags (hex)',
-            'fex': 'Feature Extensions - Additional feature extensions',
-            'deviceid': 'Device ID - Unique device identifier (MAC address format)',
-            'btaddr': 'Bluetooth Address - Bluetooth MAC address',
-            'acl': 'Access Control List - Access control settings',
-            'fv': 'Firmware Version - Device firmware version string'
+        // Field name expansions (abbreviations to full names)
+        const fieldNameExpansions = {
+            'vv': 'Version',
+            'ov': 'OS Version',
+            'vs': 'Source Version',
+            'vn': 'Version Number',
+            'tp': 'Transport Protocol',
+            'pk': 'Public Key',
+            'am': 'Audio Model',
+            'md': 'Model',
+            'sf': 'Status Flags',
+            'ft': 'Feature Flags',
+            'et': 'Encryption Types',
+            'da': 'Device Authentication',
+            'cn': 'Codec Numbers',
+            'osvers': 'OS Version',
+            'srcvers': 'Source Version',
+            'psi': 'Pairing Session ID',
+            'pi': 'Pairing ID',
+            'protovers': 'Protocol Version',
+            'model': 'Model',
+            'gcgl': 'Game Controller GL',
+            'igl': 'iTunes Game Library',
+            'gid': 'Group ID',
+            'flags': 'Flags',
+            'features': 'Features',
+            'fex': 'Feature Extensions',
+            'deviceid': 'Device ID',
+            'btaddr': 'Bluetooth Address',
+            'acl': 'Access Control List',
+            'fv': 'Firmware Version'
         };
 
-        function getFieldDescription(fieldName) {
-            return fieldDescriptions[fieldName] || null;
+        function getFieldDisplayName(fieldName) {
+            return fieldNameExpansions[fieldName] || fieldName;
         }
 
         function formatAvahiData(rawLines) {
@@ -219,7 +219,8 @@
                 formatted += '<div class="avahi-field-group">';
                 formatted += '<h5>TXT Record Fields</h5>';
                 for (const [key, value] of Object.entries(txtFields)) {
-                    formatted += `<div class="avahi-field"><span class="field-label">${escapeHtml(key)}:</span> <span class="field-value">${escapeHtml(value)}</span></div>`;
+                    const displayName = getFieldDisplayName(key);
+                    formatted += `<div class="avahi-field"><span class="field-label">${escapeHtml(displayName)}:</span> <span class="field-value">${escapeHtml(value)}</span></div>`;
                 }
                 formatted += '</div>';
             }
