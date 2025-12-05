@@ -1236,8 +1236,28 @@ def get_airplay_devices():
     result = {
         'devices': [],
         'error': None,
-        'timestamp': datetime.now().isoformat()
+        'timestamp': datetime.now().isoformat(),
+        'host_ip': None
     }
+    
+    # Get the host IP address by checking the shairport-sync container's network
+    try:
+        # Get all IPs from shairport-sync container and find the one in 192.168.2.x range
+        inspect_result = subprocess.run(
+            ['docker', 'inspect', '--format', '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}', 'shairport-sync'],
+            capture_output=True,
+            text=True,
+            timeout=5
+        )
+        if inspect_result.returncode == 0:
+            # Get all IPs and find the one in 192.168.2.x range (macvlan network)
+            all_ips = inspect_result.stdout.strip()
+            for ip in all_ips.split():
+                if ip and ip.startswith('192.168.2.'):
+                    result['host_ip'] = ip
+                    break
+    except Exception as e:
+        logger.warning(f"Could not determine host IP: {e}")
     
     # Check if shairport-sync container is running (has built-in Avahi)
     shairport_status = check_container_status('shairport-sync')

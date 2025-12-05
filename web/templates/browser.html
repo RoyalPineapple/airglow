@@ -296,8 +296,12 @@
         function renderDeviceRow(device, index) {
             const deviceId = `device-${index}`;
             const hasRawData = device.raw_avahi_data && device.raw_avahi_data.length > 0;
+            // Check if this device is on the same host
+            const isLocalHost = window.hostIP && device.address && device.address === window.hostIP;
+            const rowClass = `device-row ${hasRawData ? 'expandable' : ''} ${isLocalHost ? 'local-host' : ''}`;
+            
             return `
-                <tr class="device-row ${hasRawData ? 'expandable' : ''}" data-device-id="${deviceId}" ${hasRawData ? 'style="cursor: pointer;"' : ''}>
+                <tr class="${rowClass}" data-device-id="${deviceId}" ${hasRawData ? 'style="cursor: pointer;"' : ''}>
                     <td class="device-name">
                         ${hasRawData ? '<span class="expand-icon">▶</span> ' : ''}
                         ${escapeHtml(device.name)}
@@ -341,6 +345,14 @@
             
             const hasRawData = device.raw_avahi_data && device.raw_avahi_data.length > 0;
             const expandIcon = row.querySelector('.expand-icon');
+            
+            // Update local-host class based on IP match
+            const isLocalHost = window.hostIP && device.address && device.address === window.hostIP;
+            if (isLocalHost) {
+                row.classList.add('local-host');
+            } else {
+                row.classList.remove('local-host');
+            }
             
             // Update name cell
             const nameCell = cells[0];
@@ -663,6 +675,8 @@
                     const productionDevices = data.devices.filter(device => 
                         !device.name.toLowerCase().includes('staging')
                     );
+                    // Store host IP for highlighting
+                    window.hostIP = data.host_ip;
                     renderDevices('devices-table', productionDevices, 'devices-empty');
                 }
 

@@ -1233,6 +1233,15 @@ code {
     background-color: rgba(52, 152, 219, 0.05);
 }
 
+.device-row.local-host {
+    background-color: rgba(46, 204, 113, 0.1);
+    border-left: 3px solid #2ecc71;
+}
+
+.device-row.local-host:hover {
+    background-color: rgba(46, 204, 113, 0.15);
+}
+
 .expand-icon {
     display: inline-block;
     margin-right: 0.5rem;
