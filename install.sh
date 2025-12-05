@@ -24,10 +24,16 @@ fi
 SCRIPT_DIR_ABS="$(cd "${SCRIPT_DIR}" 2>/dev/null && pwd -P || echo "${SCRIPT_DIR}")"
 INSTALL_DIR_ABS="$(cd "${INSTALL_DIR}" 2>/dev/null && pwd -P || echo "${INSTALL_DIR}")"
 REPO_URL="https://github.com/RoyalPineapple/airglow.git"
-REPO_RAW_URL="https://raw.githubusercontent.com/RoyalPineapple/airglow/master"
+REPO_RAW_URL="https://raw.githubusercontent.com/RoyalPineapple/airglow"
 DRY_RUN=false
 WITH_ALAC=false
 BRANCH="${BRANCH:-master}"
+
+# Function to get the raw URL for a specific branch
+get_raw_url() {
+    local branch="${1:-${BRANCH}}"
+    echo "${REPO_RAW_URL}/${branch}"
+}
 
 # Color output functions
 function msg_info() {
@@ -59,8 +65,20 @@ Options:
     -n, --dry-run       Show what would be done without making changes
     -d, --dir DIR       Set installation directory (default: /opt/airglow)
     -b, --branch BRANCH Git branch to install from (default: master)
+                        When installing via curl, use:
+                        curl -fsSL https://raw.githubusercontent.com/RoyalPineapple/airglow/BRANCH/install.sh | bash -s -- -b BRANCH
     --with-alac         Build shairport-sync from source with Apple ALAC decoder
                         (adds 5-10 minutes to installation, allows use of Apple Lossless)
+
+Examples:
+    # Install from master branch (default)
+    curl -fsSL https://raw.githubusercontent.com/RoyalPineapple/airglow/master/install.sh | bash
+    
+    # Install from bridge-networking branch
+    curl -fsSL https://raw.githubusercontent.com/RoyalPineapple/airglow/bridge-networking/install.sh | bash -s -- -b bridge-networking
+    
+    # Install from specific branch with custom directory
+    curl -fsSL https://raw.githubusercontent.com/RoyalPineapple/airglow/bridge-networking/install.sh | bash -s -- -b bridge-networking -d /custom/path
 
 Description:
     Installs Docker (if needed) and deploys the Airglow
