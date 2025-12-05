@@ -136,9 +136,12 @@
                 const parts = line.split(';');
                 if (parts.length < 5) return;
                 const serviceType = parts[4].toLowerCase();
-                if (serviceType.includes('_raop._tcp')) {
+                // Check for AirPlay 2 audio (_raop._tcp or AirTunes Remote Audio)
+                if (serviceType.includes('_raop._tcp') || serviceType.includes('airtunes') || serviceType.includes('raop')) {
                     hasAudio = true;
-                } else if (serviceType.includes('_airplay._tcp')) {
+                }
+                // Check for AirPlay video (_airplay._tcp or AirPlay Remote Video)
+                if (serviceType.includes('_airplay._tcp') || (serviceType.includes('airplay') && serviceType.includes('video'))) {
                     hasVideo = true;
                 }
             });
@@ -190,8 +193,15 @@
                 
                 // Parse TXT record fields
                 const txtMatches = txtRecord.matchAll(/"([^=]+)=([^"]*)"/g);
-                const fieldMap = serviceType.includes('_raop._tcp') ? ap2Fields : 
-                                serviceType.includes('_airplay._tcp') ? apVideoFields : null;
+                // Determine service type: AirPlay 2 audio (_raop._tcp or AirTunes) vs AirPlay Video (_airplay._tcp)
+                let fieldMap = null;
+                if (serviceType.includes('_raop._tcp') || serviceType.includes('airtunes') || 
+                    (serviceType.includes('raop') && !serviceType.includes('airplay'))) {
+                    fieldMap = ap2Fields;
+                } else if (serviceType.includes('_airplay._tcp') || 
+                          (serviceType.includes('airplay') && serviceType.includes('video'))) {
+                    fieldMap = apVideoFields;
+                }
                 
                 if (fieldMap) {
                     for (const match of txtMatches) {
