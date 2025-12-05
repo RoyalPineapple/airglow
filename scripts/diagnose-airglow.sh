@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Airglow Diagnostic Tool
-# Checks the entire audio flow: AirPlay → Avahi → Shairport-Sync → NQPTP → PulseAudio → LedFx
+# Checks the entire audio flow: AirPlay → Shairport-Sync (built-in Avahi) → PulseAudio → LedFx
 # Usage:
 #   ./diagnose-airglow.sh                    # Run on localhost
 #   ./diagnose-airglow.sh 192.168.2.122      # Run on remote host via SSH
@@ -50,8 +50,6 @@ if [ "$JSON_OUTPUT" = "true" ]; then
     # Redirect all output to capture JSON lines, suppress everything else
     {
         source "${SCRIPT_DIR}/diagnostics/diagnose-shairport.sh" 2>&1
-        source "${SCRIPT_DIR}/diagnostics/diagnose-avahi.sh" 2>&1
-        source "${SCRIPT_DIR}/diagnostics/diagnose-nqptp.sh" 2>&1
         source "${SCRIPT_DIR}/diagnostics/diagnose-pulseaudio.sh" 2>&1
         source "${SCRIPT_DIR}/diagnostics/diagnose-ledfx.sh" 2>&1
     } | grep -E '^\{"status"' > /tmp/diagnostic-json.$$ 2>/dev/null || true
@@ -100,14 +98,12 @@ else
     # Plain text output mode
     echo "═══════════════════════════════════════════════════════════════"
     echo "  Airglow Diagnostic Tool"
-    echo "  Checking audio flow: AirPlay → Avahi → Shairport-Sync → NQPTP → PulseAudio → LedFx"
+    echo "  Checking audio flow: AirPlay → Shairport-Sync (built-in Avahi) → PulseAudio → LedFx"
     echo "═══════════════════════════════════════════════════════════════"
     echo
 
     # Run component diagnostic scripts in dependency order
     source "${SCRIPT_DIR}/diagnostics/diagnose-shairport.sh"
-    source "${SCRIPT_DIR}/diagnostics/diagnose-avahi.sh"
-    source "${SCRIPT_DIR}/diagnostics/diagnose-nqptp.sh"
     source "${SCRIPT_DIR}/diagnostics/diagnose-pulseaudio.sh"
     source "${SCRIPT_DIR}/diagnostics/diagnose-ledfx.sh"
 
@@ -117,23 +113,21 @@ else
 section "Summary"
 
 echo "Audio Flow Status:"
-    echo "  [AirPlay] → [Avahi/mDNS] → [Shairport-Sync] → [NQPTP] → [PulseAudio] → [LedFx] → [LEDs]"
+    echo "  [AirPlay] → [Shairport-Sync (built-in Avahi/mDNS)] → [PulseAudio] → [LedFx] → [LEDs]"
 echo
 echo "Next steps if issues found:"
 if [ "$REMOTE" = true ]; then
-        echo "  1. Check Avahi logs: ssh root@${TARGET_HOST} 'docker logs avahi'"
-        echo "  2. Check NQPTP logs: ssh root@${TARGET_HOST} 'docker logs nqptp'"
-        echo "  3. Check Shairport-Sync logs: ssh root@${TARGET_HOST} 'docker logs shairport-sync'"
-        echo "  4. Check LedFx logs: ssh root@${TARGET_HOST} 'docker logs ledfx'"
-        echo "  5. Check hook logs: ssh root@${TARGET_HOST} 'docker exec shairport-sync cat /var/log/shairport-sync/ledfx-session-hook.log'"
+        echo "  1. Check Shairport-Sync logs: ssh root@${TARGET_HOST} 'docker logs shairport-sync'"
+        echo "  2. Check LedFx logs: ssh root@${TARGET_HOST} 'docker logs ledfx'"
+        echo "  3. Check hook logs: ssh root@${TARGET_HOST} 'docker exec shairport-sync cat /var/log/shairport-sync/ledfx-session-hook.log'"
+        echo "  4. Check AirPlay advertisement: ssh root@${TARGET_HOST} 'docker exec shairport-sync avahi-browse -rpt _raop._tcp'"
 else
-        echo "  1. Check Avahi logs: docker logs avahi"
-        echo "  2. Check NQPTP logs: docker logs nqptp"
-        echo "  3. Check Shairport-Sync logs: docker logs shairport-sync"
-        echo "  4. Check LedFx logs: docker logs ledfx"
-        echo "  5. Check hook logs: docker exec shairport-sync cat /var/log/shairport-sync/ledfx-session-hook.log"
+        echo "  1. Check Shairport-Sync logs: docker logs shairport-sync"
+        echo "  2. Check LedFx logs: docker logs ledfx"
+        echo "  3. Check hook logs: docker exec shairport-sync cat /var/log/shairport-sync/ledfx-session-hook.log"
+        echo "  4. Check AirPlay advertisement: docker exec shairport-sync avahi-browse -rpt _raop._tcp"
 fi
-    echo "  6. Verify AirPlay connection from your device"
+    echo "  5. Verify AirPlay connection from your device"
 echo
 fi
 

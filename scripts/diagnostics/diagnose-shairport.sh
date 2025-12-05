@@ -81,18 +81,18 @@ if docker_cmd ps --format '{{.Names}}' | grep -q '^shairport-sync$'; then
         check_fail "Configuration file not found"
     fi
     
-    # Check connection to previous component (Avahi via D-Bus)
+    # Check built-in Avahi daemon (via D-Bus)
     echo
-    echo "  Component Connections:"
+    echo "  Built-in Avahi (mDNS/Bonjour):"
     if docker_cmd exec shairport-sync test -S /var/run/dbus/system_bus_socket 2>/dev/null; then
         check_ok "D-Bus socket accessible"
-        # Check if shairport-sync can actually connect to Avahi via D-Bus
+        # Check if shairport-sync's built-in Avahi is accessible via D-Bus
         # Use timeout to prevent hanging
         DBUS_CHECK=$(timeout 5 docker_cmd exec shairport-sync dbus-send --system --print-reply --dest=org.freedesktop.DBus /org/freedesktop/DBus org.freedesktop.DBus.ListNames 2>&1 | grep -q 'org.freedesktop.Avahi' 2>/dev/null && echo "true" || echo "false")
         if [ "$DBUS_CHECK" = "true" ]; then
-            check_ok "Connected to Avahi (D-Bus connection active)"
+            check_ok "Built-in Avahi daemon is running (D-Bus connection active)"
         else
-            check_fail "D-Bus socket exists but Avahi service not found (cannot connect to Avahi)"
+            check_fail "D-Bus socket exists but built-in Avahi service not found"
             # Show D-Bus error details
             DBUS_ERROR=$(timeout 5 docker_cmd exec shairport-sync dbus-send --system --print-reply --dest=org.freedesktop.DBus /org/freedesktop/DBus org.freedesktop.DBus.ListNames 2>&1 | grep -iE 'error|fail' | head -1 || echo "")
             if [ -n "$DBUS_ERROR" ]; then
@@ -100,26 +100,24 @@ if docker_cmd ps --format '{{.Names}}' | grep -q '^shairport-sync$'; then
             fi
         fi
     else
-        check_fail "Not connected to Avahi (D-Bus socket not accessible)"
+        check_fail "D-Bus socket not accessible (built-in Avahi cannot start)"
     fi
     
-    # Check connection to NQPTP (shared memory) - required for AirPlay 2
+    # Check NQPTP (shared memory) - shairport-sync uses internal nqptp for AirPlay 2
     echo
     echo "  NQPTP (AirPlay 2 Timing):"
     if docker_cmd exec shairport-sync test -d /dev/shm 2>/dev/null; then
-        check_ok "Shared memory accessible (NQPTP connection available)"
-        # Check if NQPTP container is running (required for AirPlay 2)
-        if docker_cmd ps --format '{{.Names}}' | grep -q '^nqptp$'; then
-            if docker_cmd exec nqptp pgrep -f nqptp > /dev/null 2>&1; then
-                check_ok "NQPTP container is running (AirPlay 2 timing available)"
-            else
-                check_warn "NQPTP container exists but process not running"
-            fi
+        check_ok "Shared memory accessible (/dev/shm mounted)"
+        # Check if shairport-sync's internal nqptp is creating shared memory files
+        # Shairport-sync's internal nqptp creates files in /dev/shm for timing synchronization
+        SHM_FILES=$(docker_cmd exec shairport-sync ls -la /dev/shm 2>&1 | grep -E 'nqptp|shairport' | wc -l | tr -d ' \n' || echo "0")
+        if [ "${SHM_FILES:-0}" -gt 0 ]; then
+            check_ok "NQPTP shared memory files found (internal nqptp active)"
         else
-            check_warn "NQPTP container not found (required for AirPlay 2)"
+            check_warn "No NQPTP shared memory files found (may indicate AirPlay 2 timing issue)"
         fi
     else
-        check_warn "Shared memory not accessible (NQPTP connection may fail)"
+        check_warn "Shared memory not accessible (/dev/shm not mounted)"
     fi
     
     # Check connection to next component (PulseAudio)
@@ -157,13 +155,14 @@ if docker_cmd ps --format '{{.Names}}' | grep -q '^shairport-sync$'; then
     fi
     
     # Check mDNS advertisement (what IP is being advertised)
+    # Use shairport-sync's built-in Avahi daemon
     echo
-    echo "  mDNS Advertisement:"
+    echo "  mDNS Advertisement (AirPlay Discovery):"
     if [ -n "$DEVICE_NAME" ]; then
         # Check both AirPlay 2 (_raop._tcp) and AirPlay 1 (_airplay._tcp)
-        # Use timeout to prevent hanging
-        FOUND_IN_RAOP=$(timeout 8 docker_cmd exec avahi avahi-browse -rpt _raop._tcp 2>&1 | grep -qiE "$(echo "$DEVICE_NAME" | sed 's/~/.*/g' | sed 's/[()]/.*/g')" && echo "true" || echo "false")
-        FOUND_IN_AIRPLAY1=$(timeout 8 docker_cmd exec avahi avahi-browse -rpt _airplay._tcp 2>&1 | grep -qiE "$(echo "$DEVICE_NAME" | sed 's/~/.*/g' | sed 's/[()]/.*/g')" && echo "true" || echo "false")
+        # Use timeout to prevent hanging - browse from shairport-sync container which has built-in Avahi
+        FOUND_IN_RAOP=$(timeout 10 docker_cmd exec shairport-sync avahi-browse -rpt _raop._tcp 2>&1 | grep -qiE "$(echo "$DEVICE_NAME" | sed 's/~/.*/g' | sed 's/[()]/.*/g' | sed 's/\\032/ /g' | sed 's/\\040/(/g' | sed 's/\\041/)/g')" && echo "true" || echo "false")
+        FOUND_IN_AIRPLAY1=$(timeout 10 docker_cmd exec shairport-sync avahi-browse -rpt _airplay._tcp 2>&1 | grep -qiE "$(echo "$DEVICE_NAME" | sed 's/~/.*/g' | sed 's/[()]/.*/g' | sed 's/\\032/ /g' | sed 's/\\040/(/g' | sed 's/\\041/)/g')" && echo "true" || echo "false")
         
         if [ "$FOUND_IN_RAOP" = "true" ] || [ "$FOUND_IN_AIRPLAY1" = "true" ]; then
             # Extract the IP address being advertised (prefer RAOP if found)
@@ -172,7 +171,7 @@ if docker_cmd ps --format '{{.Names}}' | grep -q '^shairport-sync$'; then
                 SERVICE_TYPE="_airplay._tcp"
             fi
             
-            ADVERTISED_IP=$(timeout 8 docker_cmd exec avahi avahi-browse -rpt "$SERVICE_TYPE" 2>&1 | grep -iE "$(echo "$DEVICE_NAME" | sed 's/~/.*/g' | sed 's/[()]/.*/g')" | grep -oE 'address = \[([0-9.]+)\]' | head -1 | sed 's/address = \[\(.*\)\]/\1/' || echo "")
+            ADVERTISED_IP=$(timeout 10 docker_cmd exec shairport-sync avahi-browse -rpt "$SERVICE_TYPE" 2>&1 | grep -iE "$(echo "$DEVICE_NAME" | sed 's/~/.*/g' | sed 's/[()]/.*/g' | sed 's/\\032/ /g' | sed 's/\\040/(/g' | sed 's/\\041/)/g')" | grep -oE 'address = \[([0-9.]+)\]' | head -1 | sed 's/address = \[\(.*\)\]/\1/' || echo "")
             if [ -n "$ADVERTISED_IP" ]; then
                 # Check if it's a Docker bridge IP (172.x.x.x or 10.x.x.x)
                 if echo "$ADVERTISED_IP" | grep -qE '^172\.(1[6-9]|2[0-9]|3[0-1])\.|^10\.'; then
@@ -183,16 +182,49 @@ if docker_cmd ps --format '{{.Names}}' | grep -q '^shairport-sync$'; then
             else
                 check_warn "Could not determine advertised IP address"
             fi
+            
+            # Check which service type is being advertised
+            if [ "$FOUND_IN_RAOP" = "true" ]; then
+                check_ok "AirPlay 2 service (_raop._tcp) is being advertised"
+            fi
+            if [ "$FOUND_IN_AIRPLAY1" = "true" ]; then
+                check_ok "AirPlay 1 service (_airplay._tcp) is being advertised"
+            fi
         else
             check_fail "Service '$DEVICE_NAME' not found in mDNS browse"
             # Show what devices were actually found
-            FOUND_DEVICES=$(timeout 8 docker_cmd exec avahi avahi-browse -rpt _raop._tcp 2>&1 | grep -oE 'hostname = \[.*\]' | sed 's/hostname = \[\(.*\)\]/\1/' | sort -u | head -5 | tr '\n' ',' | sed 's/,$//' || echo "None")
+            FOUND_DEVICES=$(timeout 10 docker_cmd exec shairport-sync avahi-browse -rpt _raop._tcp 2>&1 | grep -oE 'hostname = \[.*\]' | sed 's/hostname = \[\(.*\)\]/\1/' | sort -u | head -5 | tr '\n' ',' | sed 's/,$//' || echo "None")
             if [ -n "$FOUND_DEVICES" ] && [ "$FOUND_DEVICES" != "None" ]; then
                 echo "    Found devices: $FOUND_DEVICES"
             fi
         fi
     else
         check_warn "Device name not configured (cannot check advertisement)"
+    fi
+    
+    # Additional AirPlay connectivity tests
+    echo
+    echo "  AirPlay Connectivity Tests:"
+    # Test if port 7000 (RTSP control) is reachable
+    if docker_cmd exec shairport-sync timeout 3 nc -z localhost 7000 2>/dev/null; then
+        check_ok "Port 7000 (RTSP control) is reachable"
+    else
+        check_warn "Port 7000 (RTSP control) may not be reachable"
+    fi
+    
+    # Test if port 5000 (RAOP audio) is reachable
+    if docker_cmd exec shairport-sync timeout 3 nc -z localhost 5000 2>/dev/null; then
+        check_ok "Port 5000 (RAOP audio) is reachable"
+    else
+        check_warn "Port 5000 (RAOP audio) may not be reachable"
+    fi
+    
+    # Check if shairport-sync is listening on all required ports
+    LISTENING_PORTS=$(docker_cmd exec shairport-sync netstat -tuln 2>&1 | grep -E ':(7000|5000|319|320)' | wc -l | tr -d ' \n' || echo "0")
+    if [ "${LISTENING_PORTS:-0}" -ge 2 ]; then
+        check_ok "Required AirPlay ports are listening"
+    else
+        check_warn "Some required AirPlay ports may not be listening"
     fi
     
     # Check connection logs for errors
