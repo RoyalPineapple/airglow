@@ -1363,6 +1363,48 @@ code {
     background-color: #e74c3c;
 }
 
+.avahi-consolidated {
+    display: flex;
+    flex-direction: column;
+    gap: calc(var(--spacing) * 0.75);
+}
+
+.avahi-section {
+    background-color: var(--color-bg-section);
+    border: 1px solid var(--color-border);
+    border-radius: var(--border-radius);
+    padding: calc(var(--spacing) * 0.5);
+}
+
+.avahi-section.shared-section {
+    border-left: 3px solid #95a5a6;
+}
+
+.avahi-section.ap2-section {
+    border-left: 3px solid #3498db;
+}
+
+.avahi-section.ap-video-section {
+    border-left: 3px solid #e74c3c;
+}
+
+.section-header {
+    margin: 0 0 calc(var(--spacing) * 0.4) 0;
+    color: var(--color-text);
+    font-size: 0.9rem;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding-bottom: calc(var(--spacing) * 0.3);
+    border-bottom: 1px solid var(--color-border);
+}
+
+.section-header .service-icon {
+    font-size: 1rem;
+    color: var(--color-primary);
+}
+
 .staging-badge {
     display: inline-block;
     padding: 0.15rem 0.4rem;

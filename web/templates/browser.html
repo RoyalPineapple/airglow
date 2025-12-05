@@ -159,12 +159,117 @@
                 return '';
             }
             
-            // Show all entries - no deduplication
-            let formatted = '';
-            rawLines.forEach((line, index) => {
-                formatted += formatAvahiLine(line, null, false);
+            // Group entries by service type and extract fields
+            const ap2Fields = new Map(); // AirPlay 2 (_raop._tcp) fields
+            const apVideoFields = new Map(); // AirPlay Video (_airplay._tcp) fields
+            const sharedInfo = {
+                name: null,
+                hostname: null,
+                address: null,
+                port: null,
+                protocol: null
+            };
+            
+            rawLines.forEach(line => {
+                if (!line || !line.includes(';')) return;
+                
+                const parts = line.split(';');
+                if (parts.length < 10) return;
+                
+                const serviceType = parts[4].toLowerCase();
+                const hostname = parts[6];
+                const address = parts[7];
+                const port = parts[8];
+                const txtRecord = parts.slice(9).join(';');
+                
+                // Store shared info (use first valid value)
+                if (!sharedInfo.hostname && hostname) sharedInfo.hostname = hostname;
+                if (!sharedInfo.address && address) sharedInfo.address = address;
+                if (!sharedInfo.port && port) sharedInfo.port = port;
+                if (!sharedInfo.protocol && parts[2]) sharedInfo.protocol = parts[2];
+                
+                // Parse TXT record fields
+                const txtMatches = txtRecord.matchAll(/"([^=]+)=([^"]*)"/g);
+                const fieldMap = serviceType.includes('_raop._tcp') ? ap2Fields : 
+                                serviceType.includes('_airplay._tcp') ? apVideoFields : null;
+                
+                if (fieldMap) {
+                    for (const match of txtMatches) {
+                        const key = match[1];
+                        const value = match[2];
+                        // Deduplicate: keep first value found for each field
+                        if (!fieldMap.has(key)) {
+                            fieldMap.set(key, value);
+                        }
+                    }
+                }
             });
             
+            // Find shared fields (fields that appear in both AP2 and AP Video with same value)
+            const sharedFields = new Map();
+            ap2Fields.forEach((value, key) => {
+                if (apVideoFields.has(key) && apVideoFields.get(key) === value) {
+                    sharedFields.set(key, value);
+                }
+            });
+            
+            // Remove shared fields from individual groups
+            sharedFields.forEach((value, key) => {
+                ap2Fields.delete(key);
+                apVideoFields.delete(key);
+            });
+            
+            // Build formatted output
+            let formatted = '<div class="avahi-consolidated">';
+            
+            // Shared info section
+            formatted += '<div class="avahi-section shared-section">';
+            formatted += '<h5 class="section-header">Shared Information</h5>';
+            formatted += '<div class="avahi-info-row">';
+            if (sharedInfo.hostname) formatted += `<span class="info-item"><strong>Hostname:</strong> ${escapeHtml(sharedInfo.hostname)}</span>`;
+            if (sharedInfo.address) formatted += `<span class="info-item"><strong>Address:</strong> ${escapeHtml(sharedInfo.address)}</span>`;
+            if (sharedInfo.port) formatted += `<span class="info-item"><strong>Port:</strong> ${escapeHtml(sharedInfo.port)}</span>`;
+            if (sharedInfo.protocol) formatted += `<span class="info-item"><strong>Protocol:</strong> ${escapeHtml(sharedInfo.protocol)}</span>`;
+            formatted += '</div>';
+            
+            // Shared fields
+            if (sharedFields.size > 0) {
+                formatted += '<div class="avahi-txt-grid">';
+                sharedFields.forEach((value, key) => {
+                    const displayName = getFieldDisplayName(key);
+                    formatted += `<div class="avahi-txt-item"><span class="txt-label">${escapeHtml(displayName)}:</span> <span class="txt-value">${escapeHtml(value)}</span></div>`;
+                });
+                formatted += '</div>';
+            }
+            formatted += '</div>';
+            
+            // AirPlay 2 section
+            if (ap2Fields.size > 0) {
+                formatted += '<div class="avahi-section ap2-section">';
+                formatted += '<h5 class="section-header"><span class="material-icons service-icon">volume_up</span> AirPlay 2 (Audio)</h5>';
+                formatted += '<div class="avahi-txt-grid">';
+                ap2Fields.forEach((value, key) => {
+                    const displayName = getFieldDisplayName(key);
+                    formatted += `<div class="avahi-txt-item"><span class="txt-label">${escapeHtml(displayName)}:</span> <span class="txt-value">${escapeHtml(value)}</span></div>`;
+                });
+                formatted += '</div>';
+                formatted += '</div>';
+            }
+            
+            // AirPlay Video section
+            if (apVideoFields.size > 0) {
+                formatted += '<div class="avahi-section ap-video-section">';
+                formatted += '<h5 class="section-header"><span class="material-icons service-icon">videocam</span> AirPlay Video</h5>';
+                formatted += '<div class="avahi-txt-grid">';
+                apVideoFields.forEach((value, key) => {
+                    const displayName = getFieldDisplayName(key);
+                    formatted += `<div class="avahi-txt-item"><span class="txt-label">${escapeHtml(displayName)}:</span> <span class="txt-value">${escapeHtml(value)}</span></div>`;
+                });
+                formatted += '</div>';
+                formatted += '</div>';
+            }
+            
+            formatted += '</div>';
             return formatted;
         }
 
