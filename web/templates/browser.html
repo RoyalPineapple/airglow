@@ -192,7 +192,14 @@
             formatted += '<div class="avahi-header-compact">';
             formatted += `<span class="avahi-event">${escapeHtml(eventType)}</span>`;
             const displayServiceType = serviceTypeLabel || serviceType;
-            formatted += `<span class="avahi-service-compact">${escapeHtml(displayServiceType)}</span>`;
+            // Add icon based on service type
+            let serviceIcon = '';
+            if (serviceType.toLowerCase().includes('audio') || serviceType.toLowerCase().includes('raop') || serviceType.toLowerCase().includes('airtunes')) {
+                serviceIcon = '🔊 ';
+            } else if (serviceType.toLowerCase().includes('video') || serviceType.toLowerCase().includes('airplay')) {
+                serviceIcon = '🎥 ';
+            }
+            formatted += `<span class="avahi-service-compact">${serviceIcon}${escapeHtml(displayServiceType)}</span>`;
             formatted += '</div>';
             
             formatted += '<div class="avahi-fields-compact">';
