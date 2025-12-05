@@ -318,46 +318,34 @@
                 }
                 
                 if (fieldMap) {
-                    for (const match of txtMatches2) {
+                    for (const match of txtMatches) {
                         const key = match[1];
                         const value = match[2];
-                        // Deduplicate: keep first value found for each field
-                        if (!fieldMap.has(key)) {
-                            fieldMap.set(key, value);
+                        // Only include fields documented in OpenAirPlay spec
+                        if (documentedFields.has(key)) {
+                            // Deduplicate: keep first value found for each field
+                            if (!fieldMap.has(key)) {
+                                fieldMap.set(key, value);
+                            }
                         }
                     }
                 }
             });
             
-            // Find shared fields (fields that appear in all service types with same value)
-            const sharedFields = new Map();
-            // Check all combinations: AP1+AP2, AP1+Video, AP2+Video, and all three
-            const allFieldMaps = [
-                { name: 'ap1', map: ap1Fields },
-                { name: 'ap2', map: ap2Fields },
-                { name: 'video', map: apVideoFields }
-            ];
-            
-            // Find fields that are identical across all non-empty maps
-            const nonEmptyMaps = allFieldMaps.filter(fm => fm.map.size > 0);
-            if (nonEmptyMaps.length > 1) {
-                // Check each field in the first map
-                nonEmptyMaps[0].map.forEach((value, key) => {
-                    // Check if this field exists with the same value in all other maps
-                    const isShared = nonEmptyMaps.slice(1).every(fm => 
-                        fm.map.has(key) && fm.map.get(key) === value
-                    );
-                    if (isShared) {
-                        sharedFields.set(key, value);
+            // Find common fields (fields that appear in both service types with same value)
+            const commonFields = new Map();
+            if (raopFields.size > 0 && airplayFields.size > 0) {
+                raopFields.forEach((value, key) => {
+                    if (airplayFields.has(key) && airplayFields.get(key) === value) {
+                        commonFields.set(key, value);
                     }
                 });
             }
             
-            // Remove shared fields from individual groups
-            sharedFields.forEach((value, key) => {
-                ap1Fields.delete(key);
-                ap2Fields.delete(key);
-                apVideoFields.delete(key);
+            // Remove common fields from individual service groups
+            commonFields.forEach((value, key) => {
+                raopFields.delete(key);
+                airplayFields.delete(key);
             });
             
             // Build formatted output based on OpenAirPlay spec structure
