@@ -1,7 +1,34 @@
 #!/bin/sh
 # LedFX Scene Script - Activate scene(s)
-# Usage: ledfx-scene.sh [scene_ids] [host] [port]
+#
+# Usage:
+#   ledfx-scene.sh [scene_ids] [host] [port]
+#
+# Arguments:
 #   scene_ids: Comma-separated list of scene IDs (default: from config)
+#   host: LedFX host (default: from config or "ledfx")
+#   port: LedFX port (default: from config or 8888)
+#
+# Examples:
+#   # Use configuration from /configs/ledfx-hooks.yaml
+#   ledfx-scene.sh
+#
+#   # Activate specific scenes
+#   ledfx-scene.sh "scene1,scene2"
+#
+#   # Activate scenes on custom host/port
+#   ledfx-scene.sh "scene1" "ledfx" "8888"
+#
+# Configuration:
+#   Script reads configuration from /configs/ledfx-hooks.yaml:
+#     - ledfx.host: LedFX hostname (default: "ledfx")
+#     - ledfx.port: LedFX port (default: 8888)
+#     - hooks.start.scenes: List of scene IDs to activate
+#
+# Exit codes:
+#   0: Success
+#   1: Error (invalid arguments, API failure, etc.)
+#
 set -eu
 
 # Load configuration from YAML

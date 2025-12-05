@@ -2,7 +2,25 @@
 # LedFx session hook - invoked by Shairport-Sync on AirPlay session changes
 # Calls ledfx-start.sh or ledfx-stop.sh based on AirPlay state
 # Checks YAML config to determine if hooks are enabled
-
+#
+# Usage:
+#   This script is automatically called by Shairport-Sync when AirPlay sessions start/stop.
+#   It should not be called manually.
+#
+# Configuration:
+#   Script reads configuration from /configs/ledfx-hooks.yaml:
+#     - hooks.start.enabled: Enable start hook (default: true)
+#     - hooks.end.enabled: Enable end hook (default: true)
+#     - hooks.start.*: Configuration for start hook (see ledfx-start.sh)
+#     - hooks.end.*: Configuration for end hook (see ledfx-stop.sh)
+#
+# Environment variables (set by Shairport-Sync):
+#   SHAIRPORT_SYNC_STATE: "active" when AirPlay starts, "idle" when it stops
+#
+# Exit codes:
+#   0: Success
+#   1: Hook disabled or error
+#
 set -eu
 
 # Check if hooks are enabled from YAML config

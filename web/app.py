@@ -6,6 +6,7 @@ Provides real-time status information and configuration for airglow services
 import json
 import logging
 import os
+import random
 import re
 import subprocess
 import yaml
@@ -47,6 +48,11 @@ CURL_CONNECT_TIMEOUT = 3  # Connection timeout for curl commands
 CURL_MAX_TIME = 5  # Maximum time for curl commands
 DIAGNOSTIC_SCRIPT_TIMEOUT = 60  # Timeout for diagnostic script execution
 CONTAINER_RESTART_TIMEOUT = 30  # Timeout for container restart operations
+
+# Retry configuration
+MAX_RETRIES = 3  # Maximum number of retry attempts
+INITIAL_RETRY_DELAY = 0.5  # Initial delay in seconds (exponential backoff)
+MAX_RETRY_DELAY = 5.0  # Maximum delay between retries in seconds
 
 
 def check_container_status(container_name):
@@ -102,99 +108,121 @@ def check_container_status(container_name):
         return status
 
 
-def get_ledfx_info():
-    """Get LedFX API information"""
-    try:
+def _retry_api_call(func, *args, **kwargs):
+    """
+    Retry helper function with exponential backoff for API calls.
+    
+    Args:
+        func: Function to retry (should return a result or raise an exception)
+        *args, **kwargs: Arguments to pass to the function
+    
+    Returns:
+        Result from the function, or None if all retries fail
+    """
+    delay = INITIAL_RETRY_DELAY
+    last_exception = None
+    
+    for attempt in range(MAX_RETRIES):
+        try:
+            return func(*args, **kwargs)
+        except (subprocess.TimeoutExpired, subprocess.SubprocessError, json.JSONDecodeError, ConnectionError) as e:
+            last_exception = e
+            if attempt < MAX_RETRIES - 1:  # Don't sleep on last attempt
+                # Exponential backoff with jitter
+                sleep_time = min(delay * (2 ** attempt), MAX_RETRY_DELAY)
+                jitter = random.uniform(0, sleep_time * 0.1)  # Add up to 10% jitter
+                time.sleep(sleep_time + jitter)
+                logger.debug(f"API call failed (attempt {attempt + 1}/{MAX_RETRIES}), retrying in {sleep_time + jitter:.2f}s: {e}")
+            else:
+                logger.warning(f"API call failed after {MAX_RETRIES} attempts: {e}")
+    
+    return None
+
+
+def _call_ledfx_api(endpoint, timeout=API_TIMEOUT):
+    """
+    Helper function to call LedFX API with retry logic.
+    
+    Args:
+        endpoint: API endpoint path (e.g., '/api/info')
+        timeout: Request timeout in seconds
+    
+    Returns:
+        JSON response as dict, or None if request failed
+    """
+    def _make_request():
         result = subprocess.run(
-            ['curl', '-s', '-f', f'{LEDFX_URL}/api/info'],
+            ['curl', '-s', '-f', '--max-time', str(CURL_MAX_TIME), '--connect-timeout', str(CURL_CONNECT_TIMEOUT),
+             f'{LEDFX_URL}{endpoint}'],
             capture_output=True,
             text=True,
-            timeout=5
+            timeout=timeout
         )
         if result.returncode == 0:
-            info = json.loads(result.stdout)
-            return {
-                'connected': True,
-                'version': info.get('version', 'unknown'),
-                'data': info
-            }
-    except (subprocess.TimeoutExpired, json.JSONDecodeError, subprocess.SubprocessError) as e:
-        logger.warning(f"Error getting LedFX info: {e}")
+            return json.loads(result.stdout)
+        else:
+            raise subprocess.SubprocessError(f"curl returned {result.returncode}: {result.stderr}")
+    
+    return _retry_api_call(_make_request)
+
+
+def get_ledfx_info():
+    """Get LedFX API information"""
+    info = _call_ledfx_api('/api/info')
+    if info:
+        return {
+            'connected': True,
+            'version': info.get('version', 'unknown'),
+            'data': info
+        }
     return {'connected': False, 'version': None, 'data': None}
 
 
 def get_ledfx_virtuals():
     """Get LedFX virtuals status"""
-    try:
-        result = subprocess.run(
-            ['curl', '-s', '-f', f'{LEDFX_URL}/api/virtuals'],
-            capture_output=True,
-            text=True,
-            timeout=5
-        )
-        if result.returncode == 0:
-            data = json.loads(result.stdout)
-            virtuals = {}
-            if 'virtuals' in data:
-                for vid, vdata in data['virtuals'].items():
-                    virtuals[vid] = {
-                        'active': vdata.get('active', False),
-                        'streaming': vdata.get('streaming', False),
-                        'effect': vdata.get('effect', {}).get('type', 'none') if isinstance(vdata.get('effect'), dict) else 'none',
-                        'paused': data.get('paused', False)
-                    }
-            return {'connected': True, 'virtuals': virtuals, 'paused': data.get('paused', False)}
-    except (subprocess.TimeoutExpired, json.JSONDecodeError, subprocess.SubprocessError):
-        pass
+    data = _call_ledfx_api('/api/virtuals')
+    if data:
+        virtuals = {}
+        if 'virtuals' in data:
+            for vid, vdata in data['virtuals'].items():
+                virtuals[vid] = {
+                    'active': vdata.get('active', False),
+                    'streaming': vdata.get('streaming', False),
+                    'effect': vdata.get('effect', {}).get('type', 'none') if isinstance(vdata.get('effect'), dict) else 'none',
+                    'paused': data.get('paused', False)
+                }
+        return {'connected': True, 'virtuals': virtuals, 'paused': data.get('paused', False)}
     return {'connected': False, 'virtuals': {}, 'paused': False}
 
 
 def get_ledfx_devices():
     """Get LedFX devices status"""
-    try:
-        result = subprocess.run(
-            ['curl', '-s', '-f', f'{LEDFX_URL}/api/devices'],
-            capture_output=True,
-            text=True,
-            timeout=5
-        )
-        if result.returncode == 0:
-            data = json.loads(result.stdout)
-            devices = {}
-            if 'devices' in data:
-                for did, ddata in data['devices'].items():
-                    devices[did] = {
-                        'online': ddata.get('online', False),
-                        'type': ddata.get('type', 'unknown'),
-                        'config': ddata.get('config', {})
-                    }
-            return {'connected': True, 'devices': devices}
-    except (subprocess.TimeoutExpired, json.JSONDecodeError, subprocess.SubprocessError):
-        pass
+    data = _call_ledfx_api('/api/devices')
+    if data:
+        devices = {}
+        if 'devices' in data:
+            for did, ddata in data['devices'].items():
+                devices[did] = {
+                    'online': ddata.get('online', False),
+                    'type': ddata.get('type', 'unknown'),
+                    'config': ddata.get('config', {})
+                }
+        return {'connected': True, 'devices': devices}
     return {'connected': False, 'devices': {}}
 
 
 def get_ledfx_scenes():
     """Get LedFX scenes"""
-    try:
-        result = subprocess.run(
-            ['curl', '-s', '-f', f'{LEDFX_URL}/api/scenes'],
-            capture_output=True,
-            text=True,
-            timeout=5
-        )
-        if result.returncode == 0:
-            data = json.loads(result.stdout)
-            scenes = {}
-            if 'scenes' in data:
-                for sid, sdata in data['scenes'].items():
-                    scenes[sid] = {
-                        'name': sdata.get('name', sid),
-                        'virtuals': sdata.get('virtuals', [])
-                    }
-            return {'connected': True, 'scenes': scenes}
-    except (subprocess.TimeoutExpired, json.JSONDecodeError, subprocess.SubprocessError):
-        pass
+    data = _call_ledfx_api('/api/scenes')
+    if data:
+        scenes = {}
+        if 'scenes' in data:
+            for sid, sdata in data['scenes'].items():
+                scenes[sid] = {
+                    'name': sdata.get('name', sid),
+                    'virtuals': sdata.get('virtuals', [])
+                }
+        return {'connected': True, 'scenes': scenes}
     return {'connected': False, 'scenes': {}}
 
 
@@ -205,26 +233,14 @@ def get_ledfx_audio_device():
     """
     try:
         # Get available audio devices and their mapping
-        devices_result = subprocess.run(
-            ['curl', '-s', '-f', f'{LEDFX_URL}/api/audio/devices'],
-            capture_output=True,
-            text=True,
-            timeout=5
-        )
-        if devices_result.returncode == 0:
-            devices_data = json.loads(devices_result.stdout)
+        devices_data = _call_ledfx_api('/api/audio/devices')
+        if devices_data:
             devices_map = devices_data.get('devices', {})
             active_index = devices_data.get('active_device_index')
             
             # Get configured device index from config
-            config_result = subprocess.run(
-                ['curl', '-s', '-f', f'{LEDFX_URL}/api/config'],
-                capture_output=True,
-                text=True,
-                timeout=5
-            )
-            if config_result.returncode == 0:
-                config_data = json.loads(config_result.stdout)
+            config_data = _call_ledfx_api('/api/config')
+            if config_data:
                 audio_config = config_data.get('audio', {})
                 configured_index = audio_config.get('audio_device')
                 
@@ -318,14 +334,8 @@ def get_audio_status():
     # Note: This flag may take a moment to update or may behave differently than expected,
     # so we expose it separately for visibility rather than using it as a fallback
     try:
-        result = subprocess.run(
-            ['curl', '-s', '-f', f'{LEDFX_URL}/api/virtuals'],
-            capture_output=True,
-            text=True,
-            timeout=5
-        )
-        if result.returncode == 0:
-            data = json.loads(result.stdout)
+        data = _call_ledfx_api('/api/virtuals')
+        if data:
             if 'virtuals' in data:
                 # Check if any virtual is streaming (API indicator)
                 for vid, vdata in data['virtuals'].items():

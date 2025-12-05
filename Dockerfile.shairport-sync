@@ -1,7 +1,9 @@
 # Custom Shairport-Sync image with jq for JSON parsing and yq for YAML parsing
 # Extends pre-built mikebrady/shairport-sync:latest (includes AirPlay 2 support)
-# NOTE: Using :latest tag for automatic updates. For production, consider pinning to specific version
-# Example: FROM mikebrady/shairport-sync:4.3.7
+# NOTE: Using :latest tag for automatic updates. For production, pin to specific version:
+#   1. Check available versions: https://github.com/mikebrady/shairport-sync/releases
+#   2. Update FROM tag: FROM mikebrady/shairport-sync:4.3.7
+#   3. Test thoroughly before deploying to production
 FROM mikebrady/shairport-sync:latest
 
 # Install jq for JSON parsing and yq for YAML parsing in hook scripts

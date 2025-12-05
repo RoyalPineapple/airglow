@@ -1,8 +1,37 @@
 #!/bin/sh
 # LedFx Start Script - Activate virtual(s) and ensure not paused
 # Equivalent to: activate virtual + press play button
-# Usage: ledfx-start.sh [virtual_ids] [host] [port]
+#
+# Usage:
+#   ledfx-start.sh [virtual_ids] [host] [port]
+#
+# Arguments:
 #   virtual_ids: Comma-separated list of virtual IDs (default: from config or all)
+#   host: LedFX host (default: from config or "ledfx")
+#   port: LedFX port (default: from config or 8888)
+#
+# Examples:
+#   # Use configuration from /configs/ledfx-hooks.yaml
+#   ledfx-start.sh
+#
+#   # Activate specific virtuals
+#   ledfx-start.sh "virtual1,virtual2"
+#
+#   # Activate specific virtuals on custom host/port
+#   ledfx-start.sh "virtual1,virtual2" "ledfx" "8888"
+#
+# Configuration:
+#   Script reads configuration from /configs/ledfx-hooks.yaml:
+#     - ledfx.host: LedFX hostname (default: "ledfx")
+#     - ledfx.port: LedFX port (default: 8888)
+#     - hooks.start.all_virtuals: Control all virtuals (default: true)
+#     - hooks.start.virtuals[].id: Virtual ID to activate
+#     - hooks.start.virtuals[].repeats: Number of times to activate (default: 1)
+#
+# Exit codes:
+#   0: Success
+#   1: Error (invalid arguments, API failure, etc.)
+#
 set -eu
 
 # Load configuration from YAML (preferred) or legacy .conf file

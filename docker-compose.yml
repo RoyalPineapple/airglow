@@ -32,8 +32,10 @@ services:
   ledfx:
     # LedFX - Real-time LED visualization from audio input
     # Web UI: http://localhost:8888
-    # NOTE: Using :latest tag for automatic updates. For production, consider pinning to specific version
-    # Example: image: ghcr.io/ledfx/ledfx:2.1.2
+    # NOTE: Using :latest tag for automatic updates. For production, pin to specific version:
+    #   1. Check available versions: https://github.com/LedFx/LedFx/releases
+    #   2. Update image tag: image: ghcr.io/ledfx/ledfx:2.1.2
+    #   3. Test thoroughly before deploying to production
     image: ghcr.io/ledfx/ledfx:latest
     container_name: ledfx
 

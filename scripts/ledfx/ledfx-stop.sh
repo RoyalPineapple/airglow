@@ -1,7 +1,36 @@
 #!/bin/sh
 # LedFx Stop Script - Deactivate virtual(s) (preserves effects, never pauses)
-# Usage: ledfx-stop.sh [virtual_ids] [host] [port]
+#
+# Usage:
+#   ledfx-stop.sh [virtual_ids] [host] [port]
+#
+# Arguments:
 #   virtual_ids: Comma-separated list of virtual IDs (default: from config or all)
+#   host: LedFX host (default: from config or "ledfx")
+#   port: LedFX port (default: from config or 8888)
+#
+# Examples:
+#   # Use configuration from /configs/ledfx-hooks.yaml
+#   ledfx-stop.sh
+#
+#   # Deactivate specific virtuals
+#   ledfx-stop.sh "virtual1,virtual2"
+#
+#   # Deactivate specific virtuals on custom host/port
+#   ledfx-stop.sh "virtual1,virtual2" "ledfx" "8888"
+#
+# Configuration:
+#   Script reads configuration from /configs/ledfx-hooks.yaml:
+#     - ledfx.host: LedFX hostname (default: "ledfx")
+#     - ledfx.port: LedFX port (default: 8888)
+#     - hooks.end.all_virtuals: Control all virtuals (default: true)
+#     - hooks.end.virtuals[].id: Virtual ID to deactivate
+#     - hooks.end.virtuals[].repeats: Number of times to deactivate (default: 0)
+#
+# Exit codes:
+#   0: Success
+#   1: Error (invalid arguments, API failure, etc.)
+#
 set -eu
 
 # Load configuration from YAML (preferred) or legacy .conf file
