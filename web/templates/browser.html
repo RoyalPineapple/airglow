@@ -277,8 +277,8 @@
 
         function getMacAddress(device) {
             // Extract MAC address from raw Avahi data
-            // MAC address can be in 'deviceid' field (format: "4a:2b:5a:c1:ec:ce")
-            // or in 'btaddr' field (Bluetooth address)
+            // In _airplay._tcp: MAC is in 'deviceid' field (format: "58:55:CA:1A:E2:88")
+            // In _raop._tcp: MAC is in the service name before the @ sign (format: "4A2B5AC1ECCE")
             if (!device.raw_avahi_data || device.raw_avahi_data.length === 0) {
                 return null;
             }
@@ -287,15 +287,35 @@
                 if (!line || !line.includes(';')) continue;
                 const parts = line.split(';');
                 if (parts.length < 10) continue;
+                
+                const serviceName = parts[3]; // Service name (e.g., "4A2B5AC1ECCE\064\126Airglow-Staging\126")
+                const serviceType = parts[4]; // Service type (e.g., "_raop._tcp" or "_airplay._tcp")
                 const txtRecord = parts.slice(9).join(';');
                 
-                // Check for 'deviceid=' field (MAC address in _airplay._tcp)
-                const deviceidMatch = txtRecord.match(/"deviceid=([^"]+)"/);
-                if (deviceidMatch) {
-                    return deviceidMatch[1]; // Format: "4a:2b:5a:c1:ec:ce"
+                // For _airplay._tcp: Check 'deviceid' field in TXT record
+                if (serviceType && serviceType.includes('_airplay._tcp')) {
+                    const deviceidMatch = txtRecord.match(/"deviceid=([^"]+)"/);
+                    if (deviceidMatch) {
+                        return deviceidMatch[1]; // Format: "58:55:CA:1A:E2:88"
+                    }
                 }
                 
-                // Check for 'btaddr=' field (Bluetooth address)
+                // For _raop._tcp: Extract MAC from service name (before \064 which is @)
+                if (serviceName && serviceType && serviceType.includes('_raop._tcp')) {
+                    if (serviceName.includes('\\064')) {
+                        const nameParts = serviceName.split('\\064');
+                        if (nameParts.length > 0 && nameParts[0]) {
+                            // MAC address is in uppercase hex without colons (e.g., "4A2B5AC1ECCE")
+                            const macHex = nameParts[0];
+                            // Convert to standard MAC format with colons (e.g., "4A:2B:5A:C1:EC:CE")
+                            if (macHex.length === 12 && /^[0-9A-F]{12}$/i.test(macHex)) {
+                                return macHex.match(/.{2}/g).join(':').toUpperCase();
+                            }
+                        }
+                    }
+                }
+                
+                // Fallback: Check for 'btaddr=' field (Bluetooth address)
                 const btaddrMatch = txtRecord.match(/"btaddr=([^"]+)"/);
                 if (btaddrMatch) {
                     return btaddrMatch[1]; // Format: "7E:6E:2E:1B:86:AC"
