@@ -204,7 +204,136 @@
             'protovers', 'vv'
         ]);
         
+        // Features bit field definitions from OpenAirPlay spec: https://openairplay.github.io/airplay-spec/features.html
+        const featuresBitField = {
+            0: 'Video',
+            1: 'Photo',
+            2: 'VideoFairPlay',
+            3: 'VideoVolumeControl',
+            4: 'VideoHTTPLiveStreams',
+            5: 'Slideshow',
+            7: 'Screen',
+            8: 'ScreenRotate',
+            9: 'Audio',
+            11: 'AudioRedundant',
+            12: 'FPSAPv2pt5_AES_GCM',
+            13: 'PhotoCaching',
+            14: 'Authentication4',
+            15: 'MetadataFeature1',
+            16: 'MetadataFeature2',
+            17: 'MetadataFeature0',
+            18: 'AudioFormat1',
+            19: 'AudioFormat2',
+            20: 'AudioFormat3',
+            21: 'AudioFormat4',
+            23: 'Authentication1',
+            26: 'HasUnifiedAdvertiserInfo',
+            27: 'SupportsLegacyPairing',
+            30: 'RAOP',
+            32: 'IsCarPlay / SupportsVolume',
+            33: 'SupportsAirPlayVideoPlayQueue',
+            34: 'SupportsAirPlayFromCloud',
+            38: 'SupportsCoreUtilsPairingAndEncryption',
+            40: 'SupportsBufferedAudio',
+            41: 'SupportsPTP',
+            42: 'SupportsScreenMultiCodec',
+            43: 'SupportsSystemPairing',
+            46: 'SupportsHKPairingAndAccessControl',
+            48: 'SupportsTransientPairing',
+            50: 'MetadataFeature4',
+            51: 'SupportsUnifiedPairSetupAndMFi',
+            52: 'SupportsSetPeersExtendedMessage'
+        };
+        
+        // Status flags bit field definitions from OpenAirPlay spec: https://openairplay.github.io/airplay-spec/status_flags.html
+        const statusFlagsBitField = {
+            0: 'Problem has been detected',
+            1: 'Device is not configured',
+            2: 'Audio cable is attached',
+            3: 'PINRequired',
+            6: 'SupportsAirPlayFromCloud',
+            7: 'PasswordRequired',
+            9: 'OneTimePairingRequired',
+            10: 'DeviceWasSetupForHKAccessControl',
+            11: 'DeviceSupportsRelay',
+            12: 'SilentPrimary',
+            13: 'TightSyncIsGroupLeader',
+            14: 'TightSyncBuddyNotReachable',
+            15: 'IsAppleMusicSubscriber',
+            16: 'CloudLibraryIsOn',
+            17: 'ReceiverSessionIsActive'
+        };
+        
+        // Parse hex string to BigInt (supports 64-bit values)
+        function parseHexToBigInt(hexStr) {
+            // Remove 0x prefix if present
+            const cleanHex = hexStr.replace(/^0x/i, '');
+            // Handle comma-separated values (e.g., "0x4A7FDFD5,0x3C177FDE" for 64-bit)
+            if (cleanHex.includes(',')) {
+                const parts = cleanHex.split(',');
+                const high = BigInt('0x' + parts[0].trim().replace(/^0x/i, ''));
+                const low = BigInt('0x' + parts[1].trim().replace(/^0x/i, ''));
+                // Combine: high 32 bits + low 32 bits
+                return (high << 32n) | low;
+            }
+            return BigInt('0x' + cleanHex);
+        }
+        
+        // Translate features bit field
+        function translateFeaturesBitField(value) {
+            try {
+                const bits = parseHexToBigInt(value);
+                const activeFeatures = [];
+                
+                for (const [bit, name] of Object.entries(featuresBitField)) {
+                    const bitNum = BigInt(bit);
+                    if ((bits & (1n << bitNum)) !== 0n) {
+                        activeFeatures.push(name);
+                    }
+                }
+                
+                if (activeFeatures.length === 0) {
+                    return `${value} (no features set)`;
+                }
+                
+                return `${value} (${activeFeatures.join(', ')})`;
+            } catch (e) {
+                return value; // Return original if parsing fails
+            }
+        }
+        
+        // Translate status flags bit field
+        function translateStatusFlagsBitField(value) {
+            try {
+                const bits = parseHexToBigInt(value);
+                const activeFlags = [];
+                
+                for (const [bit, name] of Object.entries(statusFlagsBitField)) {
+                    const bitNum = BigInt(bit);
+                    if ((bits & (1n << bitNum)) !== 0n) {
+                        activeFlags.push(name);
+                    }
+                }
+                
+                if (activeFlags.length === 0) {
+                    return `${value} (no flags set)`;
+                }
+                
+                return `${value} (${activeFlags.join(', ')})`;
+            } catch (e) {
+                return value; // Return original if parsing fails
+            }
+        }
+        
         function translateValue(fieldName, value) {
+            // Handle bit fields first
+            if (fieldName === 'features' || fieldName === 'ft') {
+                return translateFeaturesBitField(value);
+            }
+            if (fieldName === 'flags' || fieldName === 'sf') {
+                return translateStatusFlagsBitField(value);
+            }
+            
             // Handle comma-separated values (e.g., cn=0,1,2,3)
             if (value.includes(',')) {
                 const parts = value.split(',');
