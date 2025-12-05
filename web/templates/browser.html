@@ -218,13 +218,21 @@
             formatted += '<div class="avahi-header-compact">';
             // Add Material Icon based on service type
             let serviceIcon = '';
-            if (serviceType.toLowerCase().includes('audio') || serviceType.toLowerCase().includes('raop') || serviceType.toLowerCase().includes('airtunes')) {
+            let airplayVersion = '';
+            const serviceTypeLower = serviceType.toLowerCase();
+            if (serviceTypeLower.includes('_raop._tcp') || serviceTypeLower === '_raop._tcp') {
                 serviceIcon = '<span class="material-icons service-icon">volume_up</span> ';
-            } else if (serviceType.toLowerCase().includes('video') || serviceType.toLowerCase().includes('airplay')) {
+                airplayVersion = '<span class="airplay-version-badge airplay-2">AirPlay 2</span> ';
+            } else if (serviceTypeLower.includes('_airplay._tcp') || serviceTypeLower === '_airplay._tcp') {
+                serviceIcon = '<span class="material-icons service-icon">videocam</span> ';
+                airplayVersion = '<span class="airplay-version-badge airplay-1">AirPlay 1</span> ';
+            } else if (serviceTypeLower.includes('audio') || serviceTypeLower.includes('airtunes') || serviceTypeLower.includes('raop')) {
+                serviceIcon = '<span class="material-icons service-icon">volume_up</span> ';
+            } else if (serviceTypeLower.includes('video') || serviceTypeLower.includes('airplay')) {
                 serviceIcon = '<span class="material-icons service-icon">videocam</span> ';
             }
             const displayServiceType = serviceTypeLabel || serviceType;
-            formatted += `<span class="avahi-service-compact">${serviceIcon}${escapeHtml(displayServiceType)}</span>`;
+            formatted += `<span class="avahi-service-compact">${serviceIcon}${airplayVersion}${escapeHtml(displayServiceType)}</span>`;
             formatted += '</div>';
             
             formatted += '<div class="avahi-fields-compact">';
@@ -265,13 +273,13 @@
                     <td class="device-address">${device.address_display ? escapeHtml(device.address_display) : (device.address ? escapeHtml(device.address) : '—')}</td>
                     <td class="device-hostname">${device.hostname ? escapeHtml(device.hostname) : '—'}</td>
                     <td class="device-port">${device.port ? escapeHtml(device.port) : '—'}</td>
-                    <td class="device-versions">${device.airplay_versions ? escapeHtml(device.airplay_versions) : '—'}</td>
+                    <td class="device-versions">${formatDeviceSupport(device)}</td>
                     <td class="device-firmware">${device.firmware_version ? escapeHtml(device.firmware_version) : '—'}</td>
                     <td class="device-features">${device.feature_flags ? `<code>${escapeHtml(device.feature_flags)}</code>` : '—'}</td>
                 </tr>
                 ${hasRawData ? `
                 <tr class="device-detail-row" id="${deviceId}-detail" style="display: none;">
-                    <td colspan="7" class="device-detail-cell">
+                    <td colspan="5" class="device-detail-cell">
                         <div class="device-detail-content">
                             <h4>Raw Avahi Data</h4>
                             <div class="avahi-data-container">
@@ -299,7 +307,7 @@
 
         function updateDeviceRow(row, device, deviceId) {
             const cells = row.querySelectorAll('td');
-            if (cells.length < 7) return;
+            if (cells.length < 5) return;
             
             const hasRawData = device.raw_avahi_data && device.raw_avahi_data.length > 0;
             const expandIcon = row.querySelector('.expand-icon');
@@ -316,9 +324,7 @@
                 { cell: cells[1], value: device.address_display || device.address || '—', isHtml: false },
                 { cell: cells[2], value: device.hostname || '—', isHtml: false },
                 { cell: cells[3], value: device.port || '—', isHtml: false },
-                { cell: cells[4], value: device.airplay_versions || '—', isHtml: false },
-                { cell: cells[5], value: device.firmware_version || '—', isHtml: false },
-                { cell: cells[6], value: device.feature_flags ? `<code>${escapeHtml(device.feature_flags)}</code>` : '—', isHtml: true }
+                { cell: cells[4], value: formatDeviceSupport(device), isHtml: true }
             ];
             
             updates.forEach(({ cell, value, isHtml }) => {
@@ -370,9 +376,7 @@
                 <td class="device-address">${device.address_display ? escapeHtml(device.address_display) : (device.address ? escapeHtml(device.address) : '—')}</td>
                 <td class="device-hostname">${device.hostname ? escapeHtml(device.hostname) : '—'}</td>
                 <td class="device-port">${device.port ? escapeHtml(device.port) : '—'}</td>
-                <td class="device-versions">${device.airplay_versions ? escapeHtml(device.airplay_versions) : '—'}</td>
-                <td class="device-firmware">${device.firmware_version ? escapeHtml(device.firmware_version) : '—'}</td>
-                <td class="device-features">${device.feature_flags ? `<code>${escapeHtml(device.feature_flags)}</code>` : '—'}</td>
+                <td class="device-versions">${formatDeviceSupport(device)}</td>
             `;
             
             tbody.appendChild(row);
@@ -384,7 +388,7 @@
                 detailRow.id = `${deviceId}-detail`;
                 detailRow.style.display = 'none';
                 detailRow.innerHTML = `
-                    <td colspan="7" class="device-detail-cell">
+                    <td colspan="5" class="device-detail-cell">
                         <div class="device-detail-content">
                             <h4>Raw Avahi Data</h4>
                             <div class="avahi-data-container">
@@ -470,9 +474,7 @@
                                 <th>IP Address</th>
                                 <th>Hostname</th>
                                 <th>Port</th>
-                                <th>AirPlay Versions</th>
-                                <th>Firmware</th>
-                                <th>Features</th>
+                                <th>Support</th>
                             </tr>
                         </thead>
                         <tbody></tbody>
