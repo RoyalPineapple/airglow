@@ -834,10 +834,21 @@ function start_stack() {
         fi
         
         # Always rebuild web container to ensure latest code is included
+        # Use --no-cache to avoid Docker build cache issues
         msg_info "Rebuilding web container to ensure latest code..."
-        docker compose build airglow-web || {
-            msg_warn "Failed to rebuild web container, continuing with existing image"
-        }
+        if ! docker compose build --no-cache airglow-web 2>&1; then
+            msg_warn "Build with --no-cache failed, cleaning build cache and retrying..."
+            # Clean build cache to resolve corruption issues
+            docker builder prune -f >/dev/null 2>&1 || true
+            # Retry with --no-cache after cleaning
+            if ! docker compose build --no-cache airglow-web 2>&1; then
+                msg_warn "Build still failed after cache cleanup, trying with cache..."
+                # Final fallback: try with cache
+                if ! docker compose build airglow-web 2>&1; then
+                    msg_warn "Failed to rebuild web container, continuing with existing image"
+                fi
+            fi
+        fi
         docker compose up -d --build || {
             msg_error "Failed to start Docker stack"
             msg_error "Check logs with: docker compose -f ${INSTALL_DIR}/docker-compose.yml logs"
@@ -856,10 +867,21 @@ function start_stack() {
     else
         msg_info "Starting services..."
         # Always rebuild web container to ensure latest code is included
+        # Use --no-cache to avoid Docker build cache issues
         msg_info "Rebuilding web container to ensure latest code..."
-        docker compose build airglow-web || {
-            msg_warn "Failed to rebuild web container, continuing with existing image"
-        }
+        if ! docker compose build --no-cache airglow-web 2>&1; then
+            msg_warn "Build with --no-cache failed, cleaning build cache and retrying..."
+            # Clean build cache to resolve corruption issues
+            docker builder prune -f >/dev/null 2>&1 || true
+            # Retry with --no-cache after cleaning
+            if ! docker compose build --no-cache airglow-web 2>&1; then
+                msg_warn "Build still failed after cache cleanup, trying with cache..."
+                # Final fallback: try with cache
+                if ! docker compose build airglow-web 2>&1; then
+                    msg_warn "Failed to rebuild web container, continuing with existing image"
+                fi
+            fi
+        fi
         docker compose up -d || {
             msg_error "Failed to start Docker stack"
             msg_error "Check logs with: docker compose -f ${INSTALL_DIR}/docker-compose.yml logs"
