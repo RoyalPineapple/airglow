@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AirGlow - AirPlay Browser</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
 </head>
 <body>
     <div class="banner-container">
@@ -190,12 +191,12 @@
             
             let formatted = '<div class="avahi-entry">';
             formatted += '<div class="avahi-header-compact">';
-            // Add icon based on service type (replace the [ = ] badge)
+            // Add Material Icon based on service type
             let serviceIcon = '';
             if (serviceType.toLowerCase().includes('audio') || serviceType.toLowerCase().includes('raop') || serviceType.toLowerCase().includes('airtunes')) {
-                serviceIcon = '🔊 ';
+                serviceIcon = '<span class="material-icons service-icon">volume_up</span> ';
             } else if (serviceType.toLowerCase().includes('video') || serviceType.toLowerCase().includes('airplay')) {
-                serviceIcon = '🎥 ';
+                serviceIcon = '<span class="material-icons service-icon">videocam</span> ';
             }
             const displayServiceType = serviceTypeLabel || serviceType;
             formatted += `<span class="avahi-service-compact">${serviceIcon}${escapeHtml(displayServiceType)}</span>`;

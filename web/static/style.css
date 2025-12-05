@@ -1269,6 +1269,15 @@ code {
     color: var(--color-text);
     font-weight: 600;
     font-size: 0.85rem;
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+}
+
+.avahi-service-compact .service-icon {
+    font-size: 1rem;
+    vertical-align: middle;
+    color: var(--color-primary);
 }
 
 .avahi-fields-compact {
