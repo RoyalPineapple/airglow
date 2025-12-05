@@ -296,13 +296,11 @@
         function renderDeviceRow(device, index) {
             const deviceId = `device-${index}`;
             const hasRawData = device.raw_avahi_data && device.raw_avahi_data.length > 0;
-            const isStaging = device.name.toLowerCase().includes('staging');
-            const stagingBadge = isStaging ? '<span class="staging-badge" title="Staging Environment">STAGING</span> ' : '';
             return `
                 <tr class="device-row ${hasRawData ? 'expandable' : ''}" data-device-id="${deviceId}" ${hasRawData ? 'style="cursor: pointer;"' : ''}>
                     <td class="device-name">
                         ${hasRawData ? '<span class="expand-icon">▶</span> ' : ''}
-                        ${stagingBadge}${escapeHtml(device.name)}
+                        ${escapeHtml(device.name)}
                     </td>
                     <td class="device-address">${device.address_display ? escapeHtml(device.address_display) : (device.address ? escapeHtml(device.address) : '—')}</td>
                     <td class="device-hostname">${device.hostname ? escapeHtml(device.hostname) : '—'}</td>
@@ -347,13 +345,8 @@
             // Update name cell
             const nameCell = cells[0];
             const newName = escapeHtml(device.name);
-            const isStaging = device.name.toLowerCase().includes('staging');
-            const stagingBadge = isStaging ? '<span class="staging-badge" title="Staging Environment">STAGING</span> ' : '';
-            const nameWithBadge = (hasRawData ? '<span class="expand-icon">▶</span> ' : '') + stagingBadge + newName;
-            // Check if content changed (accounting for badges)
-            const currentText = nameCell.textContent.replace(/[▶▼STAGING]/g, '').trim();
-            if (currentText !== device.name) {
-                nameCell.innerHTML = nameWithBadge;
+            if (nameCell.textContent.replace(/[▶▼]/g, '').trim() !== device.name) {
+                nameCell.innerHTML = (hasRawData ? '<span class="expand-icon">▶</span> ' : '') + newName;
             }
             
             // Update other cells only if changed
@@ -666,7 +659,11 @@
                     previousDevices = [];
                     deviceRowMap.clear();
                 } else {
-                    renderDevices('devices-table', data.devices, 'devices-empty');
+                    // Filter out staging instances - only show production
+                    const productionDevices = data.devices.filter(device => 
+                        !device.name.toLowerCase().includes('staging')
+                    );
+                    renderDevices('devices-table', productionDevices, 'devices-empty');
                 }
 
                 // Update timestamp
