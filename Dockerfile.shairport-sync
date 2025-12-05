@@ -30,7 +30,7 @@ RUN echo '#!/bin/sh' > /usr/local/bin/start.sh && \
     echo '    # This allows clients on physical network to connect to shairport-sync on bridge networking' >> /usr/local/bin/start.sh && \
     echo '    if ! grep -q "^[[:space:]]*interfaces[[:space:]]*=" /etc/shairport-sync.conf; then' >> /usr/local/bin/start.sh && \
     echo '      # Add interfaces setting after general = {' >> /usr/local/bin/start.sh && \
-    echo '      LINE_NUM=$(grep -n "^general[[:space:]]*=[[:space:]]*{" /etc/shairport-sync.conf | cut -d: -f1)' >> /usr/local/bin/start.sh && \
+    echo '      LINE_NUM=$(grep -n "^[[:space:]]*{" /etc/shairport-sync.conf | head -1 | cut -d: -f1)' >> /usr/local/bin/start.sh && \
     echo '      if [ -n "$LINE_NUM" ]; then' >> /usr/local/bin/start.sh && \
     echo '        head -n "$LINE_NUM" /etc/shairport-sync.conf > /tmp/shairport-sync.conf.tmp' >> /usr/local/bin/start.sh && \
     echo '        echo "\\tinterfaces = \"$HOST_IP\";" >> /tmp/shairport-sync.conf.tmp' >> /usr/local/bin/start.sh && \
