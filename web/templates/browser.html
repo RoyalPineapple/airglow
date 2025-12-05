@@ -275,6 +275,36 @@
             return { type: 'Unknown', icon: 'devices', color: '#95a5a6' };
         }
 
+        function getMacAddress(device) {
+            // Extract MAC address from raw Avahi data
+            // MAC address can be in 'deviceid' field (format: "4a:2b:5a:c1:ec:ce")
+            // or in 'btaddr' field (Bluetooth address)
+            if (!device.raw_avahi_data || device.raw_avahi_data.length === 0) {
+                return null;
+            }
+            
+            for (const line of device.raw_avahi_data) {
+                if (!line || !line.includes(';')) continue;
+                const parts = line.split(';');
+                if (parts.length < 10) continue;
+                const txtRecord = parts.slice(9).join(';');
+                
+                // Check for 'deviceid=' field (MAC address in _airplay._tcp)
+                const deviceidMatch = txtRecord.match(/"deviceid=([^"]+)"/);
+                if (deviceidMatch) {
+                    return deviceidMatch[1]; // Format: "4a:2b:5a:c1:ec:ce"
+                }
+                
+                // Check for 'btaddr=' field (Bluetooth address)
+                const btaddrMatch = txtRecord.match(/"btaddr=([^"]+)"/);
+                if (btaddrMatch) {
+                    return btaddrMatch[1]; // Format: "7E:6E:2E:1B:86:AC"
+                }
+            }
+            
+            return null;
+        }
+
         function formatDeviceSupport(device) {
             if (!device.raw_avahi_data || device.raw_avahi_data.length === 0) {
                 return '—';
@@ -624,12 +654,16 @@
                 nameCell.innerHTML = (hasRawData ? '<span class="expand-icon">▶</span> ' : '') + newNameHtml;
             }
             
+            // Get MAC address
+            const macAddress = getMacAddress(device);
+            
             // Update other cells only if changed
             const updates = [
                 { cell: cells[1], value: device.address_display || device.address || '—', isHtml: false },
                 { cell: cells[2], value: device.hostname || '—', isHtml: false },
                 { cell: cells[3], value: device.port || '—', isHtml: false },
-                { cell: cells[4], value: formatDeviceSupport(device), isHtml: true }
+                { cell: cells[4], value: macAddress || '—', isHtml: false },
+                { cell: cells[5], value: formatDeviceSupport(device), isHtml: true }
             ];
             
             updates.forEach(({ cell, value, isHtml }) => {
@@ -686,6 +720,9 @@
             const isStaging = device.name.toLowerCase().includes('staging');
             const stagingBadge = isStaging ? '<span class="staging-badge" title="Staging Environment">STAGING</span> ' : '';
             
+            // Get MAC address
+            const macAddress = getMacAddress(device);
+            
             row.innerHTML = `
                 <td class="device-name">
                     ${hasRawData ? '<span class="expand-icon">▶</span> ' : ''}
@@ -694,6 +731,7 @@
                 <td class="device-address">${device.address_display ? escapeHtml(device.address_display) : (device.address ? escapeHtml(device.address) : '—')}</td>
                 <td class="device-hostname">${device.hostname ? escapeHtml(device.hostname) : '—'}</td>
                 <td class="device-port">${device.port ? escapeHtml(device.port) : '—'}</td>
+                <td class="device-mac">${macAddress ? escapeHtml(macAddress) : '—'}</td>
                 <td class="device-versions">${formatDeviceSupport(device)}</td>
             `;
             
@@ -706,7 +744,7 @@
                 detailRow.id = `${deviceId}-detail`;
                 detailRow.style.display = 'none';
                 detailRow.innerHTML = `
-                    <td colspan="5" class="device-detail-cell">
+                    <td colspan="6" class="device-detail-cell">
                         <div class="device-detail-content">
                             <h4>Raw Avahi Data</h4>
                             <div class="avahi-data-container">
@@ -792,6 +830,7 @@
                                 <th>IP Address</th>
                                 <th>Hostname</th>
                                 <th>Port</th>
+                                <th>MAC Address</th>
                                 <th>Support</th>
                             </tr>
                         </thead>
