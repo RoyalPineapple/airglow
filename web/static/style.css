@@ -1363,6 +1363,26 @@ code {
     background-color: #9b59b6;
 }
 
+.spec-reference-bottom {
+    font-size: 0.85rem;
+    color: var(--color-text-light);
+    margin: calc(var(--spacing) * 0.5) 0 0 0;
+    padding: calc(var(--spacing) * 0.5);
+    text-align: right;
+    border-top: 1px solid var(--color-border);
+    padding-top: calc(var(--spacing) * 0.75);
+}
+
+.spec-reference-bottom a {
+    color: var(--color-primary);
+    text-decoration: none;
+    font-weight: 500;
+}
+
+.spec-reference-bottom a:hover {
+    text-decoration: underline;
+}
+
 .avahi-consolidated {
     display: flex;
     flex-direction: column;

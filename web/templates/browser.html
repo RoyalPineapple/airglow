@@ -45,6 +45,9 @@
         <section class="status-section">
             <h2>AirPlay Devices</h2>
             <p class="section-description">Discover AirPlay compatible devices on your network</p>
+            <p class="spec-reference-bottom">
+                Field definitions reference: <a href="https://openairplay.github.io/airplay-spec/service_discovery.html" target="_blank" rel="noopener">OpenAirPlay Specification</a>
+            </p>
             <div id="devices-loading" class="loading" style="display: none;">Loading...</div>
             <div id="devices-error" class="error" style="display: none;"></div>
             <div id="devices-table" style="display: none;"></div>
@@ -86,37 +89,59 @@
         }
 
         // Field name expansions (abbreviations to full names)
+        // Only includes fields documented in OpenAirPlay spec: https://openairplay.github.io/airplay-spec/service_discovery.html
         const fieldNameExpansions = {
-            'vv': 'Version',
-            'ov': 'OS Version',
-            'vs': 'Source Version',
-            'vn': 'Version Number',
-            'tp': 'Transport Protocol',
-            'pk': 'Public Key',
-            'am': 'Audio Model',
-            'md': 'Model',
-            'sf': 'Status Flags',
-            'ft': 'Feature Flags',
+            // _raop._tcp (AirPlay 1) fields
+            'txtvers': 'TXT Record Version',
+            'ch': 'Audio Channels',
+            'cn': 'Audio Codecs',
             'et': 'Encryption Types',
+            'md': 'Metadata Types',
+            'pw': 'Password Required',
+            'sr': 'Sample Rate',
+            'ss': 'Sample Size',
+            'tp': 'Transport Protocol',
+            'vs': 'Server Version',
+            'am': 'Device Model',
+            'sf': 'Status Flags',
+            'vn': 'Version Number',
             'da': 'Device Authentication',
-            'cn': 'Codec Numbers',
+            'ft': 'Feature Flags',
+            'fv': 'Firmware Version',
+            // _airplay._tcp (AirPlay 2 Video) fields
+            'model': 'Device Model',
+            'manufacturer': 'Manufacturer',
+            'serialNumber': 'Serial Number',
             'osvers': 'OS Version',
-            'srcvers': 'Source Version',
-            'psi': 'Pairing Session ID',
-            'pi': 'Pairing ID',
-            'protovers': 'Protocol Version',
-            'model': 'Model',
-            'gcgl': 'Game Controller GL',
-            'igl': 'iTunes Game Library',
-            'gid': 'Group ID',
-            'flags': 'Flags',
-            'features': 'Features',
-            'fex': 'Feature Extensions',
             'deviceid': 'Device ID',
-            'btaddr': 'Bluetooth Address',
-            'acl': 'Access Control List',
-            'fv': 'Firmware Version'
+            'features': 'Features',
+            'acl': 'Access Control Level',
+            'srcvers': 'AirPlay Version',
+            'flags': 'Status Flags',
+            'pk': 'Public Key',
+            'pi': 'Pairing ID',
+            'psi': 'Pairing Session ID',
+            'gid': 'Group ID',
+            'gcgl': 'Group Contains Group Leader',
+            'igl': 'Is Group Leader',
+            'gpn': 'Group Public Name',
+            'hgid': 'Home Group ID',
+            'hmid': 'Household ID',
+            'pgcgl': 'Parent Group Contains Group Leader',
+            'pgid': 'Parent Group ID',
+            'tsid': 'TSID',
+            'rsf': 'Required Sender Features',
+            'protovers': 'Protocol Version',
+            'vv': 'Version' // "vodka version" - documented but value meaning unclear
         };
+        
+        // Fields documented in OpenAirPlay spec - only show these
+        const documentedFields = new Set([
+            'txtvers', 'ch', 'cn', 'et', 'md', 'pw', 'sr', 'ss', 'tp', 'vs', 'am', 'sf', 'vn', 'da', 'ft', 'fv',
+            'model', 'manufacturer', 'serialNumber', 'osvers', 'deviceid', 'features', 'acl', 'srcvers', 'flags',
+            'pk', 'pi', 'psi', 'gid', 'gcgl', 'igl', 'gpn', 'hgid', 'hmid', 'pgcgl', 'pgid', 'tsid', 'rsf',
+            'protovers', 'vv'
+        ]);
 
         function getFieldDisplayName(fieldName) {
             return fieldNameExpansions[fieldName] || fieldName;
