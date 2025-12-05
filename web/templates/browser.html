@@ -546,11 +546,20 @@
             const isLocalHost = window.hostIP && device.address && device.address === window.hostIP;
             const rowClass = `device-row ${hasRawData ? 'expandable' : ''} ${isLocalHost ? 'local-host' : ''}`;
             
+            // Detect device type (Apple TV, HomePod, etc.)
+            const deviceType = detectDeviceType(device);
+            let deviceNameHtml = escapeHtml(device.name);
+            if (deviceType) {
+                deviceNameHtml = `<span class="device-type-badge device-type-${deviceType.type.toLowerCase().replace(/\s+/g, '-')}" title="${deviceType.type}">
+                    <span class="material-icons device-type-icon">${deviceType.icon}</span>
+                </span> ${deviceNameHtml}`;
+            }
+            
             return `
                 <tr class="${rowClass}" data-device-id="${deviceId}" ${hasRawData ? 'style="cursor: pointer;"' : ''}>
                     <td class="device-name">
                         ${hasRawData ? '<span class="expand-icon">▶</span> ' : ''}
-                        ${escapeHtml(device.name)}
+                        ${deviceNameHtml}
                     </td>
                     <td class="device-address">${device.address_display ? escapeHtml(device.address_display) : (device.address ? escapeHtml(device.address) : '—')}</td>
                     <td class="device-hostname">${device.hostname ? escapeHtml(device.hostname) : '—'}</td>
