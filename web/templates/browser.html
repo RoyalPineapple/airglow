@@ -271,7 +271,8 @@
                 }
             }
             
-            return null;
+            // Unknown device type
+            return { type: 'Unknown', icon: 'devices', color: '#95a5a6' };
         }
 
         function formatDeviceSupport(device) {
