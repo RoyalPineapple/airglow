@@ -846,11 +846,17 @@
             });
             
             // Reorder rows to match device order (if needed)
+            // IMPORTANT: Include ALL devices - if not in map, create row now
             const rows = Array.from(tbody.querySelectorAll('.device-row'));
             const orderedRows = [];
             devices.forEach((device, index) => {
                 const key = getDeviceKey(device);
-                const existing = deviceRowMap.get(key);
+                let existing = deviceRowMap.get(key);
+                if (!existing) {
+                    // Device not in map - create it now to ensure it's displayed
+                    createDeviceRow(device, index, tbody);
+                    existing = deviceRowMap.get(key);
+                }
                 if (existing) {
                     orderedRows.push(existing.row);
                     const detailRow = document.getElementById(`${existing.deviceId}-detail`);
