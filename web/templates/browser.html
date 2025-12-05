@@ -251,7 +251,7 @@
                 if (amMatch) {
                     const model = amMatch[1];
                     if (model.startsWith('AppleTV')) {
-                        return { type: 'Apple TV', icon: 'tv', color: '#000000' };
+                        return { type: 'Apple TV', icon: 'airplay', color: '#000000' };
                     }
                     if (model.startsWith('AudioAccessory')) {
                         return { type: 'HomePod', icon: 'speaker', color: '#1d1d1f' };
@@ -263,7 +263,7 @@
                 if (modelMatch) {
                     const model = modelMatch[1];
                     if (model.startsWith('AppleTV')) {
-                        return { type: 'Apple TV', icon: 'tv', color: '#000000' };
+                        return { type: 'Apple TV', icon: 'airplay', color: '#000000' };
                     }
                     if (model.startsWith('AudioAccessory')) {
                         return { type: 'HomePod', icon: 'speaker', color: '#1d1d1f' };
@@ -837,7 +837,7 @@
                     updateDeviceRow(existing.row, device, existing.deviceId);
                     // Update index in case order changed
                     existing.index = index;
-                } else {
+            } else {
                     // Add new row
                     createDeviceRow(device, index, tbody);
                 }
@@ -903,7 +903,7 @@
             const refreshIcon = document.getElementById('refresh-icon');
             const wasDisabled = refreshBtn?.disabled;
             if (refreshBtn && !wasDisabled) {
-                refreshBtn.disabled = true;
+            refreshBtn.disabled = true;
             }
             if (refreshIcon && !wasDisabled) {
                 refreshIcon.style.animation = 'spin 0.5s linear infinite';
@@ -928,8 +928,8 @@
 
                 if (data.error) {
                     if (devicesError) {
-                        devicesError.textContent = `Error: ${escapeHtml(data.error)}`;
-                        devicesError.style.display = 'block';
+                    devicesError.textContent = `Error: ${escapeHtml(data.error)}`;
+                    devicesError.style.display = 'block';
                     }
                     // Clear devices on error
                     const devicesTable = document.getElementById('devices-table');
@@ -955,8 +955,8 @@
                 if (data.timestamp) {
                     const lastUpdate = document.getElementById('last-update');
                     if (lastUpdate) {
-                        const timestamp = new Date(data.timestamp);
-                        const timeStr = timestamp.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', second: '2-digit' });
+                    const timestamp = new Date(data.timestamp);
+                    const timeStr = timestamp.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', second: '2-digit' });
                         lastUpdate.textContent = `Last updated: ${timeStr}`;
                     }
                 }
@@ -967,7 +967,7 @@
                 if (devicesLoading) devicesLoading.style.display = 'none';
             } finally {
                 if (refreshBtn && !wasDisabled) {
-                    refreshBtn.disabled = false;
+                refreshBtn.disabled = false;
                 }
                 if (refreshIcon && !wasDisabled) {
                     refreshIcon.style.animation = '';
