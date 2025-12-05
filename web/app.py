@@ -471,6 +471,25 @@ def get_airplay_status():
         avahi_status = check_container_status('avahi')
         status['avahi_running'] = avahi_status['running']
         
+        # Check D-Bus connection between shairport-sync and Avahi
+        if status['running']:
+            try:
+                dbus_check = subprocess.run(
+                    ['docker', 'exec', 'shairport-sync', 'dbus-send', '--system', '--print-reply', 
+                     '--dest=org.freedesktop.DBus', '/org/freedesktop/DBus', 
+                     'org.freedesktop.DBus.ListNames'],
+                    capture_output=True,
+                    text=True,
+                    timeout=5
+                )
+                if dbus_check.returncode == 0 and 'org.freedesktop.Avahi' in dbus_check.stdout:
+                    status['d_bus_connected'] = True
+                else:
+                    status['d_bus_connected'] = False
+            except Exception as e:
+                logger.warning(f"Could not check D-Bus connection: {e}")
+                status['d_bus_connected'] = False
+        
         # Validate that Avahi is actually advertising the service
         if status['running'] and status['avahi_running']:
             if not device_name:
@@ -498,14 +517,22 @@ def get_airplay_status():
                     found_device = False
                     
                     # Check AirPlay 2 results
+                    all_found_devices = []
                     if airplay2_result.returncode == 0 and airplay2_result.stdout:
                         devices = parse_avahi_browse_output(airplay2_result.stdout)
                         for device in devices:
-                            # Check if device name matches (case-insensitive)
                             device_display_name = device.get('name', '').lower()
                             device_hostname = device.get('hostname', '').lower()
+                            all_found_devices.append(device_display_name or device_hostname)
+                            # Check if device name matches (case-insensitive)
+                            # Also check without special characters for matching
+                            device_name_clean = device_name.replace('~', '').replace(' ', '').lower()
+                            display_clean = device_display_name.replace('~', '').replace(' ', '').lower()
+                            hostname_clean = device_hostname.replace('~', '').replace(' ', '').lower()
                             if (device_name.lower() in device_display_name or 
-                                device_name.lower() in device_hostname):
+                                device_name.lower() in device_hostname or
+                                device_name_clean in display_clean or
+                                device_name_clean in hostname_clean):
                                 found_device = True
                                 break
                     
@@ -515,15 +542,25 @@ def get_airplay_status():
                         for device in devices:
                             device_display_name = device.get('name', '').lower()
                             device_hostname = device.get('hostname', '').lower()
+                            all_found_devices.append(device_display_name or device_hostname)
+                            device_name_clean = device_name.replace('~', '').replace(' ', '').lower()
+                            display_clean = device_display_name.replace('~', '').replace(' ', '').lower()
+                            hostname_clean = device_hostname.replace('~', '').replace(' ', '').lower()
                             if (device_name.lower() in device_display_name or 
-                                device_name.lower() in device_hostname):
+                                device_name.lower() in device_hostname or
+                                device_name_clean in display_clean or
+                                device_name_clean in hostname_clean):
                                 found_device = True
                                 break
                     
                     status['advertising'] = found_device
                     
                     if not found_device:
-                        status['error'] = f'Device "{device_name}" not found in network advertisements'
+                        # Provide more helpful error message with found devices
+                        if all_found_devices:
+                            status['error'] = f'Device "{device_name}" not found. Found devices: {", ".join(set(all_found_devices[:5]))}'
+                        else:
+                            status['error'] = f'Device "{device_name}" not found. No AirPlay devices found on network (avahi-browse returned empty)'
                         
                 except subprocess.TimeoutExpired:
                     status['error'] = 'Avahi browse timed out'
