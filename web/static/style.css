@@ -1380,6 +1380,10 @@ code {
     border-left: 3px solid #95a5a6;
 }
 
+.avahi-section.ap1-section {
+    border-left: 3px solid #95a5a6;
+}
+
 .avahi-section.ap2-section {
     border-left: 3px solid #3498db;
 }

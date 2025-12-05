@@ -163,7 +163,8 @@
             }
             
             // Group entries by service type and extract fields
-            const ap2Fields = new Map(); // AirPlay 2 (_raop._tcp) fields
+            const ap1Fields = new Map(); // AirPlay 1 (_raop._tcp with vv=0 or vv=1) fields
+            const ap2Fields = new Map(); // AirPlay 2 (_raop._tcp with vv=2+) fields
             const apVideoFields = new Map(); // AirPlay Video (_airplay._tcp) fields
             const sharedInfo = {
                 name: null,
@@ -193,23 +194,43 @@
                 
                 // Parse TXT record fields
                 const txtMatches = txtRecord.matchAll(/"([^=]+)=([^"]*)"/g);
-                // Determine service type: AirPlay 2 audio (_raop._tcp or AirTunes) vs AirPlay Video (_airplay._tcp)
+                
+                // Determine service type: AirPlay 1 vs AirPlay 2 vs AirPlay Video
                 let fieldMap = null;
-                // Check for AirPlay 2 audio - matches "AirTunes Remote Audio" or "_raop._tcp"
-                if (serviceType.includes('_raop._tcp') || 
-                    serviceType.includes('airtunes remote audio') ||
-                    (serviceType.includes('airtunes') && serviceType.includes('audio'))) {
-                    fieldMap = ap2Fields;
-                } 
+                let version = null;
+                
+                // Extract version field first to differentiate AirPlay 1 from AirPlay 2
+                for (const match of txtMatches) {
+                    if (match[1] === 'vv') {
+                        version = parseInt(match[2], 10);
+                        break;
+                    }
+                }
+                
+                // Reset iterator for full parsing
+                const txtMatches2 = txtRecord.matchAll(/"([^=]+)=([^"]*)"/g);
+                
                 // Check for AirPlay Video - matches "AirPlay Remote Video" or "_airplay._tcp"
-                else if (serviceType.includes('_airplay._tcp') || 
-                         (serviceType.includes('airplay') && serviceType.includes('video')) ||
-                         serviceType.includes('airplay remote video')) {
+                if (serviceType.includes('_airplay._tcp') || 
+                    (serviceType.includes('airplay') && serviceType.includes('video')) ||
+                    serviceType.includes('airplay remote video')) {
                     fieldMap = apVideoFields;
+                }
+                // Check for AirPlay 1 or AirPlay 2 audio - matches "AirTunes Remote Audio" or "_raop._tcp"
+                else if (serviceType.includes('_raop._tcp') || 
+                         serviceType.includes('airtunes remote audio') ||
+                         (serviceType.includes('airtunes') && serviceType.includes('audio'))) {
+                    // Differentiate AirPlay 1 (vv=0 or vv=1) from AirPlay 2 (vv=2+)
+                    // If version is null or undefined, default to AirPlay 2 (most common)
+                    if (version !== null && !isNaN(version) && version < 2) {
+                        fieldMap = ap1Fields;
+                    } else {
+                        fieldMap = ap2Fields;
+                    }
                 }
                 
                 if (fieldMap) {
-                    for (const match of txtMatches) {
+                    for (const match of txtMatches2) {
                         const key = match[1];
                         const value = match[2];
                         // Deduplicate: keep first value found for each field
@@ -220,16 +241,33 @@
                 }
             });
             
-            // Find shared fields (fields that appear in both AP2 and AP Video with same value)
+            // Find shared fields (fields that appear in all service types with same value)
             const sharedFields = new Map();
-            ap2Fields.forEach((value, key) => {
-                if (apVideoFields.has(key) && apVideoFields.get(key) === value) {
-                    sharedFields.set(key, value);
-                }
-            });
+            // Check all combinations: AP1+AP2, AP1+Video, AP2+Video, and all three
+            const allFieldMaps = [
+                { name: 'ap1', map: ap1Fields },
+                { name: 'ap2', map: ap2Fields },
+                { name: 'video', map: apVideoFields }
+            ];
+            
+            // Find fields that are identical across all non-empty maps
+            const nonEmptyMaps = allFieldMaps.filter(fm => fm.map.size > 0);
+            if (nonEmptyMaps.length > 1) {
+                // Check each field in the first map
+                nonEmptyMaps[0].map.forEach((value, key) => {
+                    // Check if this field exists with the same value in all other maps
+                    const isShared = nonEmptyMaps.slice(1).every(fm => 
+                        fm.map.has(key) && fm.map.get(key) === value
+                    );
+                    if (isShared) {
+                        sharedFields.set(key, value);
+                    }
+                });
+            }
             
             // Remove shared fields from individual groups
             sharedFields.forEach((value, key) => {
+                ap1Fields.delete(key);
                 ap2Fields.delete(key);
                 apVideoFields.delete(key);
             });
@@ -259,6 +297,21 @@
                 formatted += '</div>';
             }
             formatted += '</div>';
+            
+            // AirPlay 1 section
+            if (ap1Fields.size > 0) {
+                formatted += '<div class="avahi-section ap1-section">';
+                formatted += '<h5 class="section-header"><span class="material-icons service-icon">volume_up</span> AirPlay 1 (Audio)</h5>';
+                formatted += '<div class="avahi-txt-grid">';
+                ap1Fields.forEach((value, key) => {
+                    const displayName = getFieldDisplayName(key);
+                    const isLongValue = value.length > 40 || /^[0-9a-fA-F:,\s-]+$/.test(value);
+                    const valueClass = isLongValue ? 'txt-value long-value' : 'txt-value';
+                    formatted += `<div class="avahi-txt-item"><span class="txt-label">${escapeHtml(displayName)}:</span> <span class="${valueClass}">${escapeHtml(value)}</span></div>`;
+                });
+                formatted += '</div>';
+                formatted += '</div>';
+            }
             
             // AirPlay 2 section
             if (ap2Fields.size > 0) {
