@@ -85,11 +85,19 @@ if docker_cmd ps --format '{{.Names}}' | grep -q '^shairport-sync$'; then
     echo
     echo "  Component Connections:"
     if docker_cmd exec shairport-sync test -S /var/run/dbus/system_bus_socket 2>/dev/null; then
-        # Check if shairport-sync can connect to Avahi via D-Bus
-        if docker_cmd exec shairport-sync dbus-send --system --print-reply --dest=org.freedesktop.DBus /org/freedesktop/DBus org.freedesktop.DBus.ListNames 2>&1 | grep -q 'org.freedesktop.Avahi' 2>/dev/null; then
+        check_ok "D-Bus socket accessible"
+        # Check if shairport-sync can actually connect to Avahi via D-Bus
+        # Use timeout to prevent hanging
+        DBUS_CHECK=$(timeout 5 docker_cmd exec shairport-sync dbus-send --system --print-reply --dest=org.freedesktop.DBus /org/freedesktop/DBus org.freedesktop.DBus.ListNames 2>&1 | grep -q 'org.freedesktop.Avahi' 2>/dev/null && echo "true" || echo "false")
+        if [ "$DBUS_CHECK" = "true" ]; then
             check_ok "Connected to Avahi (D-Bus connection active)"
         else
-            check_warn "D-Bus socket exists but Avahi service not found"
+            check_fail "D-Bus socket exists but Avahi service not found (cannot connect to Avahi)"
+            # Show D-Bus error details
+            DBUS_ERROR=$(timeout 5 docker_cmd exec shairport-sync dbus-send --system --print-reply --dest=org.freedesktop.DBus /org/freedesktop/DBus org.freedesktop.DBus.ListNames 2>&1 | grep -iE 'error|fail' | head -1 || echo "")
+            if [ -n "$DBUS_ERROR" ]; then
+                echo "    D-Bus error: $DBUS_ERROR"
+            fi
         fi
     else
         check_fail "Not connected to Avahi (D-Bus socket not accessible)"
@@ -151,21 +159,40 @@ if docker_cmd ps --format '{{.Names}}' | grep -q '^shairport-sync$'; then
     # Check mDNS advertisement (what IP is being advertised)
     echo
     echo "  mDNS Advertisement:"
-    if [ -n "$DEVICE_NAME" ] && docker_cmd exec avahi avahi-browse -r _raop._tcp 2>&1 | grep -q "$DEVICE_NAME"; then
-        # Extract the IP address being advertised
-        ADVERTISED_IP=$(docker_cmd exec avahi avahi-browse -r _raop._tcp 2>&1 | grep "$DEVICE_NAME" | grep -oE 'address = \[([0-9.]+)\]' | head -1 | sed 's/address = \[\(.*\)\]/\1/' || echo "")
-        if [ -n "$ADVERTISED_IP" ]; then
-            # Check if it's a Docker bridge IP (172.x.x.x or 10.x.x.x)
-            if echo "$ADVERTISED_IP" | grep -qE '^172\.(1[6-9]|2[0-9]|3[0-1])\.|^10\.'; then
-                check_warn "Service advertised with Docker bridge IP ($ADVERTISED_IP) - clients may not be able to connect"
+    if [ -n "$DEVICE_NAME" ]; then
+        # Check both AirPlay 2 (_raop._tcp) and AirPlay 1 (_airplay._tcp)
+        # Use timeout to prevent hanging
+        FOUND_IN_RAOP=$(timeout 8 docker_cmd exec avahi avahi-browse -rpt _raop._tcp 2>&1 | grep -qiE "$(echo "$DEVICE_NAME" | sed 's/~/.*/g' | sed 's/[()]/.*/g')" && echo "true" || echo "false")
+        FOUND_IN_AIRPLAY1=$(timeout 8 docker_cmd exec avahi avahi-browse -rpt _airplay._tcp 2>&1 | grep -qiE "$(echo "$DEVICE_NAME" | sed 's/~/.*/g' | sed 's/[()]/.*/g')" && echo "true" || echo "false")
+        
+        if [ "$FOUND_IN_RAOP" = "true" ] || [ "$FOUND_IN_AIRPLAY1" = "true" ]; then
+            # Extract the IP address being advertised (prefer RAOP if found)
+            SERVICE_TYPE="_raop._tcp"
+            if [ "$FOUND_IN_RAOP" = "false" ]; then
+                SERVICE_TYPE="_airplay._tcp"
+            fi
+            
+            ADVERTISED_IP=$(timeout 8 docker_cmd exec avahi avahi-browse -rpt "$SERVICE_TYPE" 2>&1 | grep -iE "$(echo "$DEVICE_NAME" | sed 's/~/.*/g' | sed 's/[()]/.*/g')" | grep -oE 'address = \[([0-9.]+)\]' | head -1 | sed 's/address = \[\(.*\)\]/\1/' || echo "")
+            if [ -n "$ADVERTISED_IP" ]; then
+                # Check if it's a Docker bridge IP (172.x.x.x or 10.x.x.x)
+                if echo "$ADVERTISED_IP" | grep -qE '^172\.(1[6-9]|2[0-9]|3[0-1])\.|^10\.'; then
+                    check_warn "Service advertised with Docker bridge IP ($ADVERTISED_IP) - clients may not be able to connect"
+                else
+                    check_ok "Service advertised with IP: $ADVERTISED_IP"
+                fi
             else
-                check_ok "Service advertised with IP: $ADVERTISED_IP"
+                check_warn "Could not determine advertised IP address"
             fi
         else
-            check_warn "Could not determine advertised IP address"
+            check_fail "Service '$DEVICE_NAME' not found in mDNS browse"
+            # Show what devices were actually found
+            FOUND_DEVICES=$(timeout 8 docker_cmd exec avahi avahi-browse -rpt _raop._tcp 2>&1 | grep -oE 'hostname = \[.*\]' | sed 's/hostname = \[\(.*\)\]/\1/' | sort -u | head -5 | tr '\n' ',' | sed 's/,$//' || echo "None")
+            if [ -n "$FOUND_DEVICES" ] && [ "$FOUND_DEVICES" != "None" ]; then
+                echo "    Found devices: $FOUND_DEVICES"
+            fi
         fi
     else
-        check_warn "Service '$DEVICE_NAME' not found in mDNS browse"
+        check_warn "Device name not configured (cannot check advertisement)"
     fi
     
     # Check connection logs for errors

@@ -10,7 +10,7 @@ check_ok() {
     if [ "$JSON_OUTPUT" = "true" ]; then
         echo "{\"status\":\"ok\",\"message\":\"$1\"}"
     else
-        echo "[OK] $1"
+    echo "[OK] $1"
     fi
 }
 
@@ -18,7 +18,7 @@ check_fail() {
     if [ "$JSON_OUTPUT" = "true" ]; then
         echo "{\"status\":\"error\",\"message\":\"$1\"}"
     else
-        echo "[ERROR] $1"
+    echo "[ERROR] $1"
     fi
 }
 
@@ -26,16 +26,16 @@ check_warn() {
     if [ "$JSON_OUTPUT" = "true" ]; then
         echo "{\"status\":\"warn\",\"message\":\"$1\"}"
     else
-        echo "[WARN] $1"
+    echo "[WARN] $1"
     fi
 }
 
 section() {
     if [ "$JSON_OUTPUT" != "true" ]; then
-        echo
-        echo "─────────────────────────────────────────────────────────────"
-        echo "  $1"
-        echo "─────────────────────────────────────────────────────────────"
+    echo
+    echo "─────────────────────────────────────────────────────────────"
+    echo "  $1"
+    echo "─────────────────────────────────────────────────────────────"
     fi
 }
 

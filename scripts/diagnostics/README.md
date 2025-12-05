@@ -224,6 +224,86 @@ Install jq using your package manager (see Requirements section).
 - Check firewall rules if running remotely
 - Ensure LedFX container is running: `docker ps | grep ledfx`
 
+### AirPlay Service Not Advertising
+
+The diagnostic scripts now include comprehensive checks for AirPlay advertisement issues:
+
+#### Avahi Startup Issues
+
+**Symptoms:**
+- Avahi container is running but service not advertised
+- D-Bus socket binding conflicts in logs
+- PID file conflicts preventing startup
+
+**Diagnostic Checks:**
+1. **D-Bus Socket Conflicts**: The script checks for "Failed to bind socket" errors indicating Avahi is trying to start its own `dbus-daemon` while the host D-Bus socket is already mounted
+2. **PID File Conflicts**: Checks for "PID file exists" errors indicating stale PID files
+3. **Startup Success**: Verifies Avahi successfully dropped privileges and started
+
+**Common Fixes:**
+- Ensure Avahi Dockerfile doesn't start its own `dbus-daemon` (use host D-Bus socket)
+- Clean stale PID files: `rm -f /var/run/avahi-daemon/pid /run/avahi-daemon/pid`
+- Verify host D-Bus socket is accessible: `test -S /var/run/dbus/system_bus_socket`
+
+#### D-Bus Connection Issues
+
+**Symptoms:**
+- Shairport-sync cannot connect to Avahi
+- D-Bus socket exists but service not found
+
+**Diagnostic Checks:**
+1. **Socket Accessibility**: Verifies D-Bus socket exists and is accessible to shairport-sync
+2. **Service Registration**: Uses `dbus-send` to verify Avahi service is actually registered on D-Bus
+3. **Connection Errors**: Captures and displays D-Bus connection errors
+
+**Common Fixes:**
+- Ensure D-Bus socket is bind-mounted: `/var/run/dbus:/var/run/dbus:ro` in docker-compose.yml
+- Verify Avahi is actually running: `docker exec avahi pgrep avahi-daemon`
+- Check D-Bus permissions: Ensure containers can access the socket
+
+#### Network Advertisement Issues
+
+**Symptoms:**
+- Device name configured but not appearing in AirPlay browser
+- Service found in logs but not discoverable by clients
+
+**Diagnostic Checks:**
+1. **Both Service Types**: Checks both `_raop._tcp` (AirPlay 2) and `_airplay._tcp` (AirPlay 1)
+2. **Device Name Matching**: Handles special characters (tildes, spaces, parentheses) in device names
+3. **IP Address Validation**: Verifies advertised IP is not a Docker bridge IP (172.x.x.x or 10.x.x.x)
+4. **Host IP Detection**: Checks if Avahi detected and wrote the host IP correctly
+
+**Common Fixes:**
+- Verify device name matches exactly (case-sensitive, special characters matter)
+- Check advertised IP is the host IP, not container IP
+- Ensure Avahi is running on host networking mode
+- Verify reflector mode is enabled for bridge networking scenarios
+
+#### Diagnostic Commands
+
+The scripts use these techniques internally, but you can also run them manually:
+
+```bash
+# Check Avahi logs for startup issues
+docker logs avahi --tail 50 | grep -iE 'error|fail|bind|pid'
+
+# Check D-Bus connection from shairport-sync
+docker exec shairport-sync dbus-send --system --print-reply \
+  --dest=org.freedesktop.DBus /org/freedesktop/DBus \
+  org.freedesktop.DBus.ListNames | grep Avahi
+
+# Check network advertisement (with timeout)
+timeout 8 docker exec avahi avahi-browse -rpt _raop._tcp | grep -i airglow
+
+# Check host IP detection
+docker exec avahi cat /var/run/avahi-daemon/host-ip.txt
+
+# Verify device name configuration
+docker exec shairport-sync shairport-sync --displayConfig | grep -i 'name ='
+```
+
+**Important**: Always use `timeout` when running `avahi-browse` or `dbus-send` commands to prevent hanging.
+
 ## Integration
 
 ### Web Interface

@@ -41,7 +41,7 @@ if docker_cmd ps --format '{{.Names}}' | grep -q '^ledfx$'; then
         # Check if socket is accessible even if no active stream
         if docker_cmd exec shairport-sync test -S /pulse/pulseaudio.socket 2>/dev/null; then
             check_ok "Connected to Shairport-Sync (socket accessible, no active stream)"
-        else
+    else
             check_warn "Not connected to Shairport-Sync (socket not accessible)"
         fi
     fi
