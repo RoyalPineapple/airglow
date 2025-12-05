@@ -617,21 +617,44 @@ def get_diagnostic_warnings():
 @app.route('/api/status')
 def status():
     """Get comprehensive status information"""
-    # Get container statuses with versions for all containers (excluding airglow-web as it's the UI itself)
-    containers = {
-        'avahi': check_container_status('avahi'),
-        'nqptp': check_container_status('nqptp'),
-        'ledfx': check_container_status('ledfx'),
-        'shairport_sync': check_container_status('shairport-sync')
-    }
-    
-    # Format container data
+    # Dynamically get all running containers from Docker (excluding airglow-web as it's the UI itself)
     container_data = {}
-    for name, status in containers.items():
-        container_data[name] = {
-            'running': status['running'],
-            'version': status.get('version')
+    try:
+        # Get all container names from docker-compose
+        result = subprocess.run(
+            ['docker', 'ps', '--format', '{{.Names}}'],
+            capture_output=True,
+            text=True,
+            timeout=5
+        )
+        if result.returncode == 0:
+            container_names = [name.strip() for name in result.stdout.split('\n') if name.strip()]
+            # Filter out airglow-web and check status for each container
+            for container_name in container_names:
+                if container_name != 'airglow-web':
+                    # Map container name to key (e.g., 'shairport-sync' -> 'shairport_sync')
+                    key = container_name.replace('-', '_')
+                    status = check_container_status(container_name)
+                    container_data[key] = {
+                        'running': status['running'],
+                        'version': status.get('version'),
+                        'container_name': container_name  # Store original name for restart button
+                    }
+    except Exception as e:
+        logger.warning(f"Could not query Docker for containers: {e}")
+        # Fallback to checking known containers if Docker query fails
+        known_containers = {
+            'avahi': 'avahi',
+            'ledfx': 'ledfx',
+            'shairport_sync': 'shairport-sync'
         }
+        for key, container_name in known_containers.items():
+            status = check_container_status(container_name)
+            container_data[key] = {
+                'running': status['running'],
+                'version': status.get('version'),
+                'container_name': container_name
+            }
     
     # Get diagnostic warnings (non-blocking - return immediately if it takes too long)
     # Diagnostics are loaded asynchronously by the frontend to avoid blocking page load

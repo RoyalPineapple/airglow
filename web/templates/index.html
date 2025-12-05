@@ -85,15 +85,31 @@
 
                 // Calculate overall system health
                 const containers = data.containers || {};
-                // Order containers by dependency: avahi -> nqptp -> ledfx -> shairport-sync
-                // Exclude airglow-web as it's the UI itself
-                const containerOrder = ['avahi', 'nqptp', 'ledfx', 'shairport_sync'];
+                // Define display names for known containers
                 const containerNames = {
                     'avahi': 'Avahi',
                     'nqptp': 'NQPTP',
                     'ledfx': 'LedFX',
                     'shairport_sync': 'Shairport-Sync'
                 };
+                // Define preferred order for known containers (others will appear after)
+                const preferredOrder = ['avahi', 'ledfx', 'shairport_sync'];
+                // Build ordered list: preferred containers first, then any others
+                const containerOrder = [];
+                const seen = new Set();
+                // Add preferred containers that exist in data
+                for (const key of preferredOrder) {
+                    if (containers[key]) {
+                        containerOrder.push(key);
+                        seen.add(key);
+                    }
+                }
+                // Add any other containers that weren't in preferred order
+                for (const key of Object.keys(containers)) {
+                    if (!seen.has(key)) {
+                        containerOrder.push(key);
+                    }
+                }
                 
                 let runningCount = 0;
                 let totalCount = 0;
@@ -204,9 +220,12 @@
                     if (!containers[key]) continue; // Skip if container not in data
                     
                     const container = containers[key];
-                    const displayName = containerNames[key] || key;
-                    const containerName = key === 'shairport_sync' ? 'shairport-sync' : 
-                                         key === 'airglow_web' ? 'airglow-web' : key;
+                    const displayName = containerNames[key] || key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                    // Use container_name from API if available, otherwise derive from key
+                    const containerName = container.container_name || 
+                                         (key === 'shairport_sync' ? 'shairport-sync' : 
+                                          key === 'airglow_web' ? 'airglow-web' : 
+                                          key.replace(/_/g, '-'));
                     const statusHtml = formatStatus(container.running, 'Running', 'Stopped');
                     const versionHtml = formatVersion(container.version);
                     const restartBtnId = `restart-${key}`;
