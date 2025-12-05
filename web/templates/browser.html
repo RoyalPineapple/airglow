@@ -189,38 +189,28 @@
             }
             
             let formatted = '<div class="avahi-entry">';
-            formatted += '<div class="avahi-header">';
-            formatted += `<span class="avahi-event">${escapeHtml(eventType)}</span> `;
+            formatted += '<div class="avahi-header-compact">';
+            formatted += `<span class="avahi-event">${escapeHtml(eventType)}</span>`;
             const displayServiceType = serviceTypeLabel || serviceType;
-            formatted += `<span class="avahi-service">${escapeHtml(displayServiceType)}</span>`;
-            if (hasMultiple) {
-                formatted += ' <span class="avahi-multiple">(multiple entries)</span>';
-            }
+            formatted += `<span class="avahi-service-compact">${escapeHtml(displayServiceType)}</span>`;
             formatted += '</div>';
             
-            formatted += '<div class="avahi-fields">';
-            formatted += '<div class="avahi-field-group">';
-            formatted += '<h5>Service Information</h5>';
-            formatted += `<div class="avahi-field"><span class="field-label">Name:</span> <span class="field-value">${escapeHtml(decodedName)}</span></div>`;
-            formatted += `<div class="avahi-field"><span class="field-label">Type:</span> <span class="field-value">${escapeHtml(serviceType)}</span></div>`;
-            formatted += `<div class="avahi-field"><span class="field-label">Domain:</span> <span class="field-value">${escapeHtml(domain)}</span></div>`;
+            formatted += '<div class="avahi-fields-compact">';
+            // Compact info row
+            formatted += '<div class="avahi-info-row">';
+            formatted += `<span class="info-item"><strong>Name:</strong> ${escapeHtml(decodedName)}</span>`;
+            formatted += `<span class="info-item"><strong>Hostname:</strong> ${escapeHtml(hostname)}</span>`;
+            formatted += `<span class="info-item"><strong>Address:</strong> ${escapeHtml(address)}</span>`;
+            formatted += `<span class="info-item"><strong>Port:</strong> ${escapeHtml(port)}</span>`;
+            formatted += `<span class="info-item"><strong>Protocol:</strong> ${escapeHtml(protocol)}</span>`;
             formatted += '</div>';
             
-            formatted += '<div class="avahi-field-group">';
-            formatted += '<h5>Network Information</h5>';
-            formatted += `<div class="avahi-field"><span class="field-label">Interface:</span> <span class="field-value">${escapeHtml(interface)}</span></div>`;
-            formatted += `<div class="avahi-field"><span class="field-label">Protocol:</span> <span class="field-value">${escapeHtml(protocol)}</span></div>`;
-            formatted += `<div class="avahi-field"><span class="field-label">Hostname:</span> <span class="field-value">${escapeHtml(hostname)}</span></div>`;
-            formatted += `<div class="avahi-field"><span class="field-label">Address:</span> <span class="field-value">${escapeHtml(address)}</span></div>`;
-            formatted += `<div class="avahi-field"><span class="field-label">Port:</span> <span class="field-value">${escapeHtml(port)}</span></div>`;
-            formatted += '</div>';
-            
+            // TXT fields in compact grid
             if (Object.keys(txtFields).length > 0) {
-                formatted += '<div class="avahi-field-group">';
-                formatted += '<h5>TXT Record Fields</h5>';
+                formatted += '<div class="avahi-txt-grid">';
                 for (const [key, value] of Object.entries(txtFields)) {
                     const displayName = getFieldDisplayName(key);
-                    formatted += `<div class="avahi-field"><span class="field-label">${escapeHtml(displayName)}:</span> <span class="field-value">${escapeHtml(value)}</span></div>`;
+                    formatted += `<div class="avahi-txt-item"><span class="txt-label">${escapeHtml(displayName)}:</span> <span class="txt-value">${escapeHtml(value)}</span></div>`;
                 }
                 formatted += '</div>';
             }
