@@ -159,51 +159,9 @@
                 return '';
             }
             
-            // Group entries by service type and hostname to deduplicate
-            const serviceGroups = new Map();
-            
-            rawLines.forEach(line => {
-                if (!line || !line.includes(';')) {
-                    return;
-                }
-                
-                const parts = line.split(';');
-                if (parts.length < 10) {
-                    return;
-                }
-                
-                const serviceType = parts[4];
-                const hostname = parts[6];
-                const address = parts[7];
-                
-                // Create a key from service type and hostname
-                const groupKey = `${serviceType}|${hostname}`;
-                
-                if (!serviceGroups.has(groupKey)) {
-                    serviceGroups.set(groupKey, []);
-                }
-                
-                serviceGroups.get(groupKey).push({
-                    line: line,
-                    address: address,
-                    // Prefer external IPs (192.168.x.x, 10.x.x.x) over Docker internal (172.x.x.x) and loopback (127.0.0.1)
-                    priority: address.startsWith('127.0.0.1') ? 3 : 
-                             address.startsWith('172.') ? 2 : 
-                             address.startsWith('192.168.') || address.startsWith('10.') ? 1 : 0
-                });
-            });
-            
-            // For each service group, pick the best entry (lowest priority = best)
-            const uniqueLines = [];
-            serviceGroups.forEach((entries) => {
-                // Sort by priority (lower is better), then pick the first one
-                entries.sort((a, b) => a.priority - b.priority);
-                uniqueLines.push(entries[0].line);
-            });
-            
-            // Format all unique entries
+            // Show all entries - no deduplication
             let formatted = '';
-            uniqueLines.forEach((line, index) => {
+            rawLines.forEach((line, index) => {
                 formatted += formatAvahiLine(line, null, false);
             });
             

@@ -1117,8 +1117,7 @@ def parse_avahi_browse_output(output):
         return devices
     
     lines = output.split('\n')
-    device_map = {}  # Track devices by name to avoid duplicates (IPv4/IPv6)
-    raw_lines_map = {}  # Store raw lines for each device
+    device_map = {}  # Group devices by hostname
     
     for line in lines:
         line = line.strip()
@@ -1180,51 +1179,60 @@ def parse_avahi_browse_output(output):
                     if ft_match:
                         feature_flags = ft_match.group(1)
                 
-                # Use hostname as key to deduplicate (same device may appear on IPv4 and IPv6)
-                # Prefer IPv4 over IPv6 - only keep the primary address
+                # Use hostname as key to consolidate (same device may appear on multiple interfaces)
                 if hostname:
                     device_key = hostname.lower()
                 else:
                     # No hostname - use device name as fallback key
                     device_key = device_name.lower()
                 
-                # Always add raw line for this device
-                if device_key not in raw_lines_map:
-                    raw_lines_map[device_key] = []
-                raw_lines_map[device_key].append(line)
-                
+                # Initialize device entry if not exists
                 if device_key not in device_map:
-                    # New device - create entry
                     device_map[device_key] = {
                         'name': device_name,
                         'interface': interface,
                         'protocol': protocol,
                         'hostname': hostname,
-                        'address': address,
+                        'address': address,  # Prefer first address found
                         'port': port,
                         'firmware_version': firmware_version,
-                        'feature_flags': feature_flags
+                        'feature_flags': feature_flags,
+                        'raw_avahi_data': []
                     }
-                else:
-                    # Existing device - prefer IPv4 over IPv6
-                    existing = device_map[device_key]
-                    # Only update if we have IPv4 and existing is IPv6, or if existing has no address
-                    if (protocol == 'IPv4' and existing.get('protocol') == 'IPv6') or not existing.get('address'):
+                
+                # Add raw line to this device's data
+                device_map[device_key]['raw_avahi_data'].append(line)
+                
+                # Prefer IPv4 addresses and external IPs (192.168.x.x) over Docker internal (172.x.x.x) and loopback
+                existing = device_map[device_key]
+                if address:
+                    # Prefer 192.168.x.x addresses
+                    if address.startswith('192.168.') and not existing['address'].startswith('192.168.'):
                         existing['address'] = address
+                        existing['interface'] = interface
                         existing['protocol'] = protocol
-                    # Update firmware/features if missing
-                    if not existing.get('firmware_version') and firmware_version:
-                        existing['firmware_version'] = firmware_version
-                    if not existing.get('feature_flags') and feature_flags:
-                        existing['feature_flags'] = feature_flags
+                    # Prefer IPv4 over IPv6
+                    elif protocol == 'IPv4' and existing.get('protocol') == 'IPv6':
+                        existing['address'] = address
+                        existing['interface'] = interface
+                        existing['protocol'] = protocol
+                    # Update if no address set
+                    elif not existing.get('address'):
+                        existing['address'] = address
+                        existing['interface'] = interface
+                        existing['protocol'] = protocol
+                
+                # Update firmware/features if missing
+                if not existing.get('firmware_version') and firmware_version:
+                    existing['firmware_version'] = firmware_version
+                if not existing.get('feature_flags') and feature_flags:
+                    existing['feature_flags'] = feature_flags
     
-    # Convert device map to list - use single address only
+    # Convert device map to list
+    devices = []
     for device_key, device in device_map.items():
         if device.get('address') or device.get('hostname'):
-            # Use single address only - no consolidation display
             device['address_display'] = device.get('address', '—')
-            # Add raw avahi data
-            device['raw_avahi_data'] = raw_lines_map.get(device_key, [])
             devices.append(device)
     
     return devices
