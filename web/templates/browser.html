@@ -88,51 +88,112 @@
             });
         }
 
-        // Field name expansions (abbreviations to full names)
-        // Only includes fields documented in OpenAirPlay spec: https://openairplay.github.io/airplay-spec/service_discovery.html
+        // Field name expansions from OpenAirPlay spec: https://openairplay.github.io/airplay-spec/service_discovery.html
         const fieldNameExpansions = {
             // _raop._tcp (AirPlay 1) fields
-            'txtvers': 'TXT Record Version',
-            'ch': 'Audio Channels',
-            'cn': 'Audio Codecs',
-            'et': 'Encryption Types',
-            'md': 'Metadata Types',
-            'pw': 'Password Required',
-            'sr': 'Sample Rate',
-            'ss': 'Sample Size',
-            'tp': 'Transport Protocol',
-            'vs': 'Server Version',
-            'am': 'Device Model',
-            'sf': 'Status Flags',
-            'vn': 'Version Number',
-            'da': 'Device Authentication',
-            'ft': 'Feature Flags',
-            'fv': 'Firmware Version',
+            'txtvers': 'TXT record version',
+            'ch': 'Audio channels',
+            'cn': 'Audio codecs',
+            'et': 'Supported encryption types',
+            'md': 'Supported metadata types',
+            'pw': 'Does the speaker require a password?',
+            'sr': 'Audio sample rate',
+            'ss': 'Audio sample size',
+            'tp': 'Supported transport',
+            'vs': 'Server version',
+            'am': 'Device model',
+            'sf': 'Status flags',
+            'vn': 'Version number',
+            'da': 'Device authentication',
+            'ft': 'Feature flags',
+            'fv': 'Device firmware version',
             // _airplay._tcp (AirPlay 2 Video) fields
-            'model': 'Device Model',
-            'manufacturer': 'Manufacturer',
-            'serialNumber': 'Serial Number',
-            'osvers': 'OS Version',
+            'model': 'Device model',
+            'manufacturer': 'Device manufacturer',
+            'serialNumber': 'Device serial number',
+            'osvers': 'Device OS version',
             'deviceid': 'Device ID',
-            'features': 'Features',
-            'acl': 'Access Control Level',
-            'srcvers': 'AirPlay Version',
-            'flags': 'Status Flags',
-            'pk': 'Public Key',
-            'pi': 'Pairing ID',
-            'psi': 'Pairing Session ID',
-            'gid': 'Group ID',
-            'gcgl': 'Group Contains Group Leader',
-            'igl': 'Is Group Leader',
-            'gpn': 'Group Public Name',
-            'hgid': 'Home Group ID',
+            'features': 'Bitfield of supported features',
+            'acl': 'Access control level',
+            'srcvers': 'AirPlay version',
+            'flags': 'Bitfield of status flags',
+            'pk': 'Public key',
+            'pi': 'Group ID / PublicCUAirPlayPairingIdentifier',
+            'psi': 'PublicCUSystemPairingIdentifier',
+            'gid': 'Group UUID',
+            'gcgl': 'Group contains group leader / Group contains discoverable leader',
+            'igl': 'Is group leader',
+            'gpn': 'Group public name',
+            'hgid': 'Home group UUID',
             'hmid': 'Household ID',
-            'pgcgl': 'Parent Group Contains Group Leader',
-            'pgid': 'Parent Group ID',
+            'pgcgl': 'Parent group contains discoverable leader',
+            'pgid': 'Parent group UUID',
             'tsid': 'TSID',
-            'rsf': 'Required Sender Features',
-            'protovers': 'Protocol Version',
+            'rsf': 'Required sender features',
+            'protovers': 'Protocol version',
             'vv': 'Version' // "vodka version" - documented but value meaning unclear
+        };
+        
+        // Value translations from OpenAirPlay spec
+        const valueTranslations = {
+            'cn': {
+                '0': 'PCM',
+                '1': 'Apple Lossless (ALAC)',
+                '2': 'AAC',
+                '3': 'AAC ELD (Enhanced Low Delay)'
+            },
+            'et': {
+                '0': 'No encryption',
+                '1': 'RSA (AirPort Express)',
+                '3': 'FairPlay',
+                '4': 'MFiSAP (3rd-party devices)',
+                '5': 'FairPlay SAPv2.5'
+            },
+            'md': {
+                '0': 'Text metadata',
+                '1': 'Artwork metadata',
+                '2': 'Progress metadata',
+                '50': 'bplist metadata'
+            },
+            'tp': {
+                'UDP': 'UDP',
+                'TCP,UDP': 'TCP or UDP',
+                'TCP': 'TCP'
+            },
+            'pw': {
+                'true': 'Yes',
+                'false': 'No'
+            },
+            'da': {
+                'true': 'Yes',
+                'false': 'No'
+            },
+            'gcgl': {
+                '0': 'No',
+                '1': 'Yes'
+            },
+            'igl': {
+                '0': 'No',
+                '1': 'Yes'
+            },
+            'pgcgl': {
+                '0': 'No',
+                '1': 'Yes'
+            },
+            'ch': {
+                '2': 'Stereo'
+            },
+            'sr': {
+                '44100': '44100 Hz',
+                '88200': '88200 Hz',
+                '176400': '176400 Hz'
+            },
+            'ss': {
+                '8': '8-bit',
+                '16': '16-bit',
+                '24': '24-bit',
+                '32': '32-bit'
+            }
         };
         
         // Fields documented in OpenAirPlay spec - only show these
@@ -142,6 +203,28 @@
             'pk', 'pi', 'psi', 'gid', 'gcgl', 'igl', 'gpn', 'hgid', 'hmid', 'pgcgl', 'pgid', 'tsid', 'rsf',
             'protovers', 'vv'
         ]);
+        
+        function translateValue(fieldName, value) {
+            // Handle comma-separated values (e.g., cn=0,1,2,3)
+            if (value.includes(',')) {
+                const parts = value.split(',');
+                const translated = parts.map(part => {
+                    const trimmed = part.trim();
+                    if (valueTranslations[fieldName] && valueTranslations[fieldName][trimmed]) {
+                        return valueTranslations[fieldName][trimmed];
+                    }
+                    return trimmed;
+                });
+                return translated.join(', ');
+            }
+            
+            // Handle single values
+            if (valueTranslations[fieldName] && valueTranslations[fieldName][value]) {
+                return valueTranslations[fieldName][value];
+            }
+            
+            return value;
+        }
 
         function getFieldDisplayName(fieldName) {
             return fieldNameExpansions[fieldName] || fieldName;
@@ -330,9 +413,10 @@
                 formatted += '<div class="avahi-txt-grid">';
                 ap1Fields.forEach((value, key) => {
                     const displayName = getFieldDisplayName(key);
-                    const isLongValue = value.length > 40 || /^[0-9a-fA-F:,\s-]+$/.test(value);
+                    const translatedValue = translateValue(key, value);
+                    const isLongValue = translatedValue.length > 40 || /^[0-9a-fA-F:,\s-]+$/.test(translatedValue);
                     const valueClass = isLongValue ? 'txt-value long-value' : 'txt-value';
-                    formatted += `<div class="avahi-txt-item"><span class="txt-label">${escapeHtml(displayName)}:</span> <span class="${valueClass}">${escapeHtml(value)}</span></div>`;
+                    formatted += `<div class="avahi-txt-item"><span class="txt-label">${escapeHtml(displayName)}:</span> <span class="${valueClass}">${escapeHtml(translatedValue)}</span></div>`;
                 });
                 formatted += '</div>';
                 formatted += '</div>';
@@ -345,9 +429,10 @@
                 formatted += '<div class="avahi-txt-grid">';
                 ap2Fields.forEach((value, key) => {
                     const displayName = getFieldDisplayName(key);
-                    const isLongValue = value.length > 40 || /^[0-9a-fA-F:,\s-]+$/.test(value);
+                    const translatedValue = translateValue(key, value);
+                    const isLongValue = translatedValue.length > 40 || /^[0-9a-fA-F:,\s-]+$/.test(translatedValue);
                     const valueClass = isLongValue ? 'txt-value long-value' : 'txt-value';
-                    formatted += `<div class="avahi-txt-item"><span class="txt-label">${escapeHtml(displayName)}:</span> <span class="${valueClass}">${escapeHtml(value)}</span></div>`;
+                    formatted += `<div class="avahi-txt-item"><span class="txt-label">${escapeHtml(displayName)}:</span> <span class="${valueClass}">${escapeHtml(translatedValue)}</span></div>`;
                 });
                 formatted += '</div>';
                 formatted += '</div>';
@@ -360,9 +445,10 @@
                 formatted += '<div class="avahi-txt-grid">';
                 apVideoFields.forEach((value, key) => {
                     const displayName = getFieldDisplayName(key);
-                    const isLongValue = value.length > 40 || /^[0-9a-fA-F:,\s-]+$/.test(value);
+                    const translatedValue = translateValue(key, value);
+                    const isLongValue = translatedValue.length > 40 || /^[0-9a-fA-F:,\s-]+$/.test(translatedValue);
                     const valueClass = isLongValue ? 'txt-value long-value' : 'txt-value';
-                    formatted += `<div class="avahi-txt-item"><span class="txt-label">${escapeHtml(displayName)}:</span> <span class="${valueClass}">${escapeHtml(value)}</span></div>`;
+                    formatted += `<div class="avahi-txt-item"><span class="txt-label">${escapeHtml(displayName)}:</span> <span class="${valueClass}">${escapeHtml(translatedValue)}</span></div>`;
                 });
                 formatted += '</div>';
                 formatted += '</div>';
