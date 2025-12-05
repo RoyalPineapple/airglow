@@ -270,12 +270,10 @@
                 return '';
             }
             
-            // Group entries by service type and extract fields
-            const ap1Fields = new Map(); // AirPlay 1 (_raop._tcp with vv=0 or vv=1) fields
-            const ap2Fields = new Map(); // AirPlay 2 (_raop._tcp with vv=2+) fields
-            const apVideoFields = new Map(); // AirPlay Video (_airplay._tcp) fields
-            const sharedInfo = {
-                name: null,
+            // Group entries by service type (as per OpenAirPlay spec)
+            const raopFields = new Map(); // _raop._tcp (Audio) fields
+            const airplayFields = new Map(); // _airplay._tcp (Video) fields
+            const deviceInfo = {
                 hostname: null,
                 address: null,
                 port: null,
@@ -294,47 +292,29 @@
                 const port = parts[8];
                 const txtRecord = parts.slice(9).join(';');
                 
-                // Store shared info (use first valid value)
-                if (!sharedInfo.hostname && hostname) sharedInfo.hostname = hostname;
-                if (!sharedInfo.address && address) sharedInfo.address = address;
-                if (!sharedInfo.port && port) sharedInfo.port = port;
-                if (!sharedInfo.protocol && parts[2]) sharedInfo.protocol = parts[2];
+                // Store device info (use first valid value)
+                if (!deviceInfo.hostname && hostname) deviceInfo.hostname = hostname;
+                if (!deviceInfo.address && address) deviceInfo.address = address;
+                if (!deviceInfo.port && port) deviceInfo.port = port;
+                if (!deviceInfo.protocol && parts[2]) deviceInfo.protocol = parts[2];
                 
                 // Parse TXT record fields
                 const txtMatches = txtRecord.matchAll(/"([^=]+)=([^"]*)"/g);
                 
-                // Determine service type: AirPlay 1 vs AirPlay 2 vs AirPlay Video
+                // Determine service type per OpenAirPlay spec
                 let fieldMap = null;
-                let version = null;
                 
-                // Extract version field first to differentiate AirPlay 1 from AirPlay 2
-                for (const match of txtMatches) {
-                    if (match[1] === 'vv') {
-                        version = parseInt(match[2], 10);
-                        break;
-                    }
-                }
-                
-                // Reset iterator for full parsing
-                const txtMatches2 = txtRecord.matchAll(/"([^=]+)=([^"]*)"/g);
-                
-                // Check for AirPlay Video - matches "AirPlay Remote Video" or "_airplay._tcp"
+                // Check for _airplay._tcp (Video service)
                 if (serviceType.includes('_airplay._tcp') || 
                     (serviceType.includes('airplay') && serviceType.includes('video')) ||
                     serviceType.includes('airplay remote video')) {
-                    fieldMap = apVideoFields;
+                    fieldMap = airplayFields;
                 }
-                // Check for AirPlay 1 or AirPlay 2 audio - matches "AirTunes Remote Audio" or "_raop._tcp"
+                // Check for _raop._tcp (Audio service - both AirPlay 1 and 2)
                 else if (serviceType.includes('_raop._tcp') || 
                          serviceType.includes('airtunes remote audio') ||
                          (serviceType.includes('airtunes') && serviceType.includes('audio'))) {
-                    // Differentiate AirPlay 1 (vv=0) from AirPlay 2 (vv=1)
-                    // If version is null or undefined, default to AirPlay 2 (most common)
-                    if (version !== null && !isNaN(version) && version === 0) {
-                        fieldMap = ap1Fields;
-                    } else {
-                        fieldMap = ap2Fields;
-                    }
+                    fieldMap = raopFields;
                 }
                 
                 if (fieldMap) {
@@ -380,38 +360,24 @@
                 apVideoFields.delete(key);
             });
             
-            // Build formatted output
+            // Build formatted output based on OpenAirPlay spec structure
             let formatted = '<div class="avahi-consolidated">';
             
-            // Shared info and common fields section (no separate label)
-            formatted += '<div class="avahi-section shared-section">';
+            // Device information (network-level, not service-specific)
+            formatted += '<div class="avahi-section device-info-section">';
             formatted += '<div class="avahi-info-row">';
-            if (sharedInfo.hostname) formatted += `<span class="info-item"><strong>Hostname:</strong> ${escapeHtml(sharedInfo.hostname)}</span>`;
-            if (sharedInfo.address) formatted += `<span class="info-item"><strong>Address:</strong> ${escapeHtml(sharedInfo.address)}</span>`;
-            if (sharedInfo.port) formatted += `<span class="info-item"><strong>Port:</strong> ${escapeHtml(sharedInfo.port)}</span>`;
-            if (sharedInfo.protocol) formatted += `<span class="info-item"><strong>Protocol:</strong> ${escapeHtml(sharedInfo.protocol)}</span>`;
+            if (deviceInfo.hostname) formatted += `<span class="info-item"><strong>Hostname:</strong> ${escapeHtml(deviceInfo.hostname)}</span>`;
+            if (deviceInfo.address) formatted += `<span class="info-item"><strong>Address:</strong> ${escapeHtml(deviceInfo.address)}</span>`;
+            if (deviceInfo.port) formatted += `<span class="info-item"><strong>Port:</strong> ${escapeHtml(deviceInfo.port)}</span>`;
+            if (deviceInfo.protocol) formatted += `<span class="info-item"><strong>Protocol:</strong> ${escapeHtml(deviceInfo.protocol)}</span>`;
+            formatted += '</div>';
             formatted += '</div>';
             
-            // Common fields (no separate header)
-            if (sharedFields.size > 0) {
+            // Common fields (appear in both _raop._tcp and _airplay._tcp)
+            if (commonFields.size > 0) {
+                formatted += '<div class="avahi-section common-fields-section">';
                 formatted += '<div class="avahi-txt-grid">';
-                sharedFields.forEach((value, key) => {
-                    const displayName = getFieldDisplayName(key);
-                    const translatedValue = translateValue(key, value);
-                    const isLongValue = translatedValue.length > 40 || /^[0-9a-fA-F:,\s-]+$/.test(translatedValue);
-                    const valueClass = isLongValue ? 'txt-value long-value' : 'txt-value';
-                    formatted += `<div class="avahi-txt-item"><span class="txt-label">${escapeHtml(displayName)}:</span> <span class="${valueClass}">${escapeHtml(translatedValue)}</span></div>`;
-                });
-                formatted += '</div>';
-            }
-            formatted += '</div>';
-            
-            // AirPlay 1 section
-            if (ap1Fields.size > 0) {
-                formatted += '<div class="avahi-section ap1-section">';
-                formatted += '<h5 class="section-header"><span class="material-icons service-icon">volume_up</span> AirPlay 1 (Audio)</h5>';
-                formatted += '<div class="avahi-txt-grid">';
-                ap1Fields.forEach((value, key) => {
+                commonFields.forEach((value, key) => {
                     const displayName = getFieldDisplayName(key);
                     const translatedValue = translateValue(key, value);
                     const isLongValue = translatedValue.length > 40 || /^[0-9a-fA-F:,\s-]+$/.test(translatedValue);
@@ -422,12 +388,12 @@
                 formatted += '</div>';
             }
             
-            // AirPlay 2 section
-            if (ap2Fields.size > 0) {
-                formatted += '<div class="avahi-section ap2-section">';
-                formatted += '<h5 class="section-header"><span class="material-icons service-icon">volume_up</span> AirPlay 2 (Audio)</h5>';
+            // _raop._tcp service (Audio - Remote Audio Output Protocol)
+            if (raopFields.size > 0) {
+                formatted += '<div class="avahi-section raop-section">';
+                formatted += '<h5 class="section-header"><span class="material-icons service-icon">volume_up</span> Audio Service (<code>_raop._tcp</code>)</h5>';
                 formatted += '<div class="avahi-txt-grid">';
-                ap2Fields.forEach((value, key) => {
+                raopFields.forEach((value, key) => {
                     const displayName = getFieldDisplayName(key);
                     const translatedValue = translateValue(key, value);
                     const isLongValue = translatedValue.length > 40 || /^[0-9a-fA-F:,\s-]+$/.test(translatedValue);
@@ -438,12 +404,12 @@
                 formatted += '</div>';
             }
             
-            // AirPlay Video section
-            if (apVideoFields.size > 0) {
-                formatted += '<div class="avahi-section ap-video-section">';
-                formatted += '<h5 class="section-header"><span class="material-icons service-icon">videocam</span> AirPlay Video</h5>';
+            // _airplay._tcp service (Video - AirPlay Remote Video)
+            if (airplayFields.size > 0) {
+                formatted += '<div class="avahi-section airplay-section">';
+                formatted += '<h5 class="section-header"><span class="material-icons service-icon">videocam</span> Video Service (<code>_airplay._tcp</code>)</h5>';
                 formatted += '<div class="avahi-txt-grid">';
-                apVideoFields.forEach((value, key) => {
+                airplayFields.forEach((value, key) => {
                     const displayName = getFieldDisplayName(key);
                     const translatedValue = translateValue(key, value);
                     const isLongValue = translatedValue.length > 40 || /^[0-9a-fA-F:,\s-]+$/.test(translatedValue);

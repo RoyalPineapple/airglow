@@ -1396,20 +1396,33 @@ code {
     padding: calc(var(--spacing) * 0.5);
 }
 
-.avahi-section.shared-section {
+.avahi-section.device-info-section {
     border-left: 3px solid #95a5a6;
+    background-color: rgba(149, 165, 166, 0.05);
 }
 
-.avahi-section.ap1-section {
-    border-left: 3px solid #95a5a6;
+.avahi-section.common-fields-section {
+    border-left: 3px solid #7f8c8d;
+    background-color: rgba(127, 140, 141, 0.05);
 }
 
-.avahi-section.ap2-section {
+.avahi-section.raop-section {
     border-left: 3px solid #3498db;
+    background-color: rgba(52, 152, 219, 0.05);
 }
 
-.avahi-section.ap-video-section {
+.avahi-section.airplay-section {
     border-left: 3px solid #9b59b6;
+    background-color: rgba(155, 89, 182, 0.05);
+}
+
+.section-header code {
+    font-family: 'Courier New', monospace;
+    font-size: 0.85em;
+    background-color: rgba(0, 0, 0, 0.05);
+    padding: 0.1rem 0.3rem;
+    border-radius: 3px;
+    color: var(--color-text);
 }
 
 .section-header {
