@@ -673,7 +673,7 @@ def status_page():
 
 @app.route('/browser')
 def browser():
-    """AirPlay browser page"""
+    """playdar page"""
     return render_template('browser.html')
 
 

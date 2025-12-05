@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AirGlow Status Dashboard</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
 </head>
 <body>
     <div class="banner-container">
@@ -16,10 +17,10 @@
     <div class="container">
         <header>
             <nav>
-                <a href="/ledfx">LedFX</a>
-                <a href="/">Configuration</a>
-                <a href="/status" class="active">Status Dashboard</a>
-                <a href="/browser">AirPlay Browser</a>
+                <a href="/ledfx"><span class="material-icons nav-icon">tips_and_updates</span> LedFX</a>
+                <a href="/"><span class="material-icons nav-icon">toggle_on</span> Configuration</a>
+                <a href="/status" class="active"><span class="material-icons nav-icon">monitor_heart</span> Status Dashboard</a>
+                <a href="/browser"><span class="material-icons nav-icon">track_changes</span> playdar</a>
             </nav>
         </header>
 
