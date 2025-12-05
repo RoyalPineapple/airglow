@@ -293,56 +293,86 @@
             }
         }
 
-        async function refreshBrowser() {
-            // Show loading states
-            document.getElementById('devices-loading').style.display = 'block';
-            document.getElementById('devices-error').style.display = 'none';
-            document.getElementById('devices-table').style.display = 'none';
-            document.getElementById('devices-empty').style.display = 'none';
+        let isRefreshing = false;
 
-            // Disable refresh button during load
+        async function refreshBrowser() {
+            // Prevent concurrent refreshes
+            if (isRefreshing) {
+                return;
+            }
+            
+            isRefreshing = true;
+            
+            // Show loading states
+            const devicesLoading = document.getElementById('devices-loading');
+            const devicesError = document.getElementById('devices-error');
+            const devicesTable = document.getElementById('devices-table');
+            const devicesEmpty = document.getElementById('devices-empty');
+            
+            if (devicesLoading) devicesLoading.style.display = 'block';
+            if (devicesError) devicesError.style.display = 'none';
+            if (devicesTable) devicesTable.style.display = 'none';
+            if (devicesEmpty) devicesEmpty.style.display = 'none';
+
+            // Disable refresh button during load (only if manual refresh)
             const refreshBtn = document.getElementById('refresh-btn');
             const refreshIcon = document.getElementById('refresh-icon');
-            refreshBtn.disabled = true;
-            if (refreshIcon) {
+            const wasDisabled = refreshBtn?.disabled;
+            if (refreshBtn && !wasDisabled) {
+                refreshBtn.disabled = true;
+            }
+            if (refreshIcon && !wasDisabled) {
                 refreshIcon.style.animation = 'spin 0.5s linear infinite';
             }
 
             try {
-                const response = await fetch('/api/browser');
+                const response = await fetch('/api/browser', {
+                    method: 'GET',
+                    cache: 'no-cache',
+                    headers: {
+                        'Accept': 'application/json'
+                    }
+                });
+                
                 if (!response.ok) {
                     throw new Error(`HTTP ${response.status}`);
                 }
+                
                 const data = await response.json();
 
-                const devicesLoading = document.getElementById('devices-loading');
-                const devicesError = document.getElementById('devices-error');
-
-                devicesLoading.style.display = 'none';
+                if (devicesLoading) devicesLoading.style.display = 'none';
 
                 if (data.error) {
-                    devicesError.textContent = `Error: ${escapeHtml(data.error)}`;
-                    devicesError.style.display = 'block';
+                    if (devicesError) {
+                        devicesError.textContent = `Error: ${escapeHtml(data.error)}`;
+                        devicesError.style.display = 'block';
+                    }
                 } else {
                     renderDevices('devices-table', data.devices, 'devices-empty');
                 }
 
                 // Update timestamp
                 if (data.timestamp) {
-                    const timestamp = new Date(data.timestamp);
-                    const timeStr = timestamp.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', second: '2-digit' });
-                    document.getElementById('last-update').textContent = `Last updated: ${timeStr}`;
+                    const lastUpdate = document.getElementById('last-update');
+                    if (lastUpdate) {
+                        const timestamp = new Date(data.timestamp);
+                        const timeStr = timestamp.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', second: '2-digit' });
+                        lastUpdate.textContent = `Last updated: ${timeStr}`;
+                    }
                 }
 
             } catch (error) {
                 console.error('Error fetching browser data:', error);
                 showError(`Error loading browser data: ${escapeHtml(error.message)}`);
-                document.getElementById('devices-loading').style.display = 'none';
+                if (devicesLoading) devicesLoading.style.display = 'none';
             } finally {
-                refreshBtn.disabled = false;
-                if (refreshIcon) {
+                if (refreshBtn && !wasDisabled) {
+                    refreshBtn.disabled = false;
+                }
+                if (refreshIcon && !wasDisabled) {
                     refreshIcon.style.animation = '';
                 }
+                isRefreshing = false;
             }
         }
 
