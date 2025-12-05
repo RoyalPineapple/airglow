@@ -1231,6 +1231,105 @@ code {
     font-weight: 600;
 }
 
+.avahi-data-container {
+    display: flex;
+    flex-direction: column;
+    gap: calc(var(--spacing) * 0.75);
+    margin-bottom: var(--spacing);
+}
+
+.avahi-entry {
+    background-color: var(--color-bg-section);
+    border: 1px solid var(--color-border);
+    border-radius: var(--border-radius);
+    padding: calc(var(--spacing) * 0.75);
+}
+
+.avahi-header {
+    display: flex;
+    align-items: center;
+    gap: calc(var(--spacing) * 0.5);
+    margin-bottom: calc(var(--spacing) * 0.75);
+    padding-bottom: calc(var(--spacing) * 0.5);
+    border-bottom: 1px solid var(--color-border);
+}
+
+.avahi-event {
+    background-color: var(--color-primary);
+    color: white;
+    padding: 0.2rem 0.5rem;
+    border-radius: 3px;
+    font-family: monospace;
+    font-size: 0.85rem;
+    font-weight: 600;
+}
+
+.avahi-service {
+    color: var(--color-text);
+    font-weight: 600;
+    font-size: 0.95rem;
+}
+
+.avahi-fields {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: calc(var(--spacing) * 0.75);
+}
+
+.avahi-field-group {
+    display: flex;
+    flex-direction: column;
+    gap: calc(var(--spacing) * 0.4);
+}
+
+.avahi-field-group h5 {
+    margin: 0 0 calc(var(--spacing) * 0.25) 0;
+    color: var(--color-text);
+    font-size: 0.9rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--color-text-light);
+}
+
+.avahi-field {
+    display: flex;
+    gap: calc(var(--spacing) * 0.5);
+    font-size: 0.9rem;
+}
+
+.avahi-field .field-label {
+    font-weight: 600;
+    color: var(--color-text-light);
+    min-width: 100px;
+    flex-shrink: 0;
+}
+
+.avahi-field .field-value {
+    color: var(--color-text);
+    font-family: monospace;
+    word-break: break-all;
+}
+
+.raw-data-toggle {
+    margin-top: var(--spacing);
+    padding-top: var(--spacing);
+    border-top: 1px solid var(--color-border);
+}
+
+.raw-data-toggle summary {
+    cursor: pointer;
+    color: var(--color-primary);
+    font-weight: 600;
+    font-size: 0.9rem;
+    margin-bottom: calc(var(--spacing) * 0.5);
+    user-select: none;
+}
+
+.raw-data-toggle summary:hover {
+    text-decoration: underline;
+}
+
 .raw-avahi-data {
     background-color: #1e1e1e;
     color: #d4d4d4;

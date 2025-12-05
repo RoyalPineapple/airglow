@@ -84,6 +84,80 @@
             });
         }
 
+        function formatAvahiLine(line) {
+            if (!line || !line.includes(';')) {
+                return escapeHtml(line);
+            }
+            
+            const parts = line.split(';');
+            if (parts.length < 10) {
+                return escapeHtml(line);
+            }
+            
+            const eventType = parts[0];
+            const interface = parts[1];
+            const protocol = parts[2];
+            const name = parts[3];
+            const serviceType = parts[4];
+            const domain = parts[5];
+            const hostname = parts[6];
+            const address = parts[7];
+            const port = parts[8];
+            const txtRecord = parts.slice(9).join(';');
+            
+            // Decode escaped characters in name
+            let decodedName = name
+                .replace(/\\064/g, '@')
+                .replace(/\\032/g, ' ')
+                .replace(/\\040/g, ' ')
+                .replace(/\\041/g, '!')
+                .replace(/\\126/g, '~');
+            
+            // Parse TXT record
+            const txtFields = {};
+            const txtMatches = txtRecord.matchAll(/"([^=]+)=([^"]*)"/g);
+            for (const match of txtMatches) {
+                txtFields[match[1]] = match[2];
+            }
+            
+            let formatted = '<div class="avahi-entry">';
+            formatted += '<div class="avahi-header">';
+            formatted += `<span class="avahi-event">${escapeHtml(eventType)}</span> `;
+            formatted += `<span class="avahi-service">${escapeHtml(serviceType)}</span>`;
+            formatted += '</div>';
+            
+            formatted += '<div class="avahi-fields">';
+            formatted += '<div class="avahi-field-group">';
+            formatted += '<h5>Service Information</h5>';
+            formatted += `<div class="avahi-field"><span class="field-label">Name:</span> <span class="field-value">${escapeHtml(decodedName)}</span></div>`;
+            formatted += `<div class="avahi-field"><span class="field-label">Type:</span> <span class="field-value">${escapeHtml(serviceType)}</span></div>`;
+            formatted += `<div class="avahi-field"><span class="field-label">Domain:</span> <span class="field-value">${escapeHtml(domain)}</span></div>`;
+            formatted += '</div>';
+            
+            formatted += '<div class="avahi-field-group">';
+            formatted += '<h5>Network Information</h5>';
+            formatted += `<div class="avahi-field"><span class="field-label">Interface:</span> <span class="field-value">${escapeHtml(interface)}</span></div>`;
+            formatted += `<div class="avahi-field"><span class="field-label">Protocol:</span> <span class="field-value">${escapeHtml(protocol)}</span></div>`;
+            formatted += `<div class="avahi-field"><span class="field-label">Hostname:</span> <span class="field-value">${escapeHtml(hostname)}</span></div>`;
+            formatted += `<div class="avahi-field"><span class="field-label">Address:</span> <span class="field-value">${escapeHtml(address)}</span></div>`;
+            formatted += `<div class="avahi-field"><span class="field-label">Port:</span> <span class="field-value">${escapeHtml(port)}</span></div>`;
+            formatted += '</div>';
+            
+            if (Object.keys(txtFields).length > 0) {
+                formatted += '<div class="avahi-field-group">';
+                formatted += '<h5>TXT Record Fields</h5>';
+                for (const [key, value] of Object.entries(txtFields)) {
+                    formatted += `<div class="avahi-field"><span class="field-label">${escapeHtml(key)}:</span> <span class="field-value">${escapeHtml(value)}</span></div>`;
+                }
+                formatted += '</div>';
+            }
+            
+            formatted += '</div>';
+            formatted += '</div>';
+            
+            return formatted;
+        }
+
         function renderDeviceRow(device, index) {
             const deviceId = `device-${index}`;
             const hasRawData = device.raw_avahi_data && device.raw_avahi_data.length > 0;
@@ -105,7 +179,13 @@
                     <td colspan="7" class="device-detail-cell">
                         <div class="device-detail-content">
                             <h4>Raw Avahi Data</h4>
-                            <pre class="raw-avahi-data">${escapeHtml(device.raw_avahi_data.join('\n'))}</pre>
+                            <div class="avahi-data-container">
+                                ${device.raw_avahi_data.map(line => formatAvahiLine(line)).join('')}
+                            </div>
+                            <details class="raw-data-toggle">
+                                <summary>Show Raw Text</summary>
+                                <pre class="raw-avahi-data">${escapeHtml(device.raw_avahi_data.join('\n'))}</pre>
+                            </details>
                         </div>
                     </td>
                 </tr>
