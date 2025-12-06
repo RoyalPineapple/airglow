@@ -24,16 +24,10 @@ fi
 SCRIPT_DIR_ABS="$(cd "${SCRIPT_DIR}" 2>/dev/null && pwd -P || echo "${SCRIPT_DIR}")"
 INSTALL_DIR_ABS="$(cd "${INSTALL_DIR}" 2>/dev/null && pwd -P || echo "${INSTALL_DIR}")"
 REPO_URL="https://github.com/RoyalPineapple/airglow.git"
-REPO_RAW_URL="https://raw.githubusercontent.com/RoyalPineapple/airglow"
+REPO_RAW_URL="https://raw.githubusercontent.com/RoyalPineapple/airglow/master"
 DRY_RUN=false
 WITH_ALAC=false
 BRANCH="${BRANCH:-master}"
-
-# Function to get the raw URL for a specific branch
-get_raw_url() {
-    local branch="${1:-${BRANCH}}"
-    echo "${REPO_RAW_URL}/${branch}"
-}
 
 # Color output functions
 function msg_info() {
@@ -65,20 +59,8 @@ Options:
     -n, --dry-run       Show what would be done without making changes
     -d, --dir DIR       Set installation directory (default: /opt/airglow)
     -b, --branch BRANCH Git branch to install from (default: master)
-                        When installing via curl, use:
-                        curl -fsSL https://raw.githubusercontent.com/RoyalPineapple/airglow/BRANCH/install.sh | bash -s -- -b BRANCH
     --with-alac         Build shairport-sync from source with Apple ALAC decoder
                         (adds 5-10 minutes to installation, allows use of Apple Lossless)
-
-Examples:
-    # Install from master branch (default)
-    curl -fsSL https://raw.githubusercontent.com/RoyalPineapple/airglow/master/install.sh | bash
-    
-    # Install from bridge-networking branch
-    curl -fsSL https://raw.githubusercontent.com/RoyalPineapple/airglow/bridge-networking/install.sh | bash -s -- -b bridge-networking
-    
-    # Install from specific branch with custom directory
-    curl -fsSL https://raw.githubusercontent.com/RoyalPineapple/airglow/bridge-networking/install.sh | bash -s -- -b bridge-networking -d /custom/path
 
 Description:
     Installs Docker (if needed) and deploys the Airglow
@@ -258,6 +240,10 @@ function setup_directory() {
         msg_warn "Failed to set ownership on pulse directory"
         msg_warn "You may need to manually run: sudo chown -R 1000:1000 ${INSTALL_DIR}/pulse"
     }
+    chown -R 1000:1000 "${INSTALL_DIR}/pulse" || {
+        msg_warn "Failed to set ownership on pulse directory"
+        msg_warn "You may need to manually run: sudo chown -R 1000:1000 ${INSTALL_DIR}/pulse"
+    }
     chown -R 1000:1000 "${INSTALL_DIR}/ledfx-data" || {
         msg_warn "Failed to set ownership on ledfx-data directory"
         msg_warn "You may need to manually run: sudo chown -R 1000:1000 ${INSTALL_DIR}/ledfx-data"
@@ -338,6 +324,23 @@ function copy_configs() {
             fi
         fi
         
+        if [[ -f "${SCRIPT_DIR}/Dockerfile.avahi" ]]; then
+            if [[ "${SCRIPT_DIR}/Dockerfile.avahi" != "${INSTALL_DIR}/Dockerfile.avahi" ]]; then
+                cp "${SCRIPT_DIR}/Dockerfile.avahi" "${INSTALL_DIR}/" || {
+                    msg_error "Failed to copy Dockerfile.avahi"
+                    exit 1
+                }
+            fi
+        fi
+        
+        if [[ -f "${SCRIPT_DIR}/Dockerfile.nqptp" ]]; then
+            if [[ "${SCRIPT_DIR}/Dockerfile.nqptp" != "${INSTALL_DIR}/Dockerfile.nqptp" ]]; then
+                cp "${SCRIPT_DIR}/Dockerfile.nqptp" "${INSTALL_DIR}/" || {
+                    msg_error "Failed to copy Dockerfile.nqptp"
+                    exit 1
+                }
+            fi
+        fi
         
         # Copy web application directory
         if [[ -d "${SCRIPT_DIR}/web" ]] && [[ "${SCRIPT_DIR}/web" != "${INSTALL_DIR}/web" ]]; then
@@ -475,6 +478,23 @@ function copy_configs() {
             fi
         fi
         
+        if [[ -f "${temp_repo_dir}/Dockerfile.avahi" ]]; then
+            if [[ "${temp_repo_dir}/Dockerfile.avahi" != "${INSTALL_DIR}/Dockerfile.avahi" ]]; then
+                cp "${temp_repo_dir}/Dockerfile.avahi" "${INSTALL_DIR}/" || {
+                    msg_error "Failed to copy Dockerfile.avahi"
+                    exit 1
+                }
+            fi
+        fi
+        
+        if [[ -f "${temp_repo_dir}/Dockerfile.nqptp" ]]; then
+            if [[ "${temp_repo_dir}/Dockerfile.nqptp" != "${INSTALL_DIR}/Dockerfile.nqptp" ]]; then
+                cp "${temp_repo_dir}/Dockerfile.nqptp" "${INSTALL_DIR}/" || {
+                    msg_error "Failed to copy Dockerfile.nqptp"
+                    exit 1
+                }
+            fi
+        fi
         
         # Copy web directory
         if [[ -d "${temp_repo_dir}/web" ]]; then
@@ -816,13 +836,19 @@ function start_stack() {
         # Always rebuild web container to ensure latest code is included
         # Use --no-cache to avoid Docker build cache issues
         msg_info "Rebuilding web container to ensure latest code..."
-        docker compose build --no-cache airglow-web || {
-            msg_warn "Failed to rebuild web container, trying with cache..."
-            # Fallback: try with cache if --no-cache fails
-            docker compose build airglow-web || {
-                msg_warn "Failed to rebuild web container, continuing with existing image"
-            }
-        }
+        if ! docker compose build --no-cache airglow-web 2>&1; then
+            msg_warn "Build with --no-cache failed, cleaning build cache and retrying..."
+            # Clean build cache to resolve corruption issues
+            docker builder prune -f >/dev/null 2>&1 || true
+            # Retry with --no-cache after cleaning
+            if ! docker compose build --no-cache airglow-web 2>&1; then
+                msg_warn "Build still failed after cache cleanup, trying with cache..."
+                # Final fallback: try with cache
+                if ! docker compose build airglow-web 2>&1; then
+                    msg_warn "Failed to rebuild web container, continuing with existing image"
+                fi
+            fi
+        fi
         docker compose up -d --build || {
             msg_error "Failed to start Docker stack"
             msg_error "Check logs with: docker compose -f ${INSTALL_DIR}/docker-compose.yml logs"
@@ -843,13 +869,19 @@ function start_stack() {
         # Always rebuild web container to ensure latest code is included
         # Use --no-cache to avoid Docker build cache issues
         msg_info "Rebuilding web container to ensure latest code..."
-        docker compose build --no-cache airglow-web || {
-            msg_warn "Failed to rebuild web container, trying with cache..."
-            # Fallback: try with cache if --no-cache fails
-            docker compose build airglow-web || {
-                msg_warn "Failed to rebuild web container, continuing with existing image"
-            }
-        }
+        if ! docker compose build --no-cache airglow-web 2>&1; then
+            msg_warn "Build with --no-cache failed, cleaning build cache and retrying..."
+            # Clean build cache to resolve corruption issues
+            docker builder prune -f >/dev/null 2>&1 || true
+            # Retry with --no-cache after cleaning
+            if ! docker compose build --no-cache airglow-web 2>&1; then
+                msg_warn "Build still failed after cache cleanup, trying with cache..."
+                # Final fallback: try with cache
+                if ! docker compose build airglow-web 2>&1; then
+                    msg_warn "Failed to rebuild web container, continuing with existing image"
+                fi
+            fi
+        fi
         docker compose up -d || {
             msg_error "Failed to start Docker stack"
             msg_error "Check logs with: docker compose -f ${INSTALL_DIR}/docker-compose.yml logs"
@@ -988,11 +1020,6 @@ function parse_args() {
 # Main installation flow
 function main() {
     parse_args "$@"
-    
-    # Update REPO_RAW_URL to use the specified branch (after parsing args)
-    REPO_RAW_URL="$(get_raw_url "${BRANCH}")"
-    msg_info "Using branch: ${BRANCH}"
-    msg_info "Repository URL: ${REPO_RAW_URL}"
 
     if [[ "${DRY_RUN}" == true ]]; then
         msg_info "Running in DRY RUN mode - no changes will be made"

@@ -22,7 +22,7 @@
             <div class="setup-content">
                 <h2>No LedFX Devices Configured</h2>
                 <p>LedFX doesn't have any devices configured yet. Add devices in LedFX before configuring AirPlay actions.</p>
-                <a href="http://{{ request.host.split(':')[0] }}:8888" target="_blank" class="btn btn-primary">Open LedFX</a>
+                <a href="/ledfx" class="btn btn-primary">Open LedFX</a>
             </div>
         </div>
         {% endif %}
@@ -40,9 +40,9 @@
 
         <main class="landing-main">
             <div class="landing-cards">
-                <a href="http://{{ request.host.split(':')[0] }}:8888" target="_blank" class="landing-card">
+                <a href="/ledfx" class="landing-card">
                     <div class="card-icon">💡</div>
-                    <h2>LedFX Web Interface</h2>
+                    <h2>LedFX</h2>
                     <p>Open LedFX web interface to view and manage virtuals and connected LED devices</p>
                 </a>
 
@@ -60,7 +60,7 @@
 
                 <a href="/browser" class="landing-card">
                     <div class="card-icon">🔍</div>
-                    <h2>AirPlay Browser</h2>
+                    <h2>playdar</h2>
                     <p>Discover and view AirPlay devices on your network using mDNS</p>
                 </a>
             </div>

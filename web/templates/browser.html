@@ -3,24 +3,25 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AirGlow - AirPlay Browser</title>
+    <title>AirGlow - playdar</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
 </head>
 <body>
     <div class="banner-container">
         <img src="https://raw.githubusercontent.com/RoyalPineapple/airglow/master/web/static/banner.jpg" alt="Aurora Borealis" class="banner-image" onerror="this.parentElement.style.display='none'">
         <div class="banner-overlay">
             <h1 class="banner-title">AirGlow</h1>
-            <p class="banner-tagline">AirPlay Browser</p>
+            <p class="banner-tagline">playdar</p>
         </div>
     </div>
     <div class="container">
         <header>
             <nav>
-                <a href="/">Home</a>
-                <a href="/status">Status Dashboard</a>
-                <a href="/config">Configuration</a>
-                <a href="http://{{ request.host.split(':')[0] }}:8888" target="_blank">LedFX Web Interface</a>
+                <a href="/ledfx"><span class="material-icons nav-icon">tips_and_updates</span> LedFX</a>
+                <a href="/"><span class="material-icons nav-icon">toggle_on</span> Configuration</a>
+                <a href="/status"><span class="material-icons nav-icon">monitor_heart</span> Status Dashboard</a>
+                <a href="/browser" class="active"><span class="material-icons nav-icon">track_changes</span> playdar</a>
             </nav>
         </header>
 
@@ -29,7 +30,7 @@
                 <input type="checkbox" id="auto-refresh-toggle" class="checkbox-input" checked>
                 <span class="checkbox-text">Auto-refresh</span>
             </label>
-            <button id="refresh-btn" class="btn btn-primary" title="Refresh browser">
+            <button type="button" id="refresh-btn" class="btn btn-primary" title="Refresh browser">
                 <span id="refresh-icon">🔄</span> Refresh
             </button>
             <div id="last-update" class="last-update"></div>
@@ -48,6 +49,9 @@
             <div id="devices-error" class="error" style="display: none;"></div>
             <div id="devices-table" style="display: none;"></div>
             <div id="devices-empty" class="loading" style="display: none;">No AirPlay devices found on the network.</div>
+            <p class="spec-reference-bottom">
+                Field definitions reference: <a href="https://openairplay.github.io/airplay-spec/service_discovery.html" target="_blank" rel="noopener">OpenAirPlay Specification</a>
+            </p>
         </section>
     </div>
 
@@ -84,30 +88,890 @@
             });
         }
 
-        function renderDeviceRow(device) {
+        // Field name expansions from OpenAirPlay spec: https://openairplay.github.io/airplay-spec/service_discovery.html
+        const fieldNameExpansions = {
+            // _raop._tcp (AirPlay 1) fields
+            'txtvers': 'TXT record version',
+            'ch': 'Audio channels',
+            'cn': 'Audio codecs',
+            'et': 'Supported encryption types',
+            'md': 'Supported metadata types',
+            'pw': 'Does the speaker require a password?',
+            'sr': 'Audio sample rate',
+            'ss': 'Audio sample size',
+            'tp': 'Supported transport',
+            'vs': 'Server version',
+            'am': 'Device model',
+            'sf': 'Status flags',
+            'vn': 'Version number',
+            'da': 'Device authentication',
+            'ft': 'Feature flags',
+            'fv': 'Device firmware version',
+            // _airplay._tcp (AirPlay 2 Video) fields
+            'model': 'Device model',
+            'manufacturer': 'Device manufacturer',
+            'serialNumber': 'Device serial number',
+            'osvers': 'Device OS version',
+            'deviceid': 'Device ID',
+            'features': 'Bitfield of supported features',
+            'acl': 'Access control level',
+            'srcvers': 'AirPlay version',
+            'flags': 'Bitfield of status flags',
+            'pk': 'Public key',
+            'pi': 'Group ID / PublicCUAirPlayPairingIdentifier',
+            'psi': 'PublicCUSystemPairingIdentifier',
+            'gid': 'Group UUID',
+            'gcgl': 'Group contains group leader / Group contains discoverable leader',
+            'igl': 'Is group leader',
+            'gpn': 'Group public name',
+            'hgid': 'Home group UUID',
+            'hmid': 'Household ID',
+            'pgcgl': 'Parent group contains discoverable leader',
+            'pgid': 'Parent group UUID',
+            'tsid': 'TSID',
+            'rsf': 'Required sender features',
+            'protovers': 'Protocol version',
+            'vv': 'Version' // "vodka version" - documented but value meaning unclear
+        };
+        
+        // Value translations from OpenAirPlay spec
+        const valueTranslations = {
+            'cn': {
+                '0': 'PCM',
+                '1': 'Apple Lossless (ALAC)',
+                '2': 'AAC',
+                '3': 'AAC ELD (Enhanced Low Delay)'
+            },
+            'et': {
+                '0': 'No encryption',
+                '1': 'RSA (AirPort Express)',
+                '3': 'FairPlay',
+                '4': 'MFiSAP (3rd-party devices)',
+                '5': 'FairPlay SAPv2.5'
+            },
+            'md': {
+                '0': 'Text metadata',
+                '1': 'Artwork metadata',
+                '2': 'Progress metadata',
+                '50': 'bplist metadata'
+            },
+            'tp': {
+                'UDP': 'UDP',
+                'TCP,UDP': 'TCP or UDP',
+                'TCP': 'TCP'
+            },
+            'pw': {
+                'true': 'Yes',
+                'false': 'No'
+            },
+            'da': {
+                'true': 'Yes',
+                'false': 'No'
+            },
+            'gcgl': {
+                '0': 'No',
+                '1': 'Yes'
+            },
+            'igl': {
+                '0': 'No',
+                '1': 'Yes'
+            },
+            'pgcgl': {
+                '0': 'No',
+                '1': 'Yes'
+            },
+            'ch': {
+                '2': 'Stereo'
+            },
+            'sr': {
+                '44100': '44100 Hz',
+                '88200': '88200 Hz',
+                '176400': '176400 Hz'
+            },
+            'ss': {
+                '8': '8-bit',
+                '16': '16-bit',
+                '24': '24-bit',
+                '32': '32-bit'
+            }
+        };
+        
+        // Fields documented in OpenAirPlay spec - only show these
+        const documentedFields = new Set([
+            'txtvers', 'ch', 'cn', 'et', 'md', 'pw', 'sr', 'ss', 'tp', 'vs', 'am', 'sf', 'vn', 'da', 'ft', 'fv',
+            'model', 'manufacturer', 'serialNumber', 'osvers', 'deviceid', 'features', 'acl', 'srcvers', 'flags',
+            'pk', 'pi', 'psi', 'gid', 'gcgl', 'igl', 'gpn', 'hgid', 'hmid', 'pgcgl', 'pgid', 'tsid', 'rsf',
+            'protovers', 'vv'
+        ]);
+        
+        // Features bit field definitions from OpenAirPlay spec: https://openairplay.github.io/airplay-spec/features.html
+        const featuresBitField = {
+            0: 'Video',
+            1: 'Photo',
+            2: 'VideoFairPlay',
+            3: 'VideoVolumeControl',
+            4: 'VideoHTTPLiveStreams',
+            5: 'Slideshow',
+            7: 'Screen',
+            8: 'ScreenRotate',
+            9: 'Audio',
+            11: 'AudioRedundant',
+            12: 'FPSAPv2pt5_AES_GCM',
+            13: 'PhotoCaching',
+            14: 'Authentication4',
+            15: 'MetadataFeature1',
+            16: 'MetadataFeature2',
+            17: 'MetadataFeature0',
+            18: 'AudioFormat1',
+            19: 'AudioFormat2',
+            20: 'AudioFormat3',
+            21: 'AudioFormat4',
+            23: 'Authentication1',
+            26: 'HasUnifiedAdvertiserInfo',
+            27: 'SupportsLegacyPairing',
+            30: 'RAOP',
+            32: 'IsCarPlay / SupportsVolume',
+            33: 'SupportsAirPlayVideoPlayQueue',
+            34: 'SupportsAirPlayFromCloud',
+            38: 'SupportsCoreUtilsPairingAndEncryption',
+            40: 'SupportsBufferedAudio',
+            41: 'SupportsPTP',
+            42: 'SupportsScreenMultiCodec',
+            43: 'SupportsSystemPairing',
+            46: 'SupportsHKPairingAndAccessControl',
+            48: 'SupportsTransientPairing',
+            50: 'MetadataFeature4',
+            51: 'SupportsUnifiedPairSetupAndMFi',
+            52: 'SupportsSetPeersExtendedMessage'
+        };
+        
+        // Status flags bit field definitions from OpenAirPlay spec: https://openairplay.github.io/airplay-spec/status_flags.html
+        const statusFlagsBitField = {
+            0: 'Problem has been detected',
+            1: 'Device is not configured',
+            2: 'Audio cable is attached',
+            3: 'PINRequired',
+            6: 'SupportsAirPlayFromCloud',
+            7: 'PasswordRequired',
+            9: 'OneTimePairingRequired',
+            10: 'DeviceWasSetupForHKAccessControl',
+            11: 'DeviceSupportsRelay',
+            12: 'SilentPrimary',
+            13: 'TightSyncIsGroupLeader',
+            14: 'TightSyncBuddyNotReachable',
+            15: 'IsAppleMusicSubscriber',
+            16: 'CloudLibraryIsOn',
+            17: 'ReceiverSessionIsActive'
+        };
+        
+        // Parse hex string to BigInt (supports 64-bit values)
+        function parseHexToBigInt(hexStr) {
+            // Remove 0x prefix if present
+            const cleanHex = hexStr.replace(/^0x/i, '');
+            // Handle comma-separated values (e.g., "0x4A7FDFD5,0x3C177FDE" for 64-bit)
+            if (cleanHex.includes(',')) {
+                const parts = cleanHex.split(',');
+                const high = BigInt('0x' + parts[0].trim().replace(/^0x/i, ''));
+                const low = BigInt('0x' + parts[1].trim().replace(/^0x/i, ''));
+                // Combine: high 32 bits + low 32 bits
+                return (high << 32n) | low;
+            }
+            return BigInt('0x' + cleanHex);
+        }
+        
+        // Translate features bit field
+        function translateFeaturesBitField(value) {
+            try {
+                const bits = parseHexToBigInt(value);
+                const activeFeatures = [];
+                
+                for (const [bit, name] of Object.entries(featuresBitField)) {
+                    const bitNum = BigInt(bit);
+                    if ((bits & (1n << bitNum)) !== 0n) {
+                        activeFeatures.push(name);
+                    }
+                }
+                
+                if (activeFeatures.length === 0) {
+                    return `${value} (no features set)`;
+                }
+                
+                return `${value} (${activeFeatures.join(', ')})`;
+            } catch (e) {
+                return value; // Return original if parsing fails
+            }
+        }
+        
+        // Translate status flags bit field
+        function translateStatusFlagsBitField(value) {
+            try {
+                const bits = parseHexToBigInt(value);
+                const activeFlags = [];
+                
+                for (const [bit, name] of Object.entries(statusFlagsBitField)) {
+                    const bitNum = BigInt(bit);
+                    if ((bits & (1n << bitNum)) !== 0n) {
+                        activeFlags.push(name);
+                    }
+                }
+                
+                if (activeFlags.length === 0) {
+                    return `${value} (no flags set)`;
+                }
+                
+                return `${value} (${activeFlags.join(', ')})`;
+            } catch (e) {
+                return value; // Return original if parsing fails
+            }
+        }
+        
+        function translateValue(fieldName, value) {
+            // Handle bit fields first
+            if (fieldName === 'features' || fieldName === 'ft') {
+                return translateFeaturesBitField(value);
+            }
+            if (fieldName === 'flags' || fieldName === 'sf') {
+                return translateStatusFlagsBitField(value);
+            }
+            
+            // Handle comma-separated values (e.g., cn=0,1,2,3)
+            if (value.includes(',')) {
+                const parts = value.split(',');
+                const translated = parts.map(part => {
+                    const trimmed = part.trim();
+                    if (valueTranslations[fieldName] && valueTranslations[fieldName][trimmed]) {
+                        return valueTranslations[fieldName][trimmed];
+                    }
+                    return trimmed;
+                });
+                return translated.join(', ');
+            }
+            
+            // Handle single values
+            if (valueTranslations[fieldName] && valueTranslations[fieldName][value]) {
+                return valueTranslations[fieldName][value];
+            }
+            
+            return value;
+        }
+
+        function getFieldDisplayName(fieldName) {
+            return fieldNameExpansions[fieldName] || fieldName;
+        }
+
+        function detectDeviceType(device) {
+            // Based on OpenAirPlay spec: deviceModel prefix determines type
+            // AppleTV = deviceModel has prefix "AppleTV"
+            // HomePod = deviceModel has prefix "AudioAccessory"
+            if (!device.raw_avahi_data || device.raw_avahi_data.length === 0) {
+                return null;
+            }
+            
+            // Check _raop._tcp for 'am' field (device model)
+            // Check _airplay._tcp for 'model' field (device model)
+            for (const line of device.raw_avahi_data) {
+                if (!line || !line.includes(';')) continue;
+                const parts = line.split(';');
+                if (parts.length < 10) continue;
+                const txtRecord = parts.slice(9).join(';');
+                
+                // Check for 'am=' (Audio Model) in _raop._tcp
+                const amMatch = txtRecord.match(/"am=([^"]+)"/);
+                if (amMatch) {
+                    const model = amMatch[1];
+                    if (model.startsWith('AppleTV')) {
+                        return { type: 'Apple TV', icon: 'airplay', color: '#000000' };
+                    }
+                    if (model.startsWith('AudioAccessory')) {
+                        return { type: 'HomePod', icon: 'home', color: '#1d1d1f' };
+                    }
+                }
+                
+                // Check for 'model=' in _airplay._tcp
+                const modelMatch = txtRecord.match(/"model=([^"]+)"/);
+                if (modelMatch) {
+                    const model = modelMatch[1];
+                    if (model.startsWith('AppleTV')) {
+                        return { type: 'Apple TV', icon: 'airplay', color: '#000000' };
+                    }
+                    if (model.startsWith('AudioAccessory')) {
+                        return { type: 'HomePod', icon: 'home', color: '#1d1d1f' };
+                    }
+                }
+            }
+            
+            // Unknown device type
+            return { type: 'Unknown', icon: 'devices', color: '#95a5a6' };
+        }
+
+        function getMacAddress(device) {
+            // Extract MAC address from raw Avahi data
+            // In _airplay._tcp: MAC is in 'deviceid' field (format: "58:55:CA:1A:E2:88")
+            // In _raop._tcp: MAC is in the service name before the @ sign (format: "4A2B5AC1ECCE")
+            if (!device.raw_avahi_data || device.raw_avahi_data.length === 0) {
+                return null;
+            }
+            
+            for (const line of device.raw_avahi_data) {
+                if (!line || !line.includes(';')) continue;
+                const parts = line.split(';');
+                if (parts.length < 10) continue;
+                
+                const serviceName = parts[3]; // Service name (e.g., "4A2B5AC1ECCE\064\126Airglow-Staging\126")
+                const serviceType = parts[4]; // Service type (e.g., "_raop._tcp" or "_airplay._tcp")
+                const txtRecord = parts.slice(9).join(';');
+                
+                // For _airplay._tcp: Check 'deviceid' field in TXT record
+                if (serviceType && serviceType.includes('_airplay._tcp')) {
+                    const deviceidMatch = txtRecord.match(/"deviceid=([^"]+)"/);
+                    if (deviceidMatch) {
+                        return deviceidMatch[1]; // Format: "58:55:CA:1A:E2:88"
+                    }
+                }
+                
+                // For _raop._tcp: Extract MAC from service name (before \064 which is @)
+                if (serviceName && serviceType && serviceType.includes('_raop._tcp')) {
+                    if (serviceName.includes('\\064')) {
+                        const nameParts = serviceName.split('\\064');
+                        if (nameParts.length > 0 && nameParts[0]) {
+                            // MAC address is in uppercase hex without colons (e.g., "4A2B5AC1ECCE")
+                            const macHex = nameParts[0];
+                            // Convert to standard MAC format with colons (e.g., "4A:2B:5A:C1:EC:CE")
+                            if (macHex.length === 12 && /^[0-9A-F]{12}$/i.test(macHex)) {
+                                return macHex.match(/.{2}/g).join(':').toUpperCase();
+                            }
+                        }
+                    }
+                }
+                
+                // Fallback: Check for 'btaddr=' field (Bluetooth address)
+                const btaddrMatch = txtRecord.match(/"btaddr=([^"]+)"/);
+                if (btaddrMatch) {
+                    return btaddrMatch[1]; // Format: "7E:6E:2E:1B:86:AC"
+                }
+            }
+            
+            return null;
+        }
+
+        function formatDeviceSupport(device) {
+            if (!device.raw_avahi_data || device.raw_avahi_data.length === 0) {
+                return '—';
+            }
+            
+            let hasAudio = false;
+            let hasVideo = false;
+            
+            // Check raw Avahi data for service types
+            device.raw_avahi_data.forEach(line => {
+                if (!line || !line.includes(';')) return;
+                const parts = line.split(';');
+                if (parts.length < 5) return;
+                const serviceType = parts[4].toLowerCase();
+                // Check for AirPlay 2 audio (_raop._tcp or AirTunes Remote Audio)
+                if (serviceType.includes('_raop._tcp') || serviceType.includes('airtunes') || serviceType.includes('raop')) {
+                    hasAudio = true;
+                }
+                // Check for AirPlay video (_airplay._tcp or AirPlay Remote Video)
+                if (serviceType.includes('_airplay._tcp') || (serviceType.includes('airplay') && serviceType.includes('video'))) {
+                    hasVideo = true;
+                }
+            });
+            
+            const badges = [];
+            if (hasAudio) {
+                badges.push('<span class="support-badge support-audio" title="Audio Support"><span class="material-icons">volume_up</span></span>');
+            }
+            if (hasVideo) {
+                badges.push('<span class="support-badge support-video" title="Video Support"><span class="material-icons">videocam</span></span>');
+            }
+            
+            return badges.length > 0 ? badges.join(' ') : '—';
+        }
+
+        function formatAvahiData(rawLines) {
+            if (!rawLines || rawLines.length === 0) {
+                return '';
+            }
+            
+            // Group entries by service type (as per OpenAirPlay spec)
+            const raopFields = new Map(); // _raop._tcp (Audio) fields
+            const airplayFields = new Map(); // _airplay._tcp (Video) fields
+            const deviceInfo = {
+                hostname: null,
+                address: null,
+                port: null,
+                protocol: null
+            };
+            
+            rawLines.forEach(line => {
+                if (!line || !line.includes(';')) return;
+                
+                const parts = line.split(';');
+                if (parts.length < 10) return;
+                
+                const serviceType = parts[4].toLowerCase();
+                const hostname = parts[6];
+                const address = parts[7];
+                const port = parts[8];
+                const txtRecord = parts.slice(9).join(';');
+                
+                // Store device info (use first valid value)
+                if (!deviceInfo.hostname && hostname) deviceInfo.hostname = hostname;
+                if (!deviceInfo.address && address) deviceInfo.address = address;
+                if (!deviceInfo.port && port) deviceInfo.port = port;
+                if (!deviceInfo.protocol && parts[2]) deviceInfo.protocol = parts[2];
+                
+                // Parse TXT record fields
+                const txtMatches = txtRecord.matchAll(/"([^=]+)=([^"]*)"/g);
+                
+                // Determine service type per OpenAirPlay spec
+                let fieldMap = null;
+                
+                // Check for _airplay._tcp (Video service)
+                if (serviceType.includes('_airplay._tcp') || 
+                    (serviceType.includes('airplay') && serviceType.includes('video')) ||
+                    serviceType.includes('airplay remote video')) {
+                    fieldMap = airplayFields;
+                }
+                // Check for _raop._tcp (Audio service - both AirPlay 1 and 2)
+                else if (serviceType.includes('_raop._tcp') || 
+                         serviceType.includes('airtunes remote audio') ||
+                         (serviceType.includes('airtunes') && serviceType.includes('audio'))) {
+                    fieldMap = raopFields;
+                }
+                
+                if (fieldMap) {
+                    for (const match of txtMatches) {
+                        const key = match[1];
+                        const value = match[2];
+                        // Only include fields documented in OpenAirPlay spec
+                        if (documentedFields.has(key)) {
+                            // Deduplicate: keep first value found for each field
+                            if (!fieldMap.has(key)) {
+                                fieldMap.set(key, value);
+                            }
+                        }
+                    }
+                }
+            });
+            
+            // Find common fields (fields that appear in both service types with same value)
+            const commonFields = new Map();
+            if (raopFields.size > 0 && airplayFields.size > 0) {
+                raopFields.forEach((value, key) => {
+                    if (airplayFields.has(key) && airplayFields.get(key) === value) {
+                        commonFields.set(key, value);
+                    }
+                });
+            }
+            
+            // Remove common fields from individual service groups
+            commonFields.forEach((value, key) => {
+                raopFields.delete(key);
+                airplayFields.delete(key);
+            });
+            
+            // Build formatted output based on OpenAirPlay spec structure
+            let formatted = '<div class="avahi-consolidated">';
+            
+            // Device information (network-level, not service-specific)
+            formatted += '<div class="avahi-section device-info-section">';
+            formatted += '<div class="avahi-info-row">';
+            if (deviceInfo.hostname) formatted += `<span class="info-item"><strong>Hostname:</strong> ${escapeHtml(deviceInfo.hostname)}</span>`;
+            if (deviceInfo.address) formatted += `<span class="info-item"><strong>Address:</strong> ${escapeHtml(deviceInfo.address)}</span>`;
+            if (deviceInfo.port) formatted += `<span class="info-item"><strong>Port:</strong> ${escapeHtml(deviceInfo.port)}</span>`;
+            if (deviceInfo.protocol) formatted += `<span class="info-item"><strong>Protocol:</strong> ${escapeHtml(deviceInfo.protocol)}</span>`;
+            formatted += '</div>';
+            formatted += '</div>';
+            
+            // Common fields (appear in both _raop._tcp and _airplay._tcp)
+            if (commonFields.size > 0) {
+                formatted += '<div class="avahi-section common-fields-section">';
+                formatted += '<div class="avahi-txt-grid">';
+                commonFields.forEach((value, key) => {
+                    const displayName = getFieldDisplayName(key);
+                    const translatedValue = translateValue(key, value);
+                    const isLongValue = translatedValue.length > 40 || /^[0-9a-fA-F:,\s-]+$/.test(translatedValue);
+                    const valueClass = isLongValue ? 'txt-value long-value' : 'txt-value';
+                    formatted += `<div class="avahi-txt-item"><span class="txt-label">${escapeHtml(displayName)}:</span> <span class="${valueClass}">${escapeHtml(translatedValue)}</span></div>`;
+                });
+                formatted += '</div>';
+                formatted += '</div>';
+            }
+            
+            // _raop._tcp service (Audio - Remote Audio Output Protocol)
+            if (raopFields.size > 0) {
+                formatted += '<div class="avahi-section raop-section">';
+                formatted += '<h5 class="section-header"><span class="material-icons service-icon">volume_up</span> Audio Service (<code>_raop._tcp</code>)</h5>';
+                formatted += '<div class="avahi-txt-grid">';
+                raopFields.forEach((value, key) => {
+                    const displayName = getFieldDisplayName(key);
+                    const translatedValue = translateValue(key, value);
+                    const isLongValue = translatedValue.length > 40 || /^[0-9a-fA-F:,\s-]+$/.test(translatedValue);
+                    const valueClass = isLongValue ? 'txt-value long-value' : 'txt-value';
+                    formatted += `<div class="avahi-txt-item"><span class="txt-label">${escapeHtml(displayName)}:</span> <span class="${valueClass}">${escapeHtml(translatedValue)}</span></div>`;
+                });
+                formatted += '</div>';
+                formatted += '</div>';
+            }
+            
+            // _airplay._tcp service (Video - AirPlay Remote Video)
+            if (airplayFields.size > 0) {
+                formatted += '<div class="avahi-section airplay-section">';
+                formatted += '<h5 class="section-header"><span class="material-icons service-icon">videocam</span> Video Service (<code>_airplay._tcp</code>)</h5>';
+                formatted += '<div class="avahi-txt-grid">';
+                airplayFields.forEach((value, key) => {
+                    const displayName = getFieldDisplayName(key);
+                    const translatedValue = translateValue(key, value);
+                    const isLongValue = translatedValue.length > 40 || /^[0-9a-fA-F:,\s-]+$/.test(translatedValue);
+                    const valueClass = isLongValue ? 'txt-value long-value' : 'txt-value';
+                    formatted += `<div class="avahi-txt-item"><span class="txt-label">${escapeHtml(displayName)}:</span> <span class="${valueClass}">${escapeHtml(translatedValue)}</span></div>`;
+                });
+                formatted += '</div>';
+                formatted += '</div>';
+            }
+            
+            formatted += '</div>';
+            return formatted;
+        }
+
+        function formatAvahiLine(line, serviceTypeLabel = null, hasMultiple = false) {
+            if (!line || !line.includes(';')) {
+                return escapeHtml(line);
+            }
+            
+            const parts = line.split(';');
+            if (parts.length < 10) {
+                return escapeHtml(line);
+            }
+            
+            const eventType = parts[0];
+            const interface = parts[1];
+            const protocol = parts[2];
+            const name = parts[3];
+            const serviceType = parts[4];
+            const domain = parts[5];
+            const hostname = parts[6];
+            const address = parts[7];
+            const port = parts[8];
+            const txtRecord = parts.slice(9).join(';');
+            
+            // Decode escaped characters in name
+            let decodedName = name
+                .replace(/\\064/g, '@')
+                .replace(/\\032/g, ' ')
+                .replace(/\\040/g, ' ')
+                .replace(/\\041/g, '!')
+                .replace(/\\126/g, '~');
+            
+            // Parse TXT record
+            const txtFields = {};
+            const txtMatches = txtRecord.matchAll(/"([^=]+)=([^"]*)"/g);
+            for (const match of txtMatches) {
+                txtFields[match[1]] = match[2];
+            }
+            
+            let formatted = '<div class="avahi-entry">';
+            formatted += '<div class="avahi-header-compact">';
+            // Add Material Icon based on service type
+            let serviceIcon = '';
+            let airplayVersion = '';
+            const serviceTypeLower = serviceType.toLowerCase();
+            if (serviceTypeLower.includes('_raop._tcp') || serviceTypeLower === '_raop._tcp') {
+                serviceIcon = '<span class="material-icons service-icon">volume_up</span> ';
+                airplayVersion = '<span class="airplay-version-badge airplay-2">AirPlay 2</span> ';
+            } else if (serviceTypeLower.includes('_airplay._tcp') || serviceTypeLower === '_airplay._tcp') {
+                serviceIcon = '<span class="material-icons service-icon">videocam</span> ';
+                airplayVersion = '<span class="airplay-version-badge airplay-1">AirPlay 1</span> ';
+            } else if (serviceTypeLower.includes('audio') || serviceTypeLower.includes('airtunes') || serviceTypeLower.includes('raop')) {
+                serviceIcon = '<span class="material-icons service-icon">volume_up</span> ';
+            } else if (serviceTypeLower.includes('video') || serviceTypeLower.includes('airplay')) {
+                serviceIcon = '<span class="material-icons service-icon">videocam</span> ';
+            }
+            const displayServiceType = serviceTypeLabel || serviceType;
+            formatted += `<span class="avahi-service-compact">${serviceIcon}${airplayVersion}${escapeHtml(displayServiceType)}</span>`;
+            formatted += '</div>';
+            
+            formatted += '<div class="avahi-fields-compact">';
+            // Compact info row
+            formatted += '<div class="avahi-info-row">';
+            formatted += `<span class="info-item"><strong>Name:</strong> ${escapeHtml(decodedName)}</span>`;
+            formatted += `<span class="info-item"><strong>Hostname:</strong> ${escapeHtml(hostname)}</span>`;
+            formatted += `<span class="info-item"><strong>Address:</strong> ${escapeHtml(address)}</span>`;
+            formatted += `<span class="info-item"><strong>Port:</strong> ${escapeHtml(port)}</span>`;
+            formatted += `<span class="info-item"><strong>Protocol:</strong> ${escapeHtml(protocol)}</span>`;
+            formatted += '</div>';
+            
+            // TXT fields in compact grid
+            if (Object.keys(txtFields).length > 0) {
+                formatted += '<div class="avahi-txt-grid">';
+                for (const [key, value] of Object.entries(txtFields)) {
+                    const displayName = getFieldDisplayName(key);
+                    formatted += `<div class="avahi-txt-item"><span class="txt-label">${escapeHtml(displayName)}:</span> <span class="txt-value">${escapeHtml(value)}</span></div>`;
+                }
+                formatted += '</div>';
+            }
+            
+            formatted += '</div>';
+            formatted += '</div>';
+            
+            return formatted;
+        }
+
+        function renderDeviceRow(device, index) {
+            const deviceId = `device-${index}`;
+            const hasRawData = device.raw_avahi_data && device.raw_avahi_data.length > 0;
+            // Check if this device is on the same host
+            const isLocalHost = window.hostIP && device.address && device.address === window.hostIP;
+            const rowClass = `device-row ${hasRawData ? 'expandable' : ''} ${isLocalHost ? 'local-host' : ''}`;
+            
+            // Detect device type (Apple TV, HomePod, etc.)
+            const deviceType = detectDeviceType(device);
+            let deviceNameHtml = escapeHtml(device.name);
+            if (deviceType) {
+                deviceNameHtml = `<span class="device-type-badge device-type-${deviceType.type.toLowerCase().replace(/\s+/g, '-')}" title="${deviceType.type}">
+                    <span class="material-icons device-type-icon">${deviceType.icon}</span>
+                </span> ${deviceNameHtml}`;
+            }
+            
             return `
-                <tr class="device-row">
-                    <td class="device-name">${escapeHtml(device.name)}</td>
+                <tr class="${rowClass}" data-device-id="${deviceId}" ${hasRawData ? 'style="cursor: pointer;"' : ''}>
+                    <td class="device-name">
+                        ${hasRawData ? '<span class="expand-icon">▶</span> ' : ''}
+                        ${deviceNameHtml}
+                    </td>
                     <td class="device-address">${device.address_display ? escapeHtml(device.address_display) : (device.address ? escapeHtml(device.address) : '—')}</td>
                     <td class="device-hostname">${device.hostname ? escapeHtml(device.hostname) : '—'}</td>
                     <td class="device-port">${device.port ? escapeHtml(device.port) : '—'}</td>
-                    <td class="device-versions">${device.airplay_versions ? escapeHtml(device.airplay_versions) : '—'}</td>
-                    <td class="device-firmware">${device.firmware_version ? escapeHtml(device.firmware_version) : '—'}</td>
-                    <td class="device-features">${device.feature_flags ? `<code>${escapeHtml(device.feature_flags)}</code>` : '—'}</td>
+                    <td class="device-versions">${formatDeviceSupport(device)}</td>
                 </tr>
+                ${hasRawData ? `
+                <tr class="device-detail-row" id="${deviceId}-detail" style="display: none;">
+                    <td colspan="6" class="device-detail-cell">
+                        <div class="device-detail-content">
+                            <h4>Raw Avahi Data</h4>
+                            <div class="avahi-data-container">
+                                ${formatAvahiData(device.raw_avahi_data)}
+                            </div>
+                            <details class="raw-data-toggle">
+                                <summary>Show Raw Text</summary>
+                                <pre class="raw-avahi-data">${escapeHtml(device.raw_avahi_data.join('\n'))}</pre>
+                            </details>
+                        </div>
+                    </td>
+                </tr>
+                ` : ''}
             `;
+        }
+
+        // Track expanded rows by device identifier (hostname or name)
+        let expandedDevices = new Set();
+        let previousDevices = [];
+        let deviceRowMap = new Map(); // Map of device key -> row element
+
+        function getDeviceKey(device) {
+            return (device.hostname && device.hostname !== '—') ? device.hostname.toLowerCase() : device.name.toLowerCase();
+        }
+
+        function updateDeviceRow(row, device, deviceId) {
+            const cells = row.querySelectorAll('td');
+            if (cells.length < 5) return;
+            
+            const hasRawData = device.raw_avahi_data && device.raw_avahi_data.length > 0;
+            const expandIcon = row.querySelector('.expand-icon');
+            
+            // Update local-host class based on IP match
+            const isLocalHost = window.hostIP && device.address && device.address === window.hostIP;
+            if (isLocalHost) {
+                row.classList.add('local-host');
+            } else {
+                row.classList.remove('local-host');
+            }
+            
+            // Update name cell with device type detection
+            const nameCell = cells[0];
+            const deviceType = detectDeviceType(device);
+            let newNameHtml = escapeHtml(device.name);
+            if (deviceType) {
+                newNameHtml = `<span class="device-type-badge device-type-${deviceType.type.toLowerCase().replace(/\s+/g, '-')}" title="${deviceType.type}">
+                    <span class="material-icons device-type-icon">${deviceType.icon}</span>
+                </span> ${newNameHtml}`;
+            }
+            const currentNameText = nameCell.textContent.replace(/[▶▼]/g, '').trim();
+            if (currentNameText !== device.name) {
+                nameCell.innerHTML = (hasRawData ? '<span class="expand-icon">▶</span> ' : '') + newNameHtml;
+            }
+            
+            // Get MAC address
+            const macAddress = getMacAddress(device);
+            
+            // Update other cells only if changed
+            const updates = [
+                { cell: cells[1], value: device.address_display || device.address || '—', isHtml: false },
+                { cell: cells[2], value: device.hostname || '—', isHtml: false },
+                { cell: cells[3], value: device.port || '—', isHtml: false },
+                { cell: cells[4], value: macAddress || '—', isHtml: false },
+                { cell: cells[5], value: formatDeviceSupport(device), isHtml: true }
+            ];
+            
+            updates.forEach(({ cell, value, isHtml }) => {
+                const currentText = cell.textContent.trim();
+                const newText = isHtml ? value.replace(/<[^>]*>/g, '').trim() : value.trim();
+                if (currentText !== newText) {
+                    cell.innerHTML = isHtml ? value : escapeHtml(value);
+                }
+            });
+            
+            // Update expandable class
+            if (hasRawData && !row.classList.contains('expandable')) {
+                row.classList.add('expandable');
+                row.style.cursor = 'pointer';
+            } else if (!hasRawData && row.classList.contains('expandable')) {
+                row.classList.remove('expandable');
+                row.style.cursor = '';
+            }
+            
+            // Update detail row if it exists
+            const detailRow = document.getElementById(`${deviceId}-detail`);
+            if (hasRawData && detailRow) {
+                const dataContainer = detailRow.querySelector('.avahi-data-container');
+                const rawText = detailRow.querySelector('.raw-avahi-data');
+                if (dataContainer) {
+                    dataContainer.innerHTML = formatAvahiData(device.raw_avahi_data);
+                }
+                if (rawText) {
+                    rawText.textContent = device.raw_avahi_data.join('\n');
+                }
+            }
+        }
+
+        function createDeviceRow(device, index, tbody) {
+            const deviceId = `device-${index}`;
+            const hasRawData = device.raw_avahi_data && device.raw_avahi_data.length > 0;
+            const deviceKey = getDeviceKey(device);
+            
+            const row = document.createElement('tr');
+            row.className = `device-row ${hasRawData ? 'expandable' : ''}`;
+            row.dataset.deviceId = deviceId;
+            if (hasRawData) row.style.cursor = 'pointer';
+            
+            // Detect device type (Apple TV, HomePod, etc.)
+            const deviceType = detectDeviceType(device);
+            let deviceNameHtml = escapeHtml(device.name);
+            if (deviceType) {
+                deviceNameHtml = `<span class="device-type-badge device-type-${deviceType.type.toLowerCase().replace(/\s+/g, '-')}" title="${deviceType.type}">
+                    <span class="material-icons device-type-icon">${deviceType.icon}</span>
+                </span> ${deviceNameHtml}`;
+            }
+            
+            // Add staging badge if device name contains "staging" (case-insensitive)
+            const isStaging = device.name.toLowerCase().includes('staging');
+            const stagingBadge = isStaging ? '<span class="staging-badge" title="Staging Environment">STAGING</span> ' : '';
+            
+            // Get MAC address
+            const macAddress = getMacAddress(device);
+            
+            row.innerHTML = `
+                <td class="device-name">
+                    ${hasRawData ? '<span class="expand-icon">▶</span> ' : ''}
+                    ${stagingBadge}${deviceNameHtml}
+                </td>
+                <td class="device-address">${device.address_display ? escapeHtml(device.address_display) : (device.address ? escapeHtml(device.address) : '—')}</td>
+                <td class="device-hostname">${device.hostname ? escapeHtml(device.hostname) : '—'}</td>
+                <td class="device-port">${device.port ? escapeHtml(device.port) : '—'}</td>
+                <td class="device-mac">${macAddress ? escapeHtml(macAddress) : '—'}</td>
+                <td class="device-versions">${formatDeviceSupport(device)}</td>
+            `;
+            
+            tbody.appendChild(row);
+            
+            // Add detail row if has raw data
+            if (hasRawData) {
+                const detailRow = document.createElement('tr');
+                detailRow.className = 'device-detail-row';
+                detailRow.id = `${deviceId}-detail`;
+                detailRow.style.display = 'none';
+                detailRow.innerHTML = `
+                    <td colspan="6" class="device-detail-cell">
+                        <div class="device-detail-content">
+                            <h4>Raw Avahi Data</h4>
+                            <div class="avahi-data-container">
+                                ${formatAvahiData(device.raw_avahi_data)}
+                            </div>
+                            <details class="raw-data-toggle">
+                                <summary>Show Raw Text</summary>
+                                <pre class="raw-avahi-data">${escapeHtml(device.raw_avahi_data.join('\n'))}</pre>
+                            </details>
+                        </div>
+                    </td>
+                `;
+                tbody.appendChild(detailRow);
+            }
+            
+            // Attach click handler
+            if (hasRawData) {
+                row.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const detailRow = document.getElementById(`${deviceId}-detail`);
+                    const expandIcon = this.querySelector('.expand-icon');
+                    
+                    if (detailRow) {
+                        if (detailRow.style.display === 'none') {
+                            detailRow.style.display = '';
+                            if (expandIcon) expandIcon.textContent = '▼';
+                            this.classList.add('expanded');
+                            expandedDevices.add(deviceKey);
+                        } else {
+                            detailRow.style.display = 'none';
+                            if (expandIcon) expandIcon.textContent = '▶';
+                            this.classList.remove('expanded');
+                            expandedDevices.delete(deviceKey);
+                        }
+                    }
+                });
+            }
+            
+            // Restore expanded state
+            if (expandedDevices.has(deviceKey) && hasRawData) {
+                const detailRow = document.getElementById(`${deviceId}-detail`);
+                const expandIcon = row.querySelector('.expand-icon');
+                if (detailRow) {
+                    detailRow.style.display = '';
+                    if (expandIcon) expandIcon.textContent = '▼';
+                    row.classList.add('expanded');
+                }
+            }
+            
+            deviceRowMap.set(deviceKey, { row, deviceId, index });
+            return row;
         }
 
         function renderDevices(containerId, devices, emptyId) {
             const container = document.getElementById(containerId);
             const empty = document.getElementById(emptyId);
             
-            container.innerHTML = '';
-            container.style.display = 'none';
+            if (!devices || devices.length === 0) {
+                // Hide table, show empty
+                const table = container.querySelector('table');
+                if (table) table.style.display = 'none';
+                empty.style.display = 'block';
+                previousDevices = [];
+                deviceRowMap.clear();
+                return;
+            }
+            
+            // Hide empty, show table
             empty.style.display = 'none';
             
-            if (devices && devices.length > 0) {
-                let tableHtml = `
+            // Get or create table
+            let table = container.querySelector('table');
+            let tbody;
+            
+            if (!table) {
+                // First render - create table
+                container.innerHTML = `
                     <table class="devices-table">
                         <thead>
                             <tr>
@@ -115,77 +979,196 @@
                                 <th>IP Address</th>
                                 <th>Hostname</th>
                                 <th>Port</th>
-                                <th>AirPlay Versions</th>
-                                <th>Firmware</th>
-                                <th>Features</th>
+                                <th>MAC Address</th>
+                                <th>Support</th>
                             </tr>
                         </thead>
-                        <tbody>
-                `;
-                devices.forEach(device => {
-                    tableHtml += renderDeviceRow(device);
-                });
-                tableHtml += `
-                        </tbody>
+                        <tbody></tbody>
                     </table>
                 `;
-                container.innerHTML = tableHtml;
+                table = container.querySelector('table');
                 container.style.display = 'block';
-            } else {
-                empty.style.display = 'block';
             }
+            
+            tbody = table.querySelector('tbody');
+            
+            // Create maps for comparison
+            const newDeviceMap = new Map();
+            devices.forEach((device, index) => {
+                const key = getDeviceKey(device);
+                newDeviceMap.set(key, { device, index });
+            });
+            
+            // Remove devices that no longer exist
+            const keysToRemove = [];
+            deviceRowMap.forEach((value, key) => {
+                if (!newDeviceMap.has(key)) {
+                    keysToRemove.push(key);
+                }
+            });
+            
+            keysToRemove.forEach(key => {
+                const { row, deviceId } = deviceRowMap.get(key);
+                const detailRow = document.getElementById(`${deviceId}-detail`);
+                if (detailRow) detailRow.remove();
+                row.remove();
+                deviceRowMap.delete(key);
+                expandedDevices.delete(key);
+            });
+            
+            // Update existing or add new devices
+            // IMPORTANT: Process ALL devices - no filtering
+            devices.forEach((device, index) => {
+                const key = getDeviceKey(device);
+                const existing = deviceRowMap.get(key);
+                
+                if (existing) {
+                    // Update existing row
+                    updateDeviceRow(existing.row, device, existing.deviceId);
+                    // Update index in case order changed
+                    existing.index = index;
+                } else {
+                    // Add new row - ensure ALL devices are added
+                    createDeviceRow(device, index, tbody);
+                }
+            });
+            
+            // Reorder rows to match device order (if needed)
+            // IMPORTANT: Include ALL devices - if not in map, create row now
+            const rows = Array.from(tbody.querySelectorAll('.device-row'));
+            const orderedRows = [];
+            devices.forEach((device, index) => {
+                const key = getDeviceKey(device);
+                let existing = deviceRowMap.get(key);
+                if (!existing) {
+                    // Device not in map - create it now to ensure it's displayed
+                    createDeviceRow(device, index, tbody);
+                    existing = deviceRowMap.get(key);
+                }
+                if (existing) {
+                    orderedRows.push(existing.row);
+                    const detailRow = document.getElementById(`${existing.deviceId}-detail`);
+                    if (detailRow) orderedRows.push(detailRow);
+                }
+            });
+            
+            // Only reorder if order changed
+            let orderChanged = false;
+            orderedRows.forEach((row, i) => {
+                if (rows[i] !== row) {
+                    orderChanged = true;
+                }
+            });
+            
+            if (orderChanged) {
+                orderedRows.forEach(row => tbody.appendChild(row));
+            }
+            
+            previousDevices = devices;
         }
 
-        async function refreshBrowser() {
-            // Show loading states
-            document.getElementById('devices-loading').style.display = 'block';
-            document.getElementById('devices-error').style.display = 'none';
-            document.getElementById('devices-table').style.display = 'none';
-            document.getElementById('devices-empty').style.display = 'none';
+        let isRefreshing = false;
 
-            // Disable refresh button during load
+        async function refreshBrowser() {
+            // Prevent concurrent refreshes
+            if (isRefreshing) {
+                return;
+            }
+            
+            isRefreshing = true;
+            
+            // Show loading states (but don't hide table - we'll update it in place)
+            const devicesLoading = document.getElementById('devices-loading');
+            const devicesError = document.getElementById('devices-error');
+            const devicesTable = document.getElementById('devices-table');
+            const devicesEmpty = document.getElementById('devices-empty');
+            
+            // Only show loading if no devices are currently displayed
+            const hasExistingDevices = devicesTable && devicesTable.querySelector('table tbody .device-row');
+            if (devicesLoading && !hasExistingDevices) {
+                devicesLoading.style.display = 'block';
+            } else if (devicesLoading) {
+                devicesLoading.style.display = 'none';
+            }
+            if (devicesError) devicesError.style.display = 'none';
+            // Don't hide table - we'll update it in place
+            if (devicesEmpty) devicesEmpty.style.display = 'none';
+
+            // Disable refresh button during load (only if manual refresh)
             const refreshBtn = document.getElementById('refresh-btn');
             const refreshIcon = document.getElementById('refresh-icon');
+            const wasDisabled = refreshBtn?.disabled;
+            if (refreshBtn && !wasDisabled) {
             refreshBtn.disabled = true;
-            if (refreshIcon) {
+            }
+            if (refreshIcon && !wasDisabled) {
                 refreshIcon.style.animation = 'spin 0.5s linear infinite';
             }
 
             try {
-                const response = await fetch('/api/browser');
+                const response = await fetch('/api/browser', {
+                    method: 'GET',
+                    cache: 'no-cache',
+                    headers: {
+                        'Accept': 'application/json'
+                    }
+                });
+                
                 if (!response.ok) {
                     throw new Error(`HTTP ${response.status}`);
                 }
+                
                 const data = await response.json();
 
-                const devicesLoading = document.getElementById('devices-loading');
-                const devicesError = document.getElementById('devices-error');
-
-                devicesLoading.style.display = 'none';
+                if (devicesLoading) devicesLoading.style.display = 'none';
 
                 if (data.error) {
+                    if (devicesError) {
                     devicesError.textContent = `Error: ${escapeHtml(data.error)}`;
                     devicesError.style.display = 'block';
+                    }
+                    // Clear devices on error
+                    const devicesTable = document.getElementById('devices-table');
+                    if (devicesTable) {
+                        const table = devicesTable.querySelector('table');
+                        if (table) table.style.display = 'none';
+                    }
+                    const devicesEmpty = document.getElementById('devices-empty');
+                    if (devicesEmpty) devicesEmpty.style.display = 'block';
+                    previousDevices = [];
+                    deviceRowMap.clear();
                 } else {
-                    renderDevices('devices-table', data.devices, 'devices-empty');
+                    // Filter out staging instances - only show production
+                    const productionDevices = data.devices.filter(device => 
+                        !device.name.toLowerCase().includes('staging')
+                    );
+                    // Store host IP for highlighting
+                    window.hostIP = data.host_ip;
+                    renderDevices('devices-table', productionDevices, 'devices-empty');
                 }
 
                 // Update timestamp
                 if (data.timestamp) {
+                    const lastUpdate = document.getElementById('last-update');
+                    if (lastUpdate) {
                     const timestamp = new Date(data.timestamp);
                     const timeStr = timestamp.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', second: '2-digit' });
-                    document.getElementById('last-update').textContent = `Last updated: ${timeStr}`;
+                        lastUpdate.textContent = `Last updated: ${timeStr}`;
+                    }
                 }
 
             } catch (error) {
                 console.error('Error fetching browser data:', error);
                 showError(`Error loading browser data: ${escapeHtml(error.message)}`);
-                document.getElementById('devices-loading').style.display = 'none';
+                if (devicesLoading) devicesLoading.style.display = 'none';
             } finally {
+                if (refreshBtn && !wasDisabled) {
                 refreshBtn.disabled = false;
-                if (refreshIcon) {
+                }
+                if (refreshIcon && !wasDisabled) {
                     refreshIcon.style.animation = '';
                 }
+                isRefreshing = false;
             }
         }
 
@@ -209,7 +1192,9 @@
         // Refresh button handler
         const refreshBtn = document.getElementById('refresh-btn');
         if (refreshBtn) {
-            refreshBtn.addEventListener('click', () => {
+            refreshBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
                 refreshBrowser();
             });
         }

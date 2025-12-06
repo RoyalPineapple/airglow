@@ -6,7 +6,6 @@ Provides real-time status information and configuration for airglow services
 import json
 import logging
 import os
-import random
 import re
 import subprocess
 import yaml
@@ -37,22 +36,9 @@ SHAIRPORT_CONF = os.path.join(CONFIG_DIR, 'shairport-sync.conf')
 DEFAULT_AIRPLAY_NAME = 'Airglow'
 
 # Rate limiting for diagnostic endpoint
-# Rate limiting constants
 DIAGNOSTIC_RATE_LIMIT = {}  # Simple in-memory rate limiter
-RATE_LIMIT_WINDOW_SECONDS = 60  # Rate limit window duration in seconds
-RATE_LIMIT_MAX_REQUESTS = 5  # Maximum requests allowed per window
-
-# API timeout constants (in seconds)
-API_TIMEOUT = 5  # Default timeout for API calls
-CURL_CONNECT_TIMEOUT = 3  # Connection timeout for curl commands
-CURL_MAX_TIME = 5  # Maximum time for curl commands
-DIAGNOSTIC_SCRIPT_TIMEOUT = 60  # Timeout for diagnostic script execution
-CONTAINER_RESTART_TIMEOUT = 30  # Timeout for container restart operations
-
-# Retry configuration
-MAX_RETRIES = 3  # Maximum number of retry attempts
-INITIAL_RETRY_DELAY = 0.5  # Initial delay in seconds (exponential backoff)
-MAX_RETRY_DELAY = 5.0  # Maximum delay between retries in seconds
+RATE_LIMIT_WINDOW = 60  # 60 seconds
+RATE_LIMIT_MAX_REQUESTS = 5  # Max 5 requests per window
 
 
 def check_container_status(container_name):
@@ -80,7 +66,6 @@ def check_container_status(container_name):
                     if info.get('connected') and info.get('version'):
                         status['version'] = info['version']
                 except Exception:
-                    # Version check failed, continue without version
                     pass
             elif container_name == 'shairport-sync':
                 # Get Shairport-Sync version from container
@@ -99,7 +84,6 @@ def check_container_status(container_name):
                         if version_match:
                             status['version'] = version_match.group(1)
                 except Exception:
-                    # Version check failed, continue without version
                     pass
         
         return status
@@ -108,121 +92,100 @@ def check_container_status(container_name):
         return status
 
 
-def _retry_api_call(func, *args, **kwargs):
-    """
-    Retry helper function with exponential backoff for API calls.
-    
-    Args:
-        func: Function to retry (should return a result or raise an exception)
-        *args, **kwargs: Arguments to pass to the function
-    
-    Returns:
-        Result from the function, or None if all retries fail
-    """
-    delay = INITIAL_RETRY_DELAY
-    last_exception = None
-    
-    for attempt in range(MAX_RETRIES):
-        try:
-            return func(*args, **kwargs)
-        except (subprocess.TimeoutExpired, subprocess.SubprocessError, json.JSONDecodeError, ConnectionError) as e:
-            last_exception = e
-            if attempt < MAX_RETRIES - 1:  # Don't sleep on last attempt
-                # Exponential backoff with jitter
-                sleep_time = min(delay * (2 ** attempt), MAX_RETRY_DELAY)
-                jitter = random.uniform(0, sleep_time * 0.1)  # Add up to 10% jitter
-                time.sleep(sleep_time + jitter)
-                logger.debug(f"API call failed (attempt {attempt + 1}/{MAX_RETRIES}), retrying in {sleep_time + jitter:.2f}s: {e}")
-            else:
-                logger.warning(f"API call failed after {MAX_RETRIES} attempts: {e}")
-    
-    return None
-
-
-def _call_ledfx_api(endpoint, timeout=API_TIMEOUT):
-    """
-    Helper function to call LedFX API with retry logic.
-    
-    Args:
-        endpoint: API endpoint path (e.g., '/api/info')
-        timeout: Request timeout in seconds
-    
-    Returns:
-        JSON response as dict, or None if request failed
-    """
-    def _make_request():
-        result = subprocess.run(
-            ['curl', '-s', '-f', '--max-time', str(CURL_MAX_TIME), '--connect-timeout', str(CURL_CONNECT_TIMEOUT),
-             f'{LEDFX_URL}{endpoint}'],
-            capture_output=True,
-            text=True,
-            timeout=timeout
-        )
-        if result.returncode == 0:
-            return json.loads(result.stdout)
-        else:
-            raise subprocess.SubprocessError(f"curl returned {result.returncode}: {result.stderr}")
-    
-    return _retry_api_call(_make_request)
-
-
 def get_ledfx_info():
     """Get LedFX API information"""
-    info = _call_ledfx_api('/api/info')
-    if info:
-        return {
-            'connected': True,
-            'version': info.get('version', 'unknown'),
-            'data': info
-        }
+    try:
+        result = subprocess.run(
+            ['curl', '-s', '-f', f'{LEDFX_URL}/api/info'],
+            capture_output=True,
+            text=True,
+            timeout=5
+        )
+        if result.returncode == 0:
+            info = json.loads(result.stdout)
+            return {
+                'connected': True,
+                'version': info.get('version', 'unknown'),
+                'data': info
+            }
+    except (subprocess.TimeoutExpired, json.JSONDecodeError, subprocess.SubprocessError) as e:
+        logger.warning(f"Error getting LedFX info: {e}")
+        pass
     return {'connected': False, 'version': None, 'data': None}
 
 
 def get_ledfx_virtuals():
     """Get LedFX virtuals status"""
-    data = _call_ledfx_api('/api/virtuals')
-    if data:
-        virtuals = {}
-        if 'virtuals' in data:
-            for vid, vdata in data['virtuals'].items():
-                virtuals[vid] = {
-                    'active': vdata.get('active', False),
-                    'streaming': vdata.get('streaming', False),
-                    'effect': vdata.get('effect', {}).get('type', 'none') if isinstance(vdata.get('effect'), dict) else 'none',
-                    'paused': data.get('paused', False)
-                }
-        return {'connected': True, 'virtuals': virtuals, 'paused': data.get('paused', False)}
+    try:
+        result = subprocess.run(
+            ['curl', '-s', '-f', f'{LEDFX_URL}/api/virtuals'],
+            capture_output=True,
+            text=True,
+            timeout=5
+        )
+        if result.returncode == 0:
+            data = json.loads(result.stdout)
+            virtuals = {}
+            if 'virtuals' in data:
+                for vid, vdata in data['virtuals'].items():
+                    virtuals[vid] = {
+                        'active': vdata.get('active', False),
+                        'streaming': vdata.get('streaming', False),
+                        'effect': vdata.get('effect', {}).get('type', 'none') if isinstance(vdata.get('effect'), dict) else 'none',
+                        'paused': data.get('paused', False)
+                    }
+            return {'connected': True, 'virtuals': virtuals, 'paused': data.get('paused', False)}
+    except (subprocess.TimeoutExpired, json.JSONDecodeError, subprocess.SubprocessError):
+        pass
     return {'connected': False, 'virtuals': {}, 'paused': False}
 
 
 def get_ledfx_devices():
     """Get LedFX devices status"""
-    data = _call_ledfx_api('/api/devices')
-    if data:
-        devices = {}
-        if 'devices' in data:
-            for did, ddata in data['devices'].items():
-                devices[did] = {
-                    'online': ddata.get('online', False),
-                    'type': ddata.get('type', 'unknown'),
-                    'config': ddata.get('config', {})
-                }
-        return {'connected': True, 'devices': devices}
+    try:
+        result = subprocess.run(
+            ['curl', '-s', '-f', f'{LEDFX_URL}/api/devices'],
+            capture_output=True,
+            text=True,
+            timeout=5
+        )
+        if result.returncode == 0:
+            data = json.loads(result.stdout)
+            devices = {}
+            if 'devices' in data:
+                for did, ddata in data['devices'].items():
+                    devices[did] = {
+                        'online': ddata.get('online', False),
+                        'type': ddata.get('type', 'unknown'),
+                        'config': ddata.get('config', {})
+                    }
+            return {'connected': True, 'devices': devices}
+    except (subprocess.TimeoutExpired, json.JSONDecodeError, subprocess.SubprocessError):
+        pass
     return {'connected': False, 'devices': {}}
 
 
 def get_ledfx_scenes():
     """Get LedFX scenes"""
-    data = _call_ledfx_api('/api/scenes')
-    if data:
-        scenes = {}
-        if 'scenes' in data:
-            for sid, sdata in data['scenes'].items():
-                scenes[sid] = {
-                    'name': sdata.get('name', sid),
-                    'virtuals': sdata.get('virtuals', [])
-                }
-        return {'connected': True, 'scenes': scenes}
+    try:
+        result = subprocess.run(
+            ['curl', '-s', '-f', f'{LEDFX_URL}/api/scenes'],
+            capture_output=True,
+            text=True,
+            timeout=5
+        )
+        if result.returncode == 0:
+            data = json.loads(result.stdout)
+            scenes = {}
+            if 'scenes' in data:
+                for sid, sdata in data['scenes'].items():
+                    scenes[sid] = {
+                        'name': sdata.get('name', sid),
+                        'virtuals': sdata.get('virtuals', [])
+                    }
+            return {'connected': True, 'scenes': scenes}
+    except (subprocess.TimeoutExpired, json.JSONDecodeError, subprocess.SubprocessError):
+        pass
     return {'connected': False, 'scenes': {}}
 
 
@@ -233,14 +196,26 @@ def get_ledfx_audio_device():
     """
     try:
         # Get available audio devices and their mapping
-        devices_data = _call_ledfx_api('/api/audio/devices')
-        if devices_data:
+        devices_result = subprocess.run(
+            ['curl', '-s', '-f', f'{LEDFX_URL}/api/audio/devices'],
+            capture_output=True,
+            text=True,
+            timeout=5
+        )
+        if devices_result.returncode == 0:
+            devices_data = json.loads(devices_result.stdout)
             devices_map = devices_data.get('devices', {})
             active_index = devices_data.get('active_device_index')
             
             # Get configured device index from config
-            config_data = _call_ledfx_api('/api/config')
-            if config_data:
+            config_result = subprocess.run(
+                ['curl', '-s', '-f', f'{LEDFX_URL}/api/config'],
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+            if config_result.returncode == 0:
+                config_data = json.loads(config_result.stdout)
                 audio_config = config_data.get('audio', {})
                 configured_index = audio_config.get('audio_device')
                 
@@ -256,7 +231,6 @@ def get_ledfx_audio_device():
                     'available_devices': devices_map
                 }
     except (subprocess.TimeoutExpired, json.JSONDecodeError, subprocess.SubprocessError) as e:
-        # Audio device check failed, return defaults
         pass
     return {
         'configured_index': None,
@@ -319,7 +293,6 @@ def get_audio_status():
                     elif 'Corked: no' in list_inputs.stdout:
                         audio_status['shairport_corked'] = False
     except (subprocess.TimeoutExpired, subprocess.SubprocessError):
-        # Audio status check failed, continue with defaults
         pass
     
     # Note: We don't compute a derived "LedFX Connected" status
@@ -334,8 +307,14 @@ def get_audio_status():
     # Note: This flag may take a moment to update or may behave differently than expected,
     # so we expose it separately for visibility rather than using it as a fallback
     try:
-        data = _call_ledfx_api('/api/virtuals')
-        if data:
+        result = subprocess.run(
+            ['curl', '-s', '-f', f'{LEDFX_URL}/api/virtuals'],
+            capture_output=True,
+            text=True,
+            timeout=5
+        )
+        if result.returncode == 0:
+            data = json.loads(result.stdout)
             if 'virtuals' in data:
                 # Check if any virtual is streaming (API indicator)
                 for vid, vdata in data['virtuals'].items():
@@ -343,7 +322,6 @@ def get_audio_status():
                         audio_status['ledfx_streaming_flag'] = True
                         break
     except (subprocess.TimeoutExpired, json.JSONDecodeError, subprocess.SubprocessError):
-        # LedFX streaming check failed, continue with defaults
         pass
     
     return audio_status
@@ -474,8 +452,7 @@ def get_airplay_status():
         'device_name': None,
         'advertising': False,
         'running': False,
-        'avahi_running': False,  # Now same as shairport-sync running (built-in Avahi)
-        'dbus_connected': False,
+        'avahi_running': False,
         'error': None
     }
     
@@ -486,18 +463,14 @@ def get_airplay_status():
             status['configured'] = True
             status['device_name'] = device_name
         
-        # Check if shairport-sync container is running
+        # Check if shairport-sync container is running (has built-in Avahi)
         shairport_status = check_container_status('shairport-sync')
         status['running'] = shairport_status['running']
+        status['avahi_running'] = shairport_status['running']  # Avahi is built into shairport-sync
         
-        # Shairport-sync has built-in Avahi, so avahi_running is same as shairport-sync running
-        status['avahi_running'] = status['running']
-        status['dbus_connected'] = False
-        
-        # Check if built-in Avahi is accessible via D-Bus
+        # Check D-Bus connection between shairport-sync and Avahi
         if status['running']:
             try:
-                # Check if shairport-sync's built-in Avahi is accessible via D-Bus
                 dbus_check = subprocess.run(
                     ['docker', 'exec', 'shairport-sync', 'dbus-send', '--system', '--print-reply', 
                      '--dest=org.freedesktop.DBus', '/org/freedesktop/DBus', 
@@ -509,23 +482,19 @@ def get_airplay_status():
                 if dbus_check.returncode == 0 and 'org.freedesktop.Avahi' in dbus_check.stdout:
                     status['dbus_connected'] = True
                 else:
-                    status['error'] = 'Built-in Avahi not accessible via D-Bus'
-                    logger.warning(f"D-Bus check failed: {dbus_check.stderr}")
-            except subprocess.TimeoutExpired:
-                status['error'] = 'D-Bus connection check timed out'
+                    status['dbus_connected'] = False
             except Exception as e:
-                logger.warning(f"Error checking D-Bus connection: {e}")
-                status['error'] = str(e)
+                logger.warning(f"Could not check D-Bus connection: {e}")
+                status['dbus_connected'] = False
         
         # Validate that Avahi is actually advertising the service
-        if status['running'] and status['dbus_connected']:
+        if status['running'] and status['avahi_running']:
             if not device_name:
                 status['error'] = 'Device name not configured'
             else:
                 try:
                     # Browse for AirPlay services and parse to find our device
                     # Check both AirPlay 2 (_raop._tcp) and AirPlay 1 (_airplay._tcp)
-                    # Use shairport-sync container which has built-in Avahi daemon
                     airplay2_result = subprocess.run(
                         ['docker', 'exec', 'shairport-sync', 'avahi-browse', '-rpt', '_raop._tcp'],
                         capture_output=True,
@@ -597,8 +566,6 @@ def get_airplay_status():
                     status['error'] = str(e)
         elif not status['running']:
             status['error'] = 'Shairport-sync container is not running'
-        elif not status['dbus_connected']:
-            status['error'] = 'Built-in Avahi not accessible via D-Bus'
             
     except Exception as e:
         logger.error(f"Error getting AirPlay status: {e}")
@@ -688,23 +655,14 @@ def save_virtual_config(config_data):
 
 @app.route('/')
 def index():
-    """Landing page"""
-    # Check if this is a fresh installation (no config file)
-    is_fresh_install = not os.path.exists(HOOKS_YAML)
-    
-    # Check if LedFX has any devices configured
-    has_ledfx_devices = False
-    try:
-        devices_data = get_ledfx_devices()
-        if devices_data.get('connected') and devices_data.get('devices'):
-            has_ledfx_devices = len(devices_data['devices']) > 0
-    except Exception:
-        # Device check failed, continue without device count
-        pass
-    
-    return render_template('landing.html',
-                          is_fresh_install=is_fresh_install,
-                          has_ledfx_devices=has_ledfx_devices)
+    """Configuration page (home page)"""
+    return render_template('config.html')
+
+
+@app.route('/config')
+def config():
+    """Configuration page (alias for /)"""
+    return render_template('config.html')
 
 
 @app.route('/status')
@@ -713,16 +671,16 @@ def status_page():
     return render_template('index.html')
 
 
-@app.route('/config')
-def config():
-    """Configuration page"""
-    return render_template('config.html')
-
-
 @app.route('/browser')
 def browser():
-    """AirPlay browser page"""
+    """playdar page"""
     return render_template('browser.html')
+
+
+@app.route('/ledfx')
+def ledfx():
+    """LedFX page"""
+    return render_template('ledfx.html')
 
 
 def get_diagnostic_warnings():
@@ -807,7 +765,7 @@ def status():
         logger.warning(f"Could not query Docker for containers: {e}")
         # Fallback to checking known containers if Docker query fails
         known_containers = {
-            # Note: avahi is now built into shairport-sync, no separate container
+            'avahi': 'avahi',
             'ledfx': 'ledfx',
             'shairport_sync': 'shairport-sync'
         }
@@ -1046,7 +1004,7 @@ def rate_limit_diagnose(f):
         # Clean old entries
         DIAGNOSTIC_RATE_LIMIT[client_id] = [
             req_time for req_time in DIAGNOSTIC_RATE_LIMIT.get(client_id, [])
-            if current_time - req_time < RATE_LIMIT_WINDOW_SECONDS
+            if current_time - req_time < RATE_LIMIT_WINDOW
         ]
         
         # Check rate limit
@@ -1073,8 +1031,7 @@ def restart_container(container_name):
     """Restart a specific container"""
     # Validate container name (security: only allow known containers)
     # Exclude airglow-web as it's the UI itself
-    # Note: avahi and nqptp are now built into shairport-sync
-    allowed_containers = ['ledfx', 'shairport-sync']
+    allowed_containers = ['avahi', 'nqptp', 'ledfx', 'shairport-sync']
     if container_name not in allowed_containers:
         return jsonify({'error': 'Invalid container name'}), 400
     
@@ -1160,7 +1117,7 @@ def parse_avahi_browse_output(output):
         return devices
     
     lines = output.split('\n')
-    device_map = {}  # Track devices by name to avoid duplicates (IPv4/IPv6)
+    device_map = {}  # Group devices by hostname
     
     for line in lines:
         line = line.strip()
@@ -1222,53 +1179,68 @@ def parse_avahi_browse_output(output):
                     if ft_match:
                         feature_flags = ft_match.group(1)
                 
-                # Use hostname as key to deduplicate (same device may appear on IPv4 and IPv6)
-                # Prefer IPv4 over IPv6 - only keep the primary address
+                # Use hostname + service type as key to differentiate AirPlay 1, AirPlay 2, and video
+                # This allows same hostname to show separate entries for different service types
                 if hostname:
-                    device_key = hostname.lower()
-                    if device_key not in device_map:
-                        # New device - create entry
-                        device_map[device_key] = {
-                            'name': device_name,
-                            'interface': interface,
-                            'protocol': protocol,
-                            'hostname': hostname,
-                            'address': address,
-                            'port': port,
-                            'firmware_version': firmware_version,
-                            'feature_flags': feature_flags
-                        }
-                    else:
-                        # Existing device - prefer IPv4 over IPv6
-                        existing = device_map[device_key]
-                        # Only update if we have IPv4 and existing is IPv6, or if existing has no address
-                        if (protocol == 'IPv4' and existing.get('protocol') == 'IPv6') or not existing.get('address'):
-                            existing['address'] = address
-                            existing['protocol'] = protocol
-                        # Update firmware/features if missing
-                        if not existing.get('firmware_version') and firmware_version:
-                            existing['firmware_version'] = firmware_version
-                        if not existing.get('feature_flags') and feature_flags:
-                            existing['feature_flags'] = feature_flags
+                    device_key = f"{hostname.lower()}|{service_type.lower()}"
                 else:
-                    # No hostname - use device name as fallback key
-                    device_key = device_name.lower()
-                    if device_key not in device_map or (protocol == 'IPv4' and device_map[device_key].get('protocol') == 'IPv6'):
-                        device_map[device_key] = {
-                            'name': device_name,
-                            'interface': interface,
-                            'protocol': protocol,
-                            'hostname': hostname,
-                            'address': address,
-                            'port': port,
-                            'firmware_version': firmware_version,
-                            'feature_flags': feature_flags
-                        }
+                    # No hostname - use device name + service type as fallback key
+                    device_key = f"{device_name.lower()}|{service_type.lower()}"
+                
+                # Determine service type label for display
+                service_label = ''
+                if '_raop._tcp' in service_type.lower():
+                    service_label = ' (AirPlay 2 Audio)'
+                elif '_airplay._tcp' in service_type.lower():
+                    service_label = ' (AirPlay Video)'
+                
+                # Initialize device entry if not exists
+                if device_key not in device_map:
+                    device_map[device_key] = {
+                        'name': device_name + service_label,
+                        'interface': interface,
+                        'protocol': protocol,
+                        'hostname': hostname,
+                        'address': address,  # Prefer first address found
+                        'port': port,
+                        'firmware_version': firmware_version,
+                        'feature_flags': feature_flags,
+                        'service_type': service_type,
+                        'raw_avahi_data': []
+                    }
+                
+                # Add raw line to this device's data
+                device_map[device_key]['raw_avahi_data'].append(line)
+                
+                # Prefer IPv4 addresses and external IPs (192.168.x.x) over Docker internal (172.x.x.x) and loopback
+                existing = device_map[device_key]
+                if address:
+                    # Prefer 192.168.x.x addresses
+                    if address.startswith('192.168.') and not existing['address'].startswith('192.168.'):
+                        existing['address'] = address
+                        existing['interface'] = interface
+                        existing['protocol'] = protocol
+                    # Prefer IPv4 over IPv6
+                    elif protocol == 'IPv4' and existing.get('protocol') == 'IPv6':
+                        existing['address'] = address
+                        existing['interface'] = interface
+                        existing['protocol'] = protocol
+                    # Update if no address set
+                    elif not existing.get('address'):
+                        existing['address'] = address
+                        existing['interface'] = interface
+                        existing['protocol'] = protocol
+                
+                # Update firmware/features if missing
+                if not existing.get('firmware_version') and firmware_version:
+                    existing['firmware_version'] = firmware_version
+                if not existing.get('feature_flags') and feature_flags:
+                    existing['feature_flags'] = feature_flags
     
-    # Convert device map to list - use single address only
-    for device in device_map.values():
+    # Convert device map to list
+    devices = []
+    for device_key, device in device_map.items():
         if device.get('address') or device.get('hostname'):
-            # Use single address only - no consolidation display
             device['address_display'] = device.get('address', '—')
             devices.append(device)
     
@@ -1281,21 +1253,39 @@ def get_airplay_devices():
     result = {
         'devices': [],
         'error': None,
-        'timestamp': datetime.now().isoformat()
+        'timestamp': datetime.now().isoformat(),
+        'host_ip': None
     }
     
-    # Check if shairport-sync container is running (it has built-in Avahi)
+    # Get the host IP address by checking the shairport-sync container's network
+    try:
+        # Get all IPs from shairport-sync container and find the one in 192.168.2.x range
+        inspect_result = subprocess.run(
+            ['docker', 'inspect', '--format', '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}', 'shairport-sync'],
+            capture_output=True,
+            text=True,
+            timeout=5
+        )
+        if inspect_result.returncode == 0:
+            # Get all IPs and find the one in 192.168.2.x range (macvlan network)
+            all_ips = inspect_result.stdout.strip()
+            for ip in all_ips.split():
+                if ip and ip.startswith('192.168.2.'):
+                    result['host_ip'] = ip
+                    break
+    except Exception as e:
+        logger.warning(f"Could not determine host IP: {e}")
+    
+    # Check if shairport-sync container is running (has built-in Avahi)
     shairport_status = check_container_status('shairport-sync')
     if not shairport_status['running']:
-        result['error'] = 'Shairport-sync container is not running (required for Avahi browsing)'
+        result['error'] = 'Shairport-sync container is not running'
         return jsonify(result)
     
-    # Combined device map keyed by hostname
+    # Combined device map keyed by hostname (to merge AirPlay 2 and AirPlay 1 data)
     all_devices = {}
     
-    # Browse AirPlay 2 services (_raop._tcp)
-    # Use shairport-sync container which has built-in Avahi daemon
-    # Use -p for parsable output and -r for resolve
+    # Browse AirPlay 2 services (_raop._tcp) - Audio
     try:
         airplay2_result = subprocess.run(
             ['docker', 'exec', 'shairport-sync', 'avahi-browse', '-rpt', '_raop._tcp'],
@@ -1305,12 +1295,18 @@ def get_airplay_devices():
         )
         if airplay2_result.returncode == 0:
             airplay2_devices = parse_avahi_browse_output(airplay2_result.stdout)
-            # Mark devices as supporting AirPlay 2
             for device in airplay2_devices:
                 hostname_key = device.get('hostname', '').lower() if device.get('hostname') else device.get('name', '').lower()
                 if hostname_key:
                     if hostname_key not in all_devices:
                         all_devices[hostname_key] = device
+                        all_devices[hostname_key]['raw_avahi_data_ap2'] = device.get('raw_avahi_data', [])
+                    else:
+                        # Merge raw data
+                        if 'raw_avahi_data_ap2' not in all_devices[hostname_key]:
+                            all_devices[hostname_key]['raw_avahi_data_ap2'] = device.get('raw_avahi_data', [])
+                        else:
+                            all_devices[hostname_key]['raw_avahi_data_ap2'].extend(device.get('raw_avahi_data', []))
                     all_devices[hostname_key]['airplay2'] = True
         else:
             logger.warning(f"AirPlay 2 browse failed: {airplay2_result.stderr}")
@@ -1319,9 +1315,7 @@ def get_airplay_devices():
     except Exception as e:
         logger.error(f"Error browsing AirPlay 2 services: {e}")
     
-    # Browse AirPlay 1 services (_airplay._tcp)
-    # Use shairport-sync container which has built-in Avahi daemon
-    # Use -p for parsable output and -r for resolve
+    # Browse AirPlay 1 services (_airplay._tcp) - Video
     try:
         airplay1_result = subprocess.run(
             ['docker', 'exec', 'shairport-sync', 'avahi-browse', '-rpt', '_airplay._tcp'],
@@ -1331,12 +1325,18 @@ def get_airplay_devices():
         )
         if airplay1_result.returncode == 0:
             airplay1_devices = parse_avahi_browse_output(airplay1_result.stdout)
-            # Mark devices as supporting AirPlay 1
             for device in airplay1_devices:
                 hostname_key = device.get('hostname', '').lower() if device.get('hostname') else device.get('name', '').lower()
                 if hostname_key:
                     if hostname_key not in all_devices:
                         all_devices[hostname_key] = device
+                        all_devices[hostname_key]['raw_avahi_data_ap1'] = device.get('raw_avahi_data', [])
+                    else:
+                        # Merge raw data
+                        if 'raw_avahi_data_ap1' not in all_devices[hostname_key]:
+                            all_devices[hostname_key]['raw_avahi_data_ap1'] = device.get('raw_avahi_data', [])
+                        else:
+                            all_devices[hostname_key]['raw_avahi_data_ap1'].extend(device.get('raw_avahi_data', []))
                     all_devices[hostname_key]['airplay1'] = True
         else:
             logger.warning(f"AirPlay 1 browse failed: {airplay1_result.stderr}")
@@ -1345,14 +1345,25 @@ def get_airplay_devices():
     except Exception as e:
         logger.error(f"Error browsing AirPlay 1 services: {e}")
     
-    # Convert to list and format AirPlay version info
+    # Combine devices and merge raw data
+    # IMPORTANT: Return ALL devices - no filtering
     for device in all_devices.values():
         versions = []
         if device.get('airplay2'):
             versions.append('AirPlay 2')
         if device.get('airplay1'):
-            versions.append('AirPlay 1')
+            versions.append('AirPlay Video')
         device['airplay_versions'] = ', '.join(versions) if versions else 'Unknown'
+        
+        # Combine all raw avahi data from both service types
+        raw_data = []
+        if device.get('raw_avahi_data_ap2'):
+            raw_data.extend(device['raw_avahi_data_ap2'])
+        if device.get('raw_avahi_data_ap1'):
+            raw_data.extend(device['raw_avahi_data_ap1'])
+        device['raw_avahi_data'] = raw_data
+        
+        # Add ALL devices to result - no filtering
         result['devices'].append(device)
     
     return jsonify(result)
