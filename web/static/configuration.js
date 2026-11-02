@@ -10,12 +10,21 @@
     return result;
   }
   function message(id, text, error = false) { $(id).textContent = text; $(id).dataset.result = error ? 'error' : 'success'; }
+  function dirtyStatus(id, dirty) {
+    if (dirty || $(id).textContent === 'Unsaved changes') {
+      $(id).textContent = dirty ? 'Unsaved changes' : 'No unsaved changes';
+      delete $(id).dataset.result;
+    }
+  }
   function receiverValue() {
     return {name:$('receiver-name').value, fixed_volume:$('fixed-volume').checked,
       password:$('receiver-password').value, clear_password:$('clear-password').checked};
   }
   function receiverChanged() {
-    $('save-receiver').disabled = JSON.stringify(receiverValue()) === receiverBaseline;
+    const dirty = JSON.stringify(receiverValue()) !== receiverBaseline;
+    $('save-receiver').disabled = !dirty;
+    $('discard-receiver').hidden = !dirty;
+    dirtyStatus('receiver-result', dirty);
     $('effective-name').textContent = 'Appears in AirPlay as “' + ($('receiver-name').value.trim() || $('receiver-name').placeholder) + '”.';
   }
   function receiver(data) {
@@ -44,6 +53,8 @@
     if (!catalog) return;
     const dirty = JSON.stringify(values()) !== actionsBaseline;
     $('save-actions').disabled = !dirty || testing;
+    $('discard-actions').hidden = !dirty;
+    dirtyStatus('actions-result', dirty);
     for (const key of keys) {
       const enabled = $(key + '-enabled').checked, a = action(key), scene = a.mode === 'scene';
       $(key + '-fields').disabled = !enabled || testing;
@@ -51,15 +62,9 @@
       for (const row of $(key + '-virtuals').querySelectorAll('.target')) {
         row.querySelector('input[type=checkbox]').disabled = a.all_virtuals;
       }
-      const prefix = key === 'start' ? 'Playback starts → ' : 'Playback ends → wait 10 seconds, then ';
-      let description = 'do nothing.';
-      if (enabled) {
-        if (!hasTarget(a)) description = 'choose an output or scene to finish setup.';
-        else if (scene) description = 'activate ' + a.scenes.map(sceneName).join(', then ') + '.';
-        else description = (key === 'start' ? 'resume saved effects on ' : 'stop sending lighting updates to ') +
-          (a.all_virtuals ? 'every output, including future outputs' : a.virtuals.map(v => outputName(v.id)).join(', ')) + '.';
-      }
-      $(key + '-summary').textContent = prefix + description;
+      $(key + '-enabled-label').textContent = enabled ? 'On' : 'Off';
+      $(key + '-selection').textContent = a.all_virtuals ? 'All outputs (' + catalog.available_virtuals.length + ')' : a.virtuals.length === 1 ? outputName(a.virtuals[0].id) : a.virtuals.length ? a.virtuals.length + ' outputs selected' : 'Choose outputs…';
+      $(key + '-scope').textContent = a.all_virtuals ? 'Includes newly added outputs' : 'Only the selected outputs';
       $(key + '-test').disabled = dirty || testing || !enabled || !hasTarget(a) || !catalog.ledfx_connected;
       const previews = [];
       for (const id of a.scenes) {
@@ -74,7 +79,8 @@
       $(key + '-scene-preview').textContent = previews.join(' · ');
       $(key + '-scene-help').textContent = a.scenes.length > 1 ? 'Your existing scene sequence is preserved. Choosing one scene replaces that sequence.' : catalog.available_scenes.length ? 'This scene controls only the outputs and actions saved in LedFX.' : 'No saved scenes. Create one in LedFX, then reload this page.';
     }
-    $('connection-note').textContent = !catalog.ledfx_connected ? 'LedFX is unavailable. Saved choices are retained; reconnect before saving or testing targets.' : dirty ? 'Preview of unsaved changes. Save playback actions before testing.' : 'Saved playback plan. Tests below change lighting output.';
+    $('connection-note').hidden = catalog.ledfx_connected && !dirty;
+    $('connection-note').textContent = !catalog.ledfx_connected ? 'LedFX unavailable. Saved choices are retained; reconnect before testing.' : 'Save changes before testing.';
   }
   function hook(key, config) {
     $(key + '-enabled').checked = config.enabled;
@@ -86,7 +92,7 @@
       const label = document.createElement('label'); label.className = 'check';
       const checkbox = document.createElement('input'); checkbox.type = 'checkbox'; checkbox.value = id; checkbox.checked = selected.has(id) || (config.all_virtuals && catalog.available_virtuals.includes(id));
       const text = document.createElement('span'); text.textContent = outputName(id);
-      const detail = document.createElement('small'); detail.textContent = id + (!catalog.available_virtuals.includes(id) ? ' · unavailable' : ''); text.append(detail);
+      const detail = document.createElement('small'); detail.textContent = 'Unavailable'; if (!catalog.available_virtuals.includes(id)) text.append(detail);
       label.append(checkbox, text); row.append(label);
       $(key + '-virtuals').append(row);
     }
@@ -105,11 +111,11 @@
     $(key + '-test').addEventListener('click', () => test(key));
   }
   async function test(key) {
-    testing = true; update();
-    message(key + '-result', 'Queuing saved action…');
+    testing = true; keys.forEach(k => $(k + '-picker').open = false); update();
+    message(key + '-result', 'Queuing…');
     try {
       const queued = await api('/api/actions/test', {hook:key});
-      message(key + '-result', 'Running saved action…');
+      message(key + '-result', 'Running…');
       const deadline = Date.now() + 14000;
       let matched = false;
       while (Date.now() < deadline) {
@@ -117,7 +123,7 @@
         const result = await api('/api/actions/test');
         if (result.event?.id !== queued.event.id) continue;
         matched = true;
-        if (result.state === 'success') message(key + '-result', 'LedFX accepted the command. Check the lights to confirm the result.');
+        if (result.state === 'success') message(key + '-result', 'Command accepted · just now');
         else if (result.state === 'superseded') message(key + '-result', 'A newer playback event replaced this test.');
         else if (result.state === 'skipped') message(key + '-result', 'No commands ran. Check the saved action and its targets.', true);
         else message(key + '-result', 'The action failed. Check LedFX and Troubleshooting.', true);
@@ -147,14 +153,60 @@
     $('actions-fields').disabled = true;
     try {
       await api('/api/config', data); actionsBaseline = JSON.stringify(values());
-      message('actions-result', 'Playback actions saved. Audio playback was not restarted.');
+      message('actions-result', 'Saved');
     } catch (error) { message('actions-result', error.message, true); }
     finally { $('actions-fields').disabled = false; update(); }
+  });
+  function showTab(key, focus = false) {
+    keys.forEach(name => $(name + '-picker').open = false);
+    for (const name of ['playback', 'receiver']) {
+      const selected = name === key;
+      $(name + '-tab').setAttribute('aria-selected', String(selected));
+      $(name + '-tab').tabIndex = selected ? 0 : -1;
+      $(name + '-panel').hidden = !selected;
+    }
+    if (focus) $(key + '-tab').focus();
+  }
+  for (const key of ['playback', 'receiver']) {
+    $(key + '-tab').addEventListener('click', () => showTab(key));
+    $(key + '-tab').addEventListener('keydown', event => {
+      if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+      event.preventDefault();
+      showTab(event.key === 'Home' ? 'playback' : event.key === 'End' ? 'receiver' : key === 'playback' ? 'receiver' : 'playback', true);
+    });
+  }
+  $('discard-actions').addEventListener('click', () => {
+    const data = JSON.parse(actionsBaseline);
+    for (const key of keys) {
+      const hook = data[key + '_hook'];
+      $(key + '-enabled').checked = data[key + '_enabled'];
+      $(key + '-mode').value = hook.mode;
+      $(key + '-all').checked = hook.all_virtuals;
+      const selected = new Set(hook.virtuals.map(v => v.id));
+      for (const input of $(key + '-virtuals').querySelectorAll('input')) input.checked = selected.has(input.value);
+      for (const option of $(key + '-scenes').options) option.selected = JSON.stringify(JSON.parse(option.dataset.scenes || '[]')) === JSON.stringify(hook.scenes);
+    }
+    $('actions-result').textContent = 'No unsaved changes';
+    delete $('actions-result').dataset.result;
+    keys.forEach(key => $(key + '-picker').open = false);
+    update();
+  });
+  $('discard-receiver').addEventListener('click', () => {
+    const data = JSON.parse(receiverBaseline);
+    $('receiver-name').value = data.name;
+    $('fixed-volume').checked = data.fixed_volume;
+    $('receiver-password').value = data.password;
+    $('clear-password').checked = data.clear_password;
+    $('receiver-result').textContent = 'No unsaved changes';
+    delete $('receiver-result').dataset.result;
+    receiverChanged();
   });
   Promise.all([api('/api/receiver'), api('/api/config')]).then(([settings, config]) => {
     catalog = config; receiver(settings); keys.forEach(key => hook(key, config.virtuals.hooks[key]));
     actionsBaseline = JSON.stringify(values());
     $('receiver-fields').disabled = false; $('actions-fields').disabled = false; update();
-    $('load-status').textContent = 'Saved settings loaded.';
+    $('load-status').hidden = true;
+    $('engine-state').textContent = config.ledfx_connected ? 'LedFX connected' : 'LedFX unavailable';
+    $('engine-state').dataset.connected = String(config.ledfx_connected);
   }).catch(error => message('load-status', error.message + ' Reload this page to try again.', true));
 })();
