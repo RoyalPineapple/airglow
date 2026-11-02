@@ -117,6 +117,7 @@ python3 -m venv .venv
 .venv/bin/python -m unittest discover -s tests -v
 node --check web/static/configuration.js
 node --check web/static/state.js
+node --check web/static/troubleshooting.js
 sh -n scripts/publish-session.sh
 # Linux with Nix and KVM: builds the stack and runs native service/discovery checks.
 nix --extra-experimental-features 'nix-command flakes' flake check --print-build-logs

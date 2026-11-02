@@ -182,7 +182,7 @@ def home():
 
 @app.get('/api/status')
 def status():
-    return jsonify(observe())
+    return jsonify(observe()), {'Cache-Control': 'no-store'}
 
 
 @app.route('/api/config', methods=['GET', 'POST'])
@@ -280,7 +280,7 @@ def diagnostics():
     data = observe()
     # Export only service states and connection results, never raw config or host inventories.
     return jsonify({key: data[key] for key in ('services', 'state', 'audio', 'airplay', 'ledfx', 'release')}), {
-        'Content-Disposition': 'attachment; filename=airglow-diagnostics.json'}
+        'Content-Disposition': 'attachment; filename=airglow-diagnostics.json', 'Cache-Control': 'no-store'}
 
 
 @app.get('/config')
@@ -290,16 +290,4 @@ def diagnostics():
 def details():
     if request.path == '/config':
         return render_template('native_config.html', ledfx_url=product.browser_url(request.host.split(':')[0]))
-    data = observe()
-    title = 'Connection checks'
-    description = 'These are live service checks. Use LedFX to configure devices, effects, and scenes.'
-    rows = [(unit, state['state']) for unit, state in data['services'].items()]
-    rows += [('AirPlay discovery', str(data['airplay']['advertising'])),
-             ('Receiver settings', data['airplay']['configuration_state']),
-             ('Saved receiver name', data['airplay']['desired_name'] or 'Unknown'),
-             ('AirPlay broadcast', ', '.join(data['airplay']['observed_names'].get('_airplay._tcp', [])) or 'Not confirmed'),
-             ('RAOP broadcast', ', '.join(data['airplay']['observed_names'].get('_raop._tcp', [])) or 'Not confirmed'),
-             ('Versions', ', '.join(f'{k}: {v}' for k, v in data['release']['versions'].items()))]
-    return render_template('native.html', title=title, description=description, rows=rows,
-                           receiver_name=data['airplay']['device_name'] or 'the receiver',
-                           ledfx_url=data['ledfx_browser_url'])
+    return render_template('native.html', ledfx_url=product.browser_url(request.host.split(':')[0]))

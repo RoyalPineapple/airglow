@@ -14,6 +14,17 @@ import settings_store
 
 
 class NativeStatus(unittest.TestCase):
+    def test_troubleshooting_renders_before_diagnostics_are_available(self):
+        with patch.dict(os.environ, AIRGLOW_ADMIN_PASSWORD=''), \
+             patch.object(native, 'observe', side_effect=RuntimeError('Checks unavailable')):
+            client = native.app.test_client()
+            for route in ('/status', '/browser', '/ledfx'):
+                with self.subTest(route=route):
+                    response = client.get(route)
+                    self.assertEqual(response.status_code, 200)
+                    self.assertIn('Troubleshooting', response.get_data(as_text=True))
+                    self.assertIn('Download diagnostics', response.get_data(as_text=True))
+
     def test_status_uses_service_audio_and_discovery_evidence(self):
         read_text = Path.read_text
 
@@ -71,6 +82,7 @@ class NativeStatus(unittest.TestCase):
                     client = native.app.test_client()
                     response = client.get('/api/status')
                     self.assertEqual(response.status_code, 200)
+                    self.assertEqual(response.headers['Cache-Control'], 'no-store')
                     data = response.get_json()
                     self.assertEqual(data['state'], expected)
                     if scenario == 'discovery_timeout':

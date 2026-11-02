@@ -1,8 +1,14 @@
 # Troubleshooting
 
 1. Open Airglow's State page and follow the first unavailable connection.
-2. Open Troubleshooting for service/discovery checks and a diagnostic download.
+2. Open Troubleshooting for the current faults, recovery links and a diagnostic download.
 3. Open LedFX separately to check its selected audio input, effects and output devices.
+
+Troubleshooting loads even when diagnostics fail. Missing results say **Not checked**;
+a failed refresh clears previous healthy indicators and marks the last result as stale.
+Expand **Native services** or **Receiver & versions** for details. Recovery links open
+the relevant settings section. The Copy button copies a read-only log command to run
+on the Airglow host; it does not run host commands from the browser.
 
 On the NixOS host, inspect the native services:
 

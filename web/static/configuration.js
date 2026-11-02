@@ -187,6 +187,8 @@
       showTab(event.key === 'Home' ? tabs[0] : event.key === 'End' ? tabs[tabs.length - 1] : tabs[(index + (event.key === 'ArrowRight' ? 1 : tabs.length - 1)) % tabs.length], true);
     });
   }
+  function openLinkedTab() { const key = window.location.hash.slice(1); if (tabs.includes(key)) showTab(key); }
+  window.addEventListener('hashchange', openLinkedTab); openLinkedTab();
   $('discard-actions').addEventListener('click', () => {
     const data = JSON.parse(actionsBaseline);
     for (const key of keys) {
