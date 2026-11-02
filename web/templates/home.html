@@ -1,39 +1,26 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta name="theme-color" content="#080f1b">
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#080f1b">
   <title>Airglow · State</title>
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M2 20 Q10 20 15 9 T30 17' stroke='%237ef0c4' stroke-width='3' fill='none'/%3E%3C/svg%3E">
-  <link rel="stylesheet" href="{{ url_for('static',filename='state.css') }}">
-  <script src="{{ url_for('static',filename='state.js') }}" defer></script>
+  <link rel="stylesheet" href="/static/state.css"><link rel="stylesheet" href="/static/overview.css">
+  <script src="/static/state.js" defer></script>
 </head>
-<body>
-<a class="skip" href="#state">Skip to state</a>
+<body class="state-page"><a class="skip" href="#state">Skip to state</a>
 <main class="shell" data-ledfx-url="{{ ledfx_url }}">
-  <header>
-    <a href="/" class="brand" aria-label="Airglow home"><svg viewBox="0 0 52 28" aria-hidden="true"><path d="M1 21C11 21 14 2 24 6S34 28 44 17l7-4"/></svg>AIRGLOW</a>
-    <nav aria-label="Navigation"><a href="/config">Configuration</a><a href="/status">Troubleshooting</a></nav>
-  </header>
-  <section class="overall" aria-labelledby="state">
-    <div class="state-label"><span class="indicator" id="overall-dot"></span>Current state</div>
-    <h1 id="state" role="status" aria-live="polite">Checking connections</h1>
-    <p id="explanation">Waiting for a response from your installation.</p>
+  <header><a href="/" class="brand" aria-label="Airglow home">AIRGLOW</a><nav aria-label="Navigation"><a href="/" aria-current="page">State</a><a href="/config">Configuration</a><a href="/status">Troubleshooting</a></nav></header>
+  <div class="overview-heading"><h1>State</h1><a href="{{ ledfx_url }}" target="_blank" rel="noopener">Open LedFX ↗</a></div>
+  <section class="input-state" aria-labelledby="input-heading"><div><h2 id="input-heading">Receiver stream</h2><div class="stream-heading"><span id="overall-dot" class="indicator" data-state="unknown"></span><p id="state" role="status">Checking…</p></div><p id="explanation">Waiting for receiver status.</p></div><div class="connection-health"><span id="health" data-state="unknown">Checking connections</span><span id="receiver-name"></span></div></section>
+  <section class="connection-group" aria-label="Audio connections"><dl class="connection-grid">
+    <div><dt>AirPlay receiver</dt><dd id="receiver" data-state="unknown">Not checked</dd></div>
+    <div><dt>Audio bridge</dt><dd id="pulse" data-state="unknown">Not checked</dd></div>
+    <div><dt>LedFX</dt><dd id="ledfx" data-state="unknown">Not checked</dd></div>
+  </dl></section>
+  <section class="attention" id="attention" aria-labelledby="next-title" hidden><div><h2 id="next-title">Needs attention</h2><p id="next-step"></p></div><a id="next-link" href="/status">Troubleshoot ↗</a></section>
+  <section class="details-group" aria-label="Outputs and automation">
+    <details id="device-details"><summary><span>Lighting devices</span><span class="detail-value"><span id="output" data-state="unknown">Not checked</span><span class="disclosure" aria-hidden="true">⌄</span></span></summary><div class="device-content"><p>Status reported by LedFX; physical light output is not verified.</p><ul id="device-list"></ul></div></details>
+    <div class="action-status"><div><span>Last playback action</span><span id="action-context" class="action-context"></span></div><div class="action-value"><span id="session" data-state="unknown">No result yet</span><time id="action-time" hidden></time></div></div>
   </section>
-  <section class="connections" aria-labelledby="connections-title">
-    <h2 id="connections-title">Audio pipeline</h2>
-    <dl>
-      <div><dt><span class="step">01</span><span>AirPlay receiver<small>Network discovery</small></span></dt><dd id="receiver" data-state="unknown">Not checked</dd></div>
-      <div><dt><span class="step">02</span><span>PulseAudio<small>Connection to the audio bridge</small></span></dt><dd id="pulse" data-state="unknown">Not checked</dd></div>
-      <div><dt><span class="step">03</span><span>LedFX<small>Audio engine connection</small></span></dt><dd id="ledfx" data-state="unknown">Not checked</dd></div>
-      <div><dt><span class="step">04</span><span>AirPlay stream<small>Connected or paused</small></span></dt><dd id="stream" data-state="unknown">Not checked</dd></div>
-      <div><dt><span class="step">05</span><span>Lighting devices<small>Connection reported by LedFX</small></span></dt><dd id="output" data-state="unknown">Not checked</dd></div>
-    </dl>
-    <div class="session-row"><span>Last session action <small>Optional automation</small></span><span id="session" data-state="unknown">No result yet</span></div>
-  </section>
-  <section class="next" aria-labelledby="next-title"><div><h2 id="next-title">Next step</h2><p id="next-step">Let the connection check finish.</p></div><a id="next-link" href="/status" hidden>Troubleshoot <span aria-hidden="true">↗</span></a></section>
-  <footer><p id="updated" role="status">No observations yet</p><button id="refresh" type="button">Refresh state <span aria-hidden="true">↻</span></button><a href="{{ ledfx_url }}" target="_blank" rel="noopener">Open LedFX <span aria-hidden="true">↗</span></a></footer>
-</main>
-</body>
+  <footer><p id="updated">Not checked yet</p><button id="refresh" type="button">Refresh ↻</button><a href="/status">Connection details ↗</a></footer>
+</main></body>
 </html>
