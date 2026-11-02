@@ -2,7 +2,7 @@
 (() => {
   const $ = id => document.getElementById(id);
   const keys = ['start', 'end'];
-  const tabs = ['playback', 'receiver', 'backup'];
+  const tabs = ['receiver', 'playback', 'backup'];
   let catalog, receiverBaseline, actionsBaseline, receiverRevision, actionsRevision, testing = false;
   async function api(path, data) {
     const response = await fetch(path, {method:data ? 'POST' : 'GET', headers:data ? {'Content-Type':'application/json'} : {}, body:data ? JSON.stringify(data) : undefined, signal:AbortSignal.timeout(15000)});
@@ -293,5 +293,5 @@
       $('engine-state').textContent = details.ledfx_connected ? 'LedFX connected' : 'LedFX unavailable';
       $('engine-state').dataset.connected = String(details.ledfx_connected); update();
     } catch (error) { message('connection-note', 'LedFX catalog unavailable. Saved settings can still be edited.', true); $('connection-note').hidden = false; }
-  }).catch(error => message('load-status', error.message + ' Use Backup to restore a valid configuration.', true));
+  }).catch(error => message('load-status', error.message + ' Use Backup & restore to restore a valid configuration.', true));
 })();

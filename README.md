@@ -35,7 +35,7 @@ Set `services.airglow.ledfxBrowserUrl` if browsers access LedFX through another 
   and playback-action failures. Missing evidence is shown as unknown.
 - **Configuration:** receiver name, optional AirPlay password, volume handling, idle delay, and
   independent start/end actions. The default receiver name comes from the hostname.
-- **Backup:** download one private Airglow settings file, or validate and restore an uploaded copy.
+- **Backup & restore:** download one private Airglow settings file, or validate and restore an uploaded copy.
 - **Troubleshooting:** connection checks and an allowlisted diagnostic download.
 
 Playback actions default to disabled. Select existing outputs or scenes in LedFX.
@@ -71,7 +71,7 @@ Before replacing an existing deployment, stop it and back up its receiver settin
 playback-action YAML and complete LedFX data directory. There is no automatic Docker
 volume importer. Preserve a copy outside the new host. Native LedFX uses
 `/var/lib/ledfx`; Airglow uses `/var/lib/airglow/airglow.json` as its settings file.
-Download and restore it under **Configuration → Backup**. It includes the AirPlay password;
+Download and restore it under **Configuration → Backup & restore**. It includes the AirPlay password;
 store backups privately. Legacy receiver JSON and hook YAML are imported once and retained
 unchanged. LedFX data and Nix-managed host/deployment settings are backed up separately. Confirm ownership for the respective
 service users before starting restored services. The first-start audio configuration

@@ -10,8 +10,8 @@
   <header><a class="brand" href="/">AIRGLOW</a><nav aria-label="Navigation"><a href="/">State</a><a href="/config" aria-current="page">Configuration</a><a href="/status">Troubleshooting</a></nav><span id="engine-state" class="engine-state"></span></header>
   <div class="page-heading"><h1>Configuration</h1><a href="{{ ledfx_url }}" target="_blank" rel="noopener">Open LedFX ↗</a></div>
   <p id="load-status" role="status">Loading settings…</p>
-  <div class="settings-tabs" role="tablist" aria-label="Configuration section"><button type="button" id="playback-tab" role="tab" aria-selected="true" aria-controls="playback-panel">Playback</button><button type="button" id="receiver-tab" role="tab" aria-selected="false" aria-controls="receiver-panel" tabindex="-1">Receiver</button><button type="button" id="backup-tab" role="tab" aria-selected="false" aria-controls="backup-panel" tabindex="-1">Backup</button></div>
-  <section id="playback-panel" role="tabpanel" aria-labelledby="playback-tab">
+  <div class="settings-tabs" role="tablist" aria-label="Configuration section"><button type="button" id="receiver-tab" role="tab" aria-selected="true" aria-controls="receiver-panel">AirPlay settings</button><button type="button" id="playback-tab" role="tab" aria-selected="false" aria-controls="playback-panel" tabindex="-1">Playback actions</button><button type="button" id="backup-tab" role="tab" aria-selected="false" aria-controls="backup-panel" tabindex="-1">Backup &amp; restore</button></div>
+  <section id="playback-panel" role="tabpanel" aria-labelledby="playback-tab" hidden>
     <form id="actions-form">
       <fieldset id="actions-fields" disabled><legend class="sr-only">Playback actions</legend>
         <div class="action-pair">
@@ -33,7 +33,7 @@
       </fieldset>
     </form>
   </section>
-  <section id="receiver-panel" role="tabpanel" aria-labelledby="receiver-tab" hidden>
+  <section id="receiver-panel" role="tabpanel" aria-labelledby="receiver-tab">
     <form id="receiver-form"><fieldset id="receiver-fields" disabled><legend class="sr-only">AirPlay receiver</legend>
       <div class="receiver-settings">
         <div class="setting-row"><div><label for="receiver-name">Receiver name</label><p class="help">Shown in the AirPlay picker.</p></div><div><input id="receiver-name" name="name" type="text" maxlength="50" aria-describedby="name-help effective-name"><p id="name-help" class="help">Leave empty to use the hostname.</p><p id="effective-name" class="help"></p></div></div>

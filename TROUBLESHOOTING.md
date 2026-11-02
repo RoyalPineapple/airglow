@@ -50,7 +50,7 @@ Logs viewed directly on the host are separate from that download; review before 
 
 ## Settings backup and recovery
 
-Use Configuration → Backup to download or restore the versioned Airglow settings file.
+Use Configuration → Backup & restore to download or restore the versioned Airglow settings file.
 Keep the download private; it includes the AirPlay password. Restore validates the file
 and shows a summary before applying it. It does not need LedFX to be online. Invalid
 settings can be replaced by a valid backup through this screen.

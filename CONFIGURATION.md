@@ -29,7 +29,7 @@ load separately from the bounded LedFX catalog checks and remain editable offlin
 
 ## Download and restore
 
-Open **Configuration → Backup** to download `airglow.json`. Keep it private: the export
+Open **Configuration → Backup & restore** to download `airglow.json`. Keep it private: the export
 includes the AirPlay password. Passwords remain omitted from ordinary settings responses,
 restore previews and diagnostics. An optional web login also protects these backup routes.
 
