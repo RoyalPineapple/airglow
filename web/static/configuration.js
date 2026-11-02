@@ -24,6 +24,7 @@
     const dirty = JSON.stringify(receiverValue()) !== receiverBaseline;
     $('save-receiver').disabled = !dirty;
     $('discard-receiver').hidden = !dirty;
+    $('fixed-volume-label').textContent = $('fixed-volume').checked ? 'Enabled' : 'Disabled';
     dirtyStatus('receiver-result', dirty);
     $('effective-name').textContent = 'Appears in AirPlay as “' + ($('receiver-name').value.trim() || $('receiver-name').placeholder) + '”.';
   }
@@ -39,9 +40,11 @@
   }
   const outputName = id => catalog.virtual_details?.[id]?.name || id;
   const sceneName = id => catalog.scene_details?.[id]?.name || id;
+  const mode = key => document.querySelector('input[name="' + key + '-mode"]:checked').value;
+  function setMode(key, value) { $(key + '-mode-' + value).checked = true; }
   function action(key) {
     const option = $(key + '-scenes').selectedOptions[0];
-    return {mode:$(key + '-mode').value, all_virtuals:$(key + '-all').checked,
+    return {mode:mode(key), all_virtuals:$(key + '-all').checked,
       virtuals:Array.from($(key + '-virtuals').querySelectorAll('.target')).filter(row => row.querySelector('input[type=checkbox]').checked).map(row => ({id:row.querySelector('input[type=checkbox]').value})),
       scenes:option ? JSON.parse(option.dataset.scenes || '[]') : []};
   }
@@ -84,7 +87,7 @@
   }
   function hook(key, config) {
     $(key + '-enabled').checked = config.enabled;
-    $(key + '-mode').value = config.mode;
+    setMode(key, config.mode);
     $(key + '-all').checked = config.all_virtuals;
     const selected = new Set(config.virtuals.filter(v => (v.repeats ?? 1) > 0).map(v => v.id));
     for (const id of new Set([...catalog.available_virtuals, ...selected.keys()])) {
@@ -180,7 +183,7 @@
     for (const key of keys) {
       const hook = data[key + '_hook'];
       $(key + '-enabled').checked = data[key + '_enabled'];
-      $(key + '-mode').value = hook.mode;
+      setMode(key, hook.mode);
       $(key + '-all').checked = hook.all_virtuals;
       const selected = new Set(hook.virtuals.map(v => v.id));
       for (const input of $(key + '-virtuals').querySelectorAll('input')) input.checked = selected.has(input.value);
