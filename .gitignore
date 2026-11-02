@@ -55,3 +55,31 @@ tmp/
 # Documentation build artifacts
 docs/_build/
 docs/.doctrees/
+
+# Local configuration and secrets
+.env.*
+!.env.example
+nix/hosts/
+nix/local*.nix
+configs/receiver.json
+*.private-key
+
+# Runtime state, backups and generated development files
+runtime/
+state/
+backups/
+.venv/
+__pycache__/
+*.py[cod]
+result
+result-*
+.direnv/
+web/design/
+secrets/
+.secrets/
+*.key
+*.pem
+id_ed25519*
+receiver.json
+ledfx-hooks.yaml
+ledfx-config.json

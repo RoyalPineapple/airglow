@@ -1,305 +1,51 @@
-# Airglow Configuration Guide
+# Configuration
 
-## Overview
+## NixOS service settings
 
-Airglow uses a YAML-based configuration system for managing AirPlay session hooks and LedFX virtual control. The configuration is managed through a web interface and stored in `/configs/ledfx-hooks.yaml`. Changes take effect dynamically without requiring container restarts.
+Import `nix/module.nix` and configure `services.airglow`:
 
-## Configuration File Structure
+| Setting | Meaning |
+|---|---|
+| `enable` | Enable the native services; defaults to false |
+| `address` | Existing host IPv4 address for the web, LedFX and AirPlay checks |
+| `interface` | LAN interface for AirPlay and lighting reply firewall rules |
+| `ledfxBrowserUrl` | Optional browser-facing LedFX URL; defaults to the address on port 8888 |
 
-The configuration file is located at `/configs/ledfx-hooks.yaml` and follows this structure:
+The module enables Shairport Sync with AirPlay 2, NQPTP, Avahi, a local PulseAudio
+bridge, LedFX, the web interface and one session-action worker. No Docker is installed.
+It does not set host networking, credentials, filesystem UUIDs or SSH keys.
 
-```yaml
-ledfx:
-  host: localhost
-  port: 8888
+Shairport and NQPTP source tags/hashes and the LedFX package collection revision are
+pinned in the module. The host's own NixOS/nixpkgs revision is managed by the host owner.
+Do not treat package pinning as a pin of the whole operating system.
 
-hooks:
-  start:
-    enabled: true
-    virtuals: []  # Empty list = control all virtuals
-  end:
-    enabled: true
-    virtuals: []  # Empty list = control all virtuals
-```
+## Saved settings
 
-### LedFX Connection
+| Path | Contents | In Git? |
+|---|---|---|
+| `/var/lib/airglow/receiver.json` | Receiver name, volume handling and optional AirPlay password | No |
+| `/var/lib/airglow/ledfx-hooks.yaml` | Enabled playback actions and selected outputs/scenes | No |
+| `/var/lib/ledfx/` | LedFX configuration, devices, effects, scenes and other saved data | No |
+| `/run/airglow/` | Current receiver session, event mailbox, worker readiness and last result | No; runtime only |
+| `nix/hosts/` | Optional local host deployment configuration | No |
 
-- **host**: LedFX API hostname (default: `localhost`)
-- **port**: LedFX API port (default: `8888`)
+Receiver overrides are written atomically with mode 0640. Passwords are not returned
+by the settings API or included in the diagnostic download. Empty receiver names use
+the hostname. Only AirPlay 2 is supported.
 
-### Hooks Configuration
+Existing hook YAML extensions are preserved. Legacy repeat values are accepted for
+compatibility; positive values send one command, and zero leaves an output disabled.
+Existing multiple-scene selections are preserved until replaced with one scene in the UI.
 
-Each hook (start/end) has two properties:
+Use LedFX's interface/API while it runs. Airglow never overwrites an existing LedFX
+configuration during service startup. First installation resolves the named audio
+bridge rather than assuming the capture-device index is zero.
 
-- **enabled**: Boolean to enable/disable the hook
-- **virtuals**: List of virtual configurations
+## Upgrades and rollback
 
-#### Virtual Configuration
+Back up the two mutable state directories before applying an upgrade. Use a consistent
+backup made with their writers stopped. Do not back up `/run/airglow` or replay old events.
 
-When `virtuals` is an empty list (`[]`), all LedFX virtuals are controlled by that hook.
-
-To control specific virtuals, provide a list of virtual objects:
-
-```yaml
-hooks:
-  start:
-    enabled: true
-    virtuals:
-      - id: dig-quad
-        repeats: 1
-      - id: floor-lamp-1
-        repeats: 2
-  end:
-    enabled: true
-    virtuals:
-      - id: dig-quad
-        repeats: 1
-      - id: floor-lamp-1
-        repeats: 0  # 0 means don't control this virtual
-```
-
-Each virtual object contains:
-- **id**: The LedFX virtual ID (e.g., `dig-quad`, `floor-lamp-1`)
-- **repeats**: Number of times to repeat the command (1-10, default: 1)
-  - For start hook: Number of times to activate the virtual
-  - For end hook: Number of times to deactivate the virtual
-  - Use `0` to exclude a virtual from a hook
-
-## Web Interface
-
-Access the configuration page at: `http://airglow.office.lab/config`
-
-### Start Hook Section
-
-- **Toggle**: Enable/disable the start hook
-- **Virtuals List**: Configure which virtuals are controlled when AirPlay session starts
-  - "All Virtuals" checkbox: When checked, controls all virtuals (clears individual selections)
-  - Individual checkboxes: Select specific virtuals
-  - Repeat inputs: Set repeat count for each virtual (1-10)
-
-### End Hook Section
-
-- **Toggle**: Enable/disable the end hook
-- **Virtuals List**: Configure which virtuals are controlled when AirPlay session ends
-  - "All Virtuals" checkbox: When checked, controls all virtuals (clears individual selections)
-  - Individual checkboxes: Select specific virtuals
-  - Repeat inputs: Set repeat count for each virtual (1-10)
-  - Use `0` repeats to exclude a virtual from the end hook
-
-### LedFX Connection
-
-- **Host**: LedFX API hostname
-- **Port**: LedFX API port
-
-## How It Works
-
-### Hook Execution Flow
-
-1. **AirPlay Session Starts** → `ledfx-session-hook.sh start` is called
-   - Checks if start hook is enabled in YAML
-   - If enabled, calls `ledfx-start.sh` with configured virtuals
-   - Each virtual is activated the specified number of times (repeats)
-
-2. **AirPlay Session Ends** → `ledfx-session-hook.sh stop` is called
-   - Checks if end hook is enabled in YAML
-   - If enabled, calls `ledfx-stop.sh` with configured virtuals
-   - Each virtual is deactivated the specified number of times (repeats)
-
-### Script Behavior
-
-#### `ledfx-session-hook.sh`
-
-- Reads YAML configuration dynamically (no restart needed)
-- Checks `hooks.start.enabled` and `hooks.end.enabled` before executing
-- Logs hook execution and skips if disabled
-
-#### `ledfx-start.sh`
-
-- Reads virtual list from `hooks.start.virtuals`
-- If empty list, gets all virtuals from LedFX API
-- Activates each virtual with its configured repeat count
-- For Govee devices, uses toggle pattern for reliability
-
-#### `ledfx-stop.sh`
-
-- Reads virtual list from `hooks.end.virtuals`
-- If empty list, gets all virtuals from LedFX API
-- Deactivates each virtual with its configured repeat count
-- For Govee devices, uses toggle pattern with repeats
-- Skips virtuals with `repeats: 0`
-
-## Repeat Counts
-
-Repeat counts are useful for device reliability, especially with Govee devices:
-
-- **Start Hook Repeats**: Number of times to activate a virtual when AirPlay starts
-- **End Hook Repeats**: Number of times to deactivate a virtual when AirPlay ends
-- **0 Repeats**: Excludes the virtual from that hook (useful for end hook to keep some virtuals active)
-
-### Example Use Cases
-
-1. **Govee Device Reliability**: Set `repeats: 2` or `3` for Govee devices to ensure commands are received
-2. **Selective Control**: Set `repeats: 0` in end hook to keep certain virtuals active after AirPlay ends
-3. **Standard Devices**: Use `repeats: 1` for reliable devices like WLED
-
-## Configuration Examples
-
-### Control All Virtuals (Default)
-
-```yaml
-hooks:
-  start:
-    enabled: true
-    virtuals: []  # Empty = all virtuals
-  end:
-    enabled: true
-    virtuals: []  # Empty = all virtuals
-```
-
-### Control Specific Virtuals
-
-```yaml
-hooks:
-  start:
-    enabled: true
-    virtuals:
-      - id: dig-quad
-        repeats: 1
-      - id: floor-lamp-1
-        repeats: 1
-  end:
-    enabled: true
-    virtuals:
-      - id: dig-quad
-        repeats: 1
-      - id: floor-lamp-1
-        repeats: 2  # Extra repeats for Govee reliability
-```
-
-### Keep Some Virtuals Active After AirPlay Ends
-
-```yaml
-hooks:
-  start:
-    enabled: true
-    virtuals:
-      - id: dig-quad
-        repeats: 1
-      - id: floor-lamp-1
-        repeats: 1
-      - id: table-lamp
-        repeats: 1
-  end:
-    enabled: true
-    virtuals:
-      - id: dig-quad
-        repeats: 1
-      - id: floor-lamp-1
-        repeats: 2
-      # table-lamp not listed = stays active after AirPlay ends
-```
-
-### Disable One Hook
-
-```yaml
-hooks:
-  start:
-    enabled: true
-    virtuals: []
-  end:
-    enabled: false  # End hook disabled
-    virtuals: []
-```
-
-## Dynamic Configuration
-
-**No Restart Required**: Configuration changes take effect immediately on the next AirPlay session event. The scripts read the YAML file dynamically each time they're called.
-
-**shairport-sync.conf is Read-Only**: The `shairport-sync.conf` file is never modified. Hook enable/disable is controlled entirely through YAML configuration.
-
-## API Endpoints
-
-### GET `/api/config`
-
-Returns current configuration:
-```json
-{
-  "hooks": {
-    "start_hook_enabled": true,
-    "end_hook_enabled": true
-  },
-  "virtuals": {
-    "ledfx": {
-      "host": "localhost",
-      "port": 8888
-    },
-    "hooks": {
-      "start": {
-        "enabled": true,
-        "virtuals": [],
-        "all_virtuals": true
-      },
-      "end": {
-        "enabled": true,
-        "virtuals": [],
-        "all_virtuals": true
-      }
-    }
-  },
-  "available_virtuals": ["dig-quad", "floor-lamp-1", "floor-lamp-2", "table-lamp"]
-}
-```
-
-### POST `/api/config`
-
-Saves configuration changes:
-```json
-{
-  "start_enabled": true,
-  "end_enabled": true,
-  "ledfx_host": "localhost",
-  "ledfx_port": 8888,
-  "start_hook": {
-    "all_virtuals": false,
-    "virtuals": [
-      {"id": "dig-quad", "repeats": 1},
-      {"id": "floor-lamp-1", "repeats": 2}
-    ]
-  },
-  "end_hook": {
-    "all_virtuals": false,
-    "virtuals": [
-      {"id": "dig-quad", "repeats": 1},
-      {"id": "floor-lamp-1", "repeats": 2}
-    ]
-  }
-}
-```
-
-## Troubleshooting
-
-### Configuration Not Taking Effect
-
-1. Verify YAML syntax is correct: `yq eval . /configs/ledfx-hooks.yaml`
-2. Check hook script logs: `docker compose logs shairport-sync | grep ledfx-session-hook`
-3. Verify virtual IDs exist: Check `/api/config` for `available_virtuals`
-
-### Virtual Not Responding
-
-1. Check if virtual ID is correct (case-sensitive)
-2. Verify repeat count is >= 1 (0 excludes the virtual)
-3. Check LedFX API connection: `curl http://localhost:8888/api/virtuals`
-
-### Hook Not Executing
-
-1. Verify hook is enabled in YAML
-2. Check shairport-sync logs for hook execution
-3. Verify `ledfx-session-hook.sh` has execute permissions
-
-## File Locations
-
-- **Configuration File**: `/configs/ledfx-hooks.yaml`
-- **Hook Scripts**: `/scripts/ledfx-session-hook.sh`, `/scripts/ledfx-start.sh`, `/scripts/ledfx-stop.sh`
-- **Web Interface**: `http://airglow.office.lab/config`
-- **Status Dashboard**: `http://airglow.office.lab`
-
+Build the candidate NixOS configuration before switching. NixOS software rollback does
+not restore saved application state; use the matching state backup when necessary.
+There are no automatic updates, automatic data migrations or automatic data rollback.

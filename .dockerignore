@@ -1,8 +1,0 @@
-# Ignore everything except necessary files for Docker builds
-*
-!Dockerfile.shairport-sync
-!Dockerfile.web
-!web/
-!configs/
-!scripts/
-

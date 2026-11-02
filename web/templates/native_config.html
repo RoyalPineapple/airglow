@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Airglow · Configuration</title>
+  <link rel="stylesheet" href="/static/state.css"><link rel="stylesheet" href="/static/configuration.css">
+  <script defer src="/static/configuration.js"></script>
+</head>
+<body><a class="skip" href="#main">Skip to configuration</a><main class="shell" id="main">
+  <header><a class="brand" href="/">AIRGLOW</a><nav aria-label="Navigation"><a href="/">State</a><a href="/config" aria-current="page">Configuration</a><a href="/status">Troubleshooting</a></nav></header>
+  <section class="overall"><div class="state-label">Your installation</div><h1>Configuration</h1><p>Set the AirPlay receiver and optional playback actions. Manage lighting devices, effects, and scenes in <a href="{{ ledfx_url }}" target="_blank" rel="noopener">LedFX ↗</a>.</p></section>
+  <p id="load-status" role="status">Loading saved settings…</p>
+  <section class="action-overview" aria-labelledby="plan-title"><div class="state-label">Your playback plan</div><h2 id="plan-title">Two events. Two independent actions.</h2><p id="start-summary">Loading start action…</p><p id="end-summary">Loading end action…</p><p id="connection-note" class="help"></p></section>
+  <form id="receiver-form" class="settings">
+    <fieldset id="receiver-fields" disabled>
+      <legend>AirPlay receiver</legend><p class="help">Saving these settings restarts the receiver and disconnects current AirPlay playback.</p>
+      <label for="receiver-name">Receiver name</label><input id="receiver-name" name="name" type="text" maxlength="50" aria-describedby="name-help"><p id="name-help" class="help">Leave empty to use the hostname.</p><p id="effective-name" class="help"></p>
+      <p class="help">This receiver uses AirPlay 2.</p>
+      <label class="check"><input id="fixed-volume" type="checkbox"><span>Keep the audio level fixed for lighting analysis</span></label><p class="help">When off, the phone’s volume affects the signal that LedFX receives.</p>
+      <label for="receiver-password">AirPlay password <span class="help">optional</span></label><input id="receiver-password" type="password" maxlength="128" autocomplete="new-password" aria-describedby="password-help"><p id="password-help" class="help">An empty password allows AirPlay connections without a password.</p>
+      <label class="check" id="clear-password-row" hidden><input id="clear-password" type="checkbox"><span>Remove the saved AirPlay password</span></label>
+      <div class="save-row"><button id="save-receiver" class="primary" type="submit" disabled>Save and restart receiver</button><p id="receiver-result" role="status"></p></div>
+    </fieldset>
+  </form>
+  <form id="actions-form" class="settings">
+    <fieldset id="actions-fields" disabled>
+      <legend>Playback actions</legend><p class="help">Actions are off until you enable them. They run separately from audio playback. End actions run after ten seconds without an active playback session.</p>
+      {% for key,title in [('start','When playback starts'),('end','When playback ends')] %}
+      <section class="hook" aria-labelledby="{{ key }}-title"><h2 id="{{ key }}-title">{{ title }}</h2>
+        <label class="check"><input id="{{ key }}-enabled" type="checkbox"><span>Enable this action</span></label>
+        <fieldset id="{{ key }}-fields" class="hook-fields"><legend class="sr-only">{{ title }} settings</legend>
+          <label for="{{ key }}-mode">Action</label><select id="{{ key }}-mode"><option value="toggle">{{ 'Resume LedFX output' if key == 'start' else 'Stop LedFX output' }}</option><option value="scene">Activate a scene</option></select>
+          <div id="{{ key }}-toggle">
+            <p class="help">{{ 'Resume each selected output’s saved effect. This does not select a new effect.' if key == 'start' else 'Stop sending lighting updates. A Govee lamp may remain illuminated; this is not a power-off command.' }}</p>
+            <label class="check"><input id="{{ key }}-all" type="checkbox"><span>Include every output, including outputs added later</span></label><p class="help">Choose logical outputs from LedFX. Outputs can share devices; overlapping outputs can replace one another.</p>
+            <div id="{{ key }}-virtuals" class="targets"></div>
+          </div>
+          <div id="{{ key }}-scene" hidden><label for="{{ key }}-scenes">Scene</label><select id="{{ key }}-scenes"></select><p id="{{ key }}-scene-help" class="help"></p><a class="text-link" href="{{ ledfx_url }}" target="_blank" rel="noopener">Create or edit scenes in LedFX ↗</a><p id="{{ key }}-scene-preview" class="help"></p></div>
+        </fieldset>
+        <div class="test-row"><button id="{{ key }}-test" type="button" class="secondary" disabled>Test {{ key }} action</button><p id="{{ key }}-result" role="status">Runs the saved action immediately and changes lighting output.</p></div>
+      </section>{% endfor %}
+      <div class="save-row"><button id="save-actions" class="primary" type="submit" disabled>Save playback actions</button><p id="actions-result" role="status"></p></div>
+      <p class="help">Tests run saved actions immediately, including end actions. They change lighting output and may replace a current effect. Playback events can supersede a test.</p><p class="help">Saving actions does not restart the receiver or change the current lighting effect.</p>
+    </fieldset>
+  </form>
+  <footer><a href="/">Back to state</a><a href="{{ ledfx_url }}" target="_blank" rel="noopener">Open LedFX ↗</a></footer>
+</main></body></html>

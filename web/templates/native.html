@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Airglow · {{ title }}</title>
+  <link rel="stylesheet" href="/static/state.css">
+  <style>dd { overflow-wrap:anywhere; max-width:60% } dd::before { display:none } dt { min-width:0 } dl>div { padding:16px 0 } @media(max-width:600px) { dl>div { align-items:flex-start; flex-direction:column; gap:6px } dd { max-width:100%; text-align:left } }</style>
+</head>
+<body><a class="skip" href="#main">Skip to content</a>
+<main class="shell" id="main">
+  <header><a class="brand" href="/">AIRGLOW</a><nav aria-label="Navigation"><a href="/">State</a><a href="/config">Configuration</a></nav></header>
+  <section class="overall"><h1>{{ title }}</h1><p>{{ description }}</p></section>
+  <section class="connections" aria-label="{{ title }}"><dl>{% for label,value in rows %}<div><dt>{{ label }}</dt><dd>{{ value if value is not none else 'Not checked' }}</dd></div>{% endfor %}</dl></section>
+  <section class="next"><div><h2>Next step</h2><p>Select {{ receiver_name }} in AirPlay and start music. Add your lighting devices in LedFX when you are ready.</p></div><a href="{{ ledfx_url }}" target="_blank" rel="noopener">Open LedFX ↗</a></section>
+  <footer><a href="/">Back to state</a><a href="/api/diagnostics/download">Download diagnostics</a></footer>
+</main></body></html>
