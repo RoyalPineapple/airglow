@@ -140,12 +140,19 @@ def test_action():
     data = request.get_json(silent=True)
     if not isinstance(data, dict) or data.get('hook') not in ('start', 'end'):
         return jsonify(error='Choose a start or end action.'), 400
-    config = config_api.get_virtual_config()
-    if 'error' in config:
-        return jsonify(error='Playback settings could not be read.'), 503
-    hook = config['hooks'][data['hook']]
-    if not hook.get('enabled'):
-        return jsonify(error='Save and enable this action before testing.'), 400
+    draft = 'settings' in data
+    if draft:
+        try:
+            hook = config_api.validate_hook(data['settings']) | {'enabled': True}
+        except ValueError as error:
+            return jsonify(error=str(error)), 400
+    else:
+        config = config_api.get_virtual_config()
+        if 'error' in config:
+            return jsonify(error='Playback settings could not be read.'), 503
+        hook = config['hooks'][data['hook']]
+        if not hook.get('enabled'):
+            return jsonify(error='Enable this action or provide current test settings.'), 400
     if not (hook.get('scenes') if hook.get('mode') == 'scene' else
             hook.get('all_virtuals') or any(v.get('repeats', 1) > 0 for v in hook.get('virtuals', []))):
         return jsonify(error='Choose an output or scene before testing.'), 400
@@ -158,6 +165,8 @@ def test_action():
             return jsonify(error='The receiver is unavailable.'), 503
         event = {'session': session, 'id': uuid4().hex,
                  'action': 'start' if data['hook'] == 'start' else 'stop', 'source': 'manual'}
+        if draft:
+            event['hook_config'] = hook
         # Use a unique temporary file so receiver callbacks can publish concurrently.
         with tempfile.NamedTemporaryFile(mode='w', dir=runtime, delete=False) as output:
             temporary = Path(output.name)

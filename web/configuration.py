@@ -308,6 +308,25 @@ def get_config():
         return jsonify({'error': str(e) if app.debug else 'Error reading configuration'}), 500
 
 
+def validate_hook(hook):
+    """Validate the action shape shared by saved automation and one-off tests."""
+    if not isinstance(hook, dict) or type(hook.get('all_virtuals', True)) is not bool:
+        raise ValueError('Invalid action settings.')
+    mode = hook.get('mode', 'toggle')
+    if mode not in ('toggle', 'scene'):
+        raise ValueError('Choose an output action or a scene.')
+    virtuals, scenes = hook.get('virtuals', []), hook.get('scenes', [])
+    if not isinstance(virtuals, list) or not isinstance(scenes, list):
+        raise ValueError('Outputs and scenes must be lists.')
+    if any(not isinstance(v, dict) or not isinstance(v.get('id'), str) or not v['id']
+           or type(v.get('repeats', 1)) is not int or not 0 <= v.get('repeats', 1) <= 10 for v in virtuals):
+        raise ValueError('Outputs need an ID and a valid legacy repeat count.')
+    if any(not isinstance(sid, str) or not sid for sid in scenes):
+        raise ValueError('Scene IDs must be nonempty strings.')
+    return {'mode': mode, 'all_virtuals': hook.get('all_virtuals', True),
+            'virtuals': virtuals, 'scenes': scenes}
+
+
 def save_config():
     """Save configuration changes"""
     try:
@@ -318,19 +337,11 @@ def save_config():
         for key in ('start_enabled', 'end_enabled'):
             if type(data.get(key, False)) is not bool:
                 return jsonify({'error': f'{key} must be a boolean.'}), 400
-        for key in ('start_hook', 'end_hook'):
-            hook = data.get(key, {})
-            if not isinstance(hook, dict) or type(hook.get('all_virtuals', True)) is not bool:
-                return jsonify({'error': f'Invalid {key}.'}), 400
-            virtuals, scenes = hook.get('virtuals', []), hook.get('scenes', [])
-            if not isinstance(virtuals, list) or not isinstance(scenes, list):
-                return jsonify({'error': 'Virtuals and scenes must be lists.'}), 400
-            if any(not isinstance(v, dict) or not isinstance(v.get('id'), str)
-                   or not v['id'] or type(v.get('repeats', 1)) is not int
-                   or not 0 <= v.get('repeats', 1) <= 10 for v in virtuals):
-                return jsonify({'error': 'Virtuals need an ID and repeats from 0 to 10.'}), 400
-            if any(not isinstance(sid, str) or not sid for sid in scenes):
-                return jsonify({'error': 'Scene IDs must be nonempty strings.'}), 400
+        try:
+            for key in ('start_hook', 'end_hook'):
+                validate_hook(data.get(key, {}))
+        except ValueError as error:
+            return jsonify(error=str(error)), 400
 
         start_enabled = data.get('start_enabled', False)
         end_enabled = data.get('end_enabled', False)

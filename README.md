@@ -33,15 +33,15 @@ Set `services.airglow.ledfxBrowserUrl` if browsers access LedFX through another 
 
 - **State:** receiver discovery, audio connectivity, LedFX availability, device status
   and the latest playback-action result. Missing evidence is shown as unknown.
-- **Configuration:** receiver name, optional AirPlay password, volume handling, and
+- **Configuration:** receiver name, optional AirPlay password, volume handling, idle delay, and
   independent start/end actions. The default receiver name comes from the hostname.
 - **Troubleshooting:** connection checks and an allowlisted diagnostic download.
 
 Playback actions default to disabled. Select existing outputs or scenes in LedFX.
 Start resumes the selected outputs' saved effects; end stops their output after a
-10-second inactive-session grace period. Stopping output is not a physical power-off
+configured inactive-session grace period (10 seconds by default). Stopping output is not a physical power-off
 command. Scene actions apply the scene's own saved instructions; there is no state
-restoration. The manual test buttons run saved actions immediately and change lighting.
+restoration. The manual test buttons run the current on-screen actions immediately without saving them, and change lighting.
 Each selected output receives one command. Legacy zero-repeat entries remain disabled.
 
 Saving receiver settings restarts the receiver and may interrupt playback. Saving

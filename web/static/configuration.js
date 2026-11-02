@@ -18,7 +18,7 @@
   }
   function receiverValue() {
     return {name:$('receiver-name').value, fixed_volume:$('fixed-volume').checked,
-      password:$('receiver-password').value, clear_password:$('clear-password').checked};
+      password:$('receiver-password').value, clear_password:$('clear-password').checked, idle_timeout:Number($('idle-timeout').value)};
   }
   function receiverChanged() {
     const dirty = JSON.stringify(receiverValue()) !== receiverBaseline;
@@ -32,6 +32,7 @@
     $('receiver-name').value = data.name;
     $('receiver-name').placeholder = data.default_name;
     $('fixed-volume').checked = data.fixed_volume;
+    $('idle-timeout').value = data.idle_timeout ?? 10;
     $('receiver-password').value = '';
     $('clear-password').checked = false;
     $('clear-password-row').hidden = !data.password_set;
@@ -68,7 +69,7 @@
       $(key + '-enabled-label').textContent = enabled ? 'On' : 'Off';
       $(key + '-selection').textContent = a.all_virtuals ? 'All outputs (' + catalog.available_virtuals.length + ')' : a.virtuals.length === 1 ? outputName(a.virtuals[0].id) : a.virtuals.length ? a.virtuals.length + ' outputs selected' : 'Choose outputs…';
       $(key + '-scope').textContent = a.all_virtuals ? 'Includes newly added outputs' : 'Only the selected outputs';
-      $(key + '-test').disabled = dirty || testing || !enabled || !hasTarget(a) || !catalog.ledfx_connected;
+      $(key + '-test').disabled = testing || !enabled || !hasTarget(a) || !catalog.ledfx_connected;
       const previews = [];
       for (const id of a.scenes) {
         const sceneData = catalog.scene_details?.[id];
@@ -82,8 +83,8 @@
       $(key + '-scene-preview').textContent = previews.join(' · ');
       $(key + '-scene-help').textContent = a.scenes.length > 1 ? 'Your existing scene sequence is preserved. Choosing one scene replaces that sequence.' : catalog.available_scenes.length ? 'This scene controls only the outputs and actions saved in LedFX.' : 'No saved scenes. Create one in LedFX, then reload this page.';
     }
-    $('connection-note').hidden = catalog.ledfx_connected && !dirty;
-    $('connection-note').textContent = !catalog.ledfx_connected ? 'LedFX unavailable. Saved choices are retained; reconnect before testing.' : 'Save changes before testing.';
+    $('connection-note').hidden = catalog.ledfx_connected;
+    $('connection-note').textContent = !catalog.ledfx_connected ? 'LedFX unavailable. Saved choices are retained; reconnect before testing.' : '';
   }
   function hook(key, config) {
     $(key + '-enabled').checked = config.enabled;
@@ -117,7 +118,7 @@
     testing = true; keys.forEach(k => $(k + '-picker').open = false); update();
     message(key + '-result', 'Queuing…');
     try {
-      const queued = await api('/api/actions/test', {hook:key});
+      const queued = await api('/api/actions/test', {hook:key, settings:action(key)});
       message(key + '-result', 'Running…');
       const deadline = Date.now() + 14000;
       let matched = false;
@@ -198,6 +199,7 @@
     const data = JSON.parse(receiverBaseline);
     $('receiver-name').value = data.name;
     $('fixed-volume').checked = data.fixed_volume;
+    $('idle-timeout').value = data.idle_timeout ?? 10;
     $('receiver-password').value = data.password;
     $('clear-password').checked = data.clear_password;
     $('receiver-result').textContent = 'No unsaved changes';

@@ -17,8 +17,8 @@ routing from another virtual, not incoming audio.
 
 ## Playback actions
 
-Save and enable an action, then use its Test button. A test changes output immediately,
-including an end-action test; it does not wait for the inactive-session grace period.
+Choose an action and use its Test button; unsaved choices can be tested. A test changes output immediately,
+including an end-action test; it does not wait for the inactive-session grace period or save the tested choices.
 A successful result means LedFX accepted the command. Check the lamps separately.
 Globally paused LedFX output, missing effects, deleted targets and overlapping virtual
 segments can prevent the intended result even when the controller is reachable.

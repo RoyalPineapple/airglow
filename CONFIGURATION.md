@@ -23,7 +23,7 @@ Do not treat package pinning as a pin of the whole operating system.
 
 | Path | Contents | In Git? |
 |---|---|---|
-| `/var/lib/airglow/receiver.json` | Receiver name, volume handling and optional AirPlay password | No |
+| `/var/lib/airglow/receiver.json` | Receiver name, volume handling, idle delay and optional AirPlay password | No |
 | `/var/lib/airglow/ledfx-hooks.yaml` | Enabled playback actions and selected outputs/scenes | No |
 | `/var/lib/ledfx/` | LedFX configuration, devices, effects, scenes and other saved data | No |
 | `/run/airglow/` | Current receiver session, event mailbox, worker readiness and last result | No; runtime only |
@@ -49,3 +49,10 @@ backup made with their writers stopped. Do not back up `/run/airglow` or replay 
 Build the candidate NixOS configuration before switching. NixOS software rollback does
 not restore saved application state; use the matching state backup when necessary.
 There are no automatic updates, automatic data migrations or automatic data rollback.
+
+The Receiver tab configures the inactive-session grace period from 1 to 300 whole
+seconds (default 10). Applying it restarts AirPlay. The wrapper renders a numeric
+Shairport timeout in runtime storage; it does not edit the Nix-managed base file.
+
+Run test sends a validated snapshot of the current on-screen action to the worker.
+It does not save the snapshot as automation. Playback callbacks still use the saved YAML.

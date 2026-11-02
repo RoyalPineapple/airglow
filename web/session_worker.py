@@ -45,8 +45,12 @@ def process(event, current, config_path, status_path):
     deadline = time.monotonic() + 10
     result = {'event': event, 'state': 'success', 'time': time.time()}
     try:
-        path = Path(config_path)
-        config = (yaml.safe_load(path.read_text()) or {}) if path.exists() else {}
+        if event.get('source') == 'manual' and 'hook_config' in event:
+            key = 'start' if event['action'] == 'start' else 'end'
+            config = {'hooks': {key: event['hook_config']}}
+        else:
+            path = Path(config_path)
+            config = (yaml.safe_load(path.read_text()) or {}) if path.exists() else {}
         commands = actions(config, event['action'])
         if not commands:
             result['state'] = 'skipped'

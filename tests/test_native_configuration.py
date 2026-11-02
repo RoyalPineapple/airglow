@@ -30,7 +30,8 @@ class NativeConfiguration(unittest.TestCase):
             self.assertTrue(response.get_json()['receiver']['password_set'])
             saved = receiver.settings_path().read_bytes()
             self.assertEqual(receiver.settings_path().stat().st_mode & 0o777, 0o640)
-            for invalid in ({'name':'bad\nname'}, {'mode':'classic'}, {'mode':'shell'}, {'fixed_volume':'yes'}, {'password':False}):
+            for invalid in ({'name':'bad\nname'}, {'mode':'classic'}, {'mode':'shell'}, {'fixed_volume':'yes'}, {'password':False},
+                            *({'idle_timeout':value} for value in (0, -1, 301, True, '20', 1.5))):
                 self.assertEqual(client.post('/api/receiver', json=invalid).status_code, 400)
                 self.assertEqual(receiver.settings_path().read_bytes(), saved)
             self.assertEqual(client.post('/api/receiver', json={'name':''}).status_code, 200)
@@ -42,6 +43,30 @@ class NativeConfiguration(unittest.TestCase):
                 self.assertEqual(client.get('/api/receiver').status_code, 401)
                 self.assertEqual(client.post('/api/config', json={}).status_code, 401)
                 self.assertEqual(client.post('/api/actions/test', json={'hook':'start'}).status_code, 401)
+
+    def test_idle_delay_preserves_old_settings_and_reaches_receiver_configuration(self):
+        with tempfile.TemporaryDirectory() as directory, patch.dict(os.environ,
+                AIRGLOW_CONFIG_DIR=directory, AIRGLOW_RUNTIME=directory, AIRGLOW_ADMIN_PASSWORD=''):
+            original = {'name':'Studio', 'mode':'airplay2', 'fixed_volume':True, 'password':'fake-private'}
+            receiver.settings_path().write_text(json.dumps(original))
+            before = receiver.settings_path().read_bytes()
+            client = native.app.test_client()
+            self.assertEqual(client.get('/api/receiver').get_json()['idle_timeout'], 10)
+            self.assertFalse(client.post('/api/receiver', json={'idle_timeout':10}).get_json()['receiver']['restart_requested'])
+            self.assertEqual(receiver.settings_path().read_bytes(), before)
+            response = client.post('/api/receiver', json={'idle_timeout':25}).get_json()['receiver']
+            self.assertTrue(response['restart_requested'])
+            self.assertEqual(receiver.load()['password'], 'fake-private')
+            base = Path(directory) / 'base.conf'
+            base.write_text('sessioncontrol={active_state_timeout=10.0;};')
+            with patch.dict(os.environ, SHAIRPORT_CONF=str(base)), patch.object(receiver.os, 'execv') as execute:
+                receiver.run('/test/shairport-sync')
+            generated = Path(directory) / 'receiver.conf'
+            self.assertIn('active_state_timeout=25.0;', generated.read_text())
+            self.assertIn('--configfile=' + str(generated), execute.call_args.args[1])
+            self.assertNotIn('fake-private', ' '.join(execute.call_args.args[1]))
+            self.assertEqual(generated.stat().st_mode & 0o777, 0o640)
+            self.assertIn('10.0', base.read_text())
 
     def test_action_form_saves_yaml_targets_and_repeats_without_losing_extensions(self):
         commands = []
@@ -105,6 +130,16 @@ class NativeConfiguration(unittest.TestCase):
                         self.assertEqual(result['state'], 'success')
                         self.assertEqual(commands, [('/api/scenes', {'id':'evening', 'action':'activate'})])
                         self.assertEqual(path.read_bytes(), before_test)
+                        commands.clear()
+                        draft = {'mode':'toggle', 'all_virtuals':False, 'virtuals':[{'id':'lamp'}], 'scenes':[]}
+                        queued = client.post('/api/actions/test', json={'hook':'end', 'settings':draft})
+                        self.assertEqual(queued.status_code, 202)
+                        draft_event = queued.get_json()['event']
+                        session_worker.process(draft_event, lambda:draft_event, path, runtime / 'action.json')
+                        self.assertEqual(commands, [('/api/virtuals/lamp', {'active':False})])
+                        self.assertEqual(path.read_bytes(), before_test)
+                        for invalid in ({'mode':'shell'}, {'all_virtuals':'yes'}, {'virtuals':[{'id':5}]}, None):
+                            self.assertEqual(client.post('/api/actions/test', json={'hook':'end', 'settings':invalid}).status_code, 400)
                         disabled = yaml.safe_load(before_test)
                         disabled['hooks']['end']['enabled'] = False
                         path.write_text(yaml.safe_dump(disabled))

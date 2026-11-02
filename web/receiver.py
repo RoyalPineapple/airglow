@@ -1,6 +1,7 @@
 """Validated receiver overrides; Nix owns the service and its base configuration."""
 import json
 import os
+import re
 from pathlib import Path
 import tempfile
 import uuid
@@ -12,9 +13,11 @@ def settings_path():
 
 def load():
     try:
-        return json.loads(settings_path().read_text())
+        data = json.loads(settings_path().read_text())
+        data.setdefault('idle_timeout', 10)
+        return data
     except FileNotFoundError:
-        return {'name': '', 'mode': 'airplay2', 'fixed_volume': True, 'password': ''}
+        return {'name': '', 'mode': 'airplay2', 'fixed_volume': True, 'password': '', 'idle_timeout': 10}
 
 
 def validate(data, previous):
@@ -23,6 +26,9 @@ def validate(data, previous):
     name = data.get('name', previous.get('name', ''))
     mode = data.get('mode', previous.get('mode', 'airplay2'))
     volume = data.get('fixed_volume', previous.get('fixed_volume', True))
+    idle_timeout = data.get('idle_timeout', previous.get('idle_timeout', 10))
+    if type(idle_timeout) is not int or not 1 <= idle_timeout <= 300:
+        raise ValueError('Use an idle delay from 1 to 300 whole seconds.')
     supplied_password = data.get('password', '')
     if not isinstance(supplied_password, str) or type(data.get('clear_password', False)) is not bool:
         raise ValueError('Use text for the password and a boolean for password removal.')
@@ -37,13 +43,14 @@ def validate(data, previous):
         raise ValueError('Fixed audio level must be a boolean.')
     if not isinstance(password, str) or len(password) > 128 or any(ord(c) < 32 for c in password):
         raise ValueError('Use an AirPlay password of up to 128 characters without control characters.')
-    return {'name': name.strip(), 'mode': mode, 'fixed_volume': volume, 'password': password}
+    return {'name': name.strip(), 'mode': mode, 'fixed_volume': volume, 'password': password, 'idle_timeout': idle_timeout}
 
 
 def public(data):
     default = os.environ.get('AIRGLOW_DEFAULT_RECEIVER_NAME', os.uname().nodename)
     return {key: data[key] for key in ('name', 'mode', 'fixed_volume')} | {
         'effective_name': data.get('name') or default, 'default_name': default,
+        'idle_timeout': data.get('idle_timeout', 10),
         'password_set': bool(data.get('password'))}
 
 
@@ -72,10 +79,28 @@ def run(binary):
     os.environ['AIRGLOW_AIRPLAY_PASSWORD'] = json.dumps(data['password'], ensure_ascii=False)[1:-1]
     os.environ['AIRGLOW_FIXED_VOLUME'] = 'yes' if data['fixed_volume'] else 'no'
     runtime = Path(os.environ['AIRGLOW_RUNTIME'])
-    (runtime / 'receiver').write_text(str(uuid.uuid4()))
+    # Libconfig requires a numeric timeout; environment substitution only handles strings.
+    base = Path(os.environ.get('SHAIRPORT_CONF', '/etc/shairport-sync.conf')).read_text()
+    configured, count = re.subn(r'(\bactive_state_timeout\s*=\s*)[0-9]+(?:\.[0-9]*)?(\s*;)',
+                                lambda match: f"{match[1]}{data['idle_timeout']}.0{match[2]}", base)
+    if count != 1:
+        raise ValueError('Expected one active_state_timeout in the receiver configuration.')
+    runtime_config = runtime / 'receiver.conf'
+    runtime_config.write_text(configured)
+    runtime_config.chmod(0o640)
+    # Replace rather than truncate a marker recovered by the web/worker service account.
+    with tempfile.NamedTemporaryFile(mode='w', dir=runtime, delete=False) as output:
+        marker = Path(output.name)
+        try:
+            output.write(str(uuid.uuid4()))
+            output.flush()
+            marker.chmod(0o640)
+            marker.replace(runtime / 'receiver')
+        finally:
+            marker.unlink(missing_ok=True)
     for name in ('event.json', 'action.json'):
         (runtime / name).unlink(missing_ok=True)
-    args = [binary, '--service-type=airplay2']
+    args = [binary, '--service-type=airplay2', '--configfile=' + str(runtime_config)]
     if data['name']:
         args.append('--name=' + data['name'])
     os.execv(binary, args)
