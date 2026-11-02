@@ -15,6 +15,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'web'))
 import native
 import receiver
 import session_worker
+import settings_store
 
 
 class NativeConfiguration(unittest.TestCase):
@@ -65,12 +66,15 @@ class NativeConfiguration(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory, patch.dict(os.environ,
                 AIRGLOW_CONFIG_DIR=directory, AIRGLOW_RUNTIME=directory, AIRGLOW_ADMIN_PASSWORD=''):
             original = {'name':'Studio', 'mode':'airplay2', 'fixed_volume':True, 'password':'fake-private'}
-            receiver.settings_path().write_text(json.dumps(original))
-            before = receiver.settings_path().read_bytes()
+            legacy = Path(directory) / 'receiver.json'
+            legacy.write_text(json.dumps(original))
+            before = legacy.read_bytes()
+            settings_store.ensure()
+            receiver.request_restart()
             client = native.app.test_client()
             self.assertEqual(client.get('/api/receiver').get_json()['idle_timeout'], 10)
             self.assertFalse(client.post('/api/receiver', json={'idle_timeout':10}).get_json()['receiver']['restart_requested'])
-            self.assertEqual(receiver.settings_path().read_bytes(), before)
+            self.assertEqual(legacy.read_bytes(), before)
             response = client.post('/api/receiver', json={'idle_timeout':25}).get_json()['receiver']
             self.assertTrue(response['restart_requested'])
             self.assertEqual(receiver.load()['password'], 'fake-private')
@@ -105,15 +109,17 @@ class NativeConfiguration(unittest.TestCase):
                 path = Path(directory) / 'ledfx-hooks.yaml'
                 path.write_text('extension: keep\nhooks:\n  start:\n    extension: also-keep\n')
                 with patch.dict(os.environ, AIRGLOW_CONFIG_DIR=directory, AIRGLOW_ADMIN_PASSWORD=''), \
-                     patch.multiple(native.config_api, CONFIG_DIR=directory, HOOKS_YAML=str(path),
-                                    LEDFX_URL=f'http://127.0.0.1:{server.server_port}'):
+                     patch.object(native.config_api, 'LEDFX_URL', f'http://127.0.0.1:{server.server_port}'):
                     client = native.app.test_client()
                     payload = {'start_enabled':True, 'end_enabled':True,
                                'start_hook':{'mode':'toggle', 'all_virtuals':False, 'virtuals':[{'id':'lamp','repeats':3}]},
                                'end_hook':{'mode':'scene', 'scenes':['evening']}}
                     self.assertEqual(client.post('/api/config', json=payload).status_code, 200)
-                    stored = yaml.safe_load(path.read_text())
-                    self.assertEqual(stored['extension'], 'keep')
+                    legacy_bytes = path.read_bytes()
+                    path = settings_store.path()
+                    stored = json.loads(path.read_text())
+                    self.assertEqual(stored['extensions']['extension'], 'keep')
+                    self.assertEqual((Path(directory) / 'ledfx-hooks.yaml').read_bytes(), legacy_bytes)
                     self.assertEqual(stored['hooks']['start']['extension'], 'also-keep')
                     config = client.get('/api/config').get_json()['virtuals']['hooks']
                     self.assertEqual(config['start']['virtuals'], [{'id':'lamp','repeats':3}])
@@ -157,9 +163,9 @@ class NativeConfiguration(unittest.TestCase):
                         self.assertEqual(path.read_bytes(), before_test)
                         for invalid in ({'mode':'shell'}, {'all_virtuals':'yes'}, {'virtuals':[{'id':5}]}, None):
                             self.assertEqual(client.post('/api/actions/test', json={'hook':'end', 'settings':invalid}).status_code, 400)
-                        disabled = yaml.safe_load(before_test)
+                        disabled = json.loads(before_test)
                         disabled['hooks']['end']['enabled'] = False
-                        path.write_text(yaml.safe_dump(disabled))
+                        path.write_text(json.dumps(disabled))
                         self.assertEqual(client.post('/api/actions/test', json={'hook':'end'}).status_code, 400)
                         result = session_worker.process(event, lambda:event, path, runtime / 'action.json')
                         self.assertEqual(result['state'], 'skipped')

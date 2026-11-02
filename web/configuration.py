@@ -4,18 +4,17 @@ import json
 import logging
 import os
 import subprocess
-import tempfile
 from urllib.parse import urlsplit
 
-import yaml
 from flask import current_app as app, jsonify, request
+
+import settings_store
+from settings_store import validate_hook
 
 logger = logging.getLogger(__name__)
 LEDFX_HOST = os.environ.get('LEDFX_HOST', 'localhost')
 LEDFX_PORT = os.environ.get('LEDFX_PORT', '8888')
 LEDFX_URL = f'http://{LEDFX_HOST}:{LEDFX_PORT}'
-CONFIG_DIR = os.environ.get('AIRGLOW_CONFIG_DIR', '/var/lib/airglow')
-HOOKS_YAML = os.path.join(CONFIG_DIR, 'ledfx-hooks.yaml')
 
 
 def require_admin():
@@ -111,172 +110,28 @@ def get_ledfx_scenes():
 
 
 def get_hook_config():
-    """Read hook enable/disable status from YAML only"""
-    try:
-        # Read from YAML only (shairport-sync.conf is never edited)
-        if os.path.exists(HOOKS_YAML):
-            with open(HOOKS_YAML, 'r') as f:
-                config = yaml.safe_load(f) or {}
-
-            hooks_config = config.get('hooks', {})
-            start_hook = hooks_config.get('start', {})
-            end_hook = hooks_config.get('end', {})
-
-            return {
-                'start_hook_enabled': start_hook.get('enabled', True),
-                'end_hook_enabled': end_hook.get('enabled', True)
-            }
-
-        # Default if YAML doesn't exist yet (fresh installation - hooks disabled)
-        return {
-            'start_hook_enabled': False,
-            'end_hook_enabled': False
-        }
-    except Exception as e:
-        logger.error(f"Error reading hook config: {e}")
-        return {'error': str(e) if app.debug else 'Error reading configuration'}
+    hooks = settings_store.read()['hooks']
+    return {'start_hook_enabled': hooks['start']['enabled'], 'end_hook_enabled': hooks['end']['enabled']}
 
 
 def get_virtual_config():
-    """Read virtual configuration from YAML file"""
-    try:
-        # Try YAML first
-        if os.path.exists(HOOKS_YAML):
-            with open(HOOKS_YAML, 'r') as f:
-                config = yaml.safe_load(f) or {}
-
-            ledfx_config = config.get('ledfx', {})
-            hooks_config = config.get('hooks', {})
-
-            start_hook = hooks_config.get('start', {})
-            end_hook = hooks_config.get('end', {})
-
-            start_virtuals = start_hook.get('virtuals', [])
-            end_virtuals = end_hook.get('virtuals', [])
-
-            # Check for explicit all_virtuals flag, default to True
-            start_all_virtuals = start_hook.get('all_virtuals')
-            if start_all_virtuals is None:
-                # If flag not present, check if list is empty
-                start_all_virtuals = len(start_virtuals) == 0
-
-            end_all_virtuals = end_hook.get('all_virtuals')
-            if end_all_virtuals is None:
-                # If flag not present, check if list is empty
-                end_all_virtuals = len(end_virtuals) == 0
-
-            return {
-                'ledfx': {
-                    'host': ledfx_config.get('host', 'localhost'),
-                    'port': ledfx_config.get('port', 8888)
-                },
-                'hooks': {
-                    'start': {
-                        'enabled': start_hook.get('enabled', True),
-                        'mode': start_hook.get('mode', 'toggle'),  # 'toggle' or 'scene'
-                        'virtuals': start_virtuals,
-                        'all_virtuals': start_all_virtuals,
-                        'scenes': start_hook.get('scenes', [])  # List of scene IDs
-                    },
-                    'end': {
-                        'enabled': end_hook.get('enabled', True),
-                        'mode': end_hook.get('mode', 'toggle'),  # 'toggle' or 'scene'
-                        'virtuals': end_virtuals,
-                        'all_virtuals': end_all_virtuals,
-                        'scenes': end_hook.get('scenes', [])  # List of scene IDs
-                    }
-                }
-            }
-
-        # Default if no config exists (fresh installation - hooks disabled)
-        return {
-            'ledfx': {'host': 'localhost', 'port': 8888},
-            'hooks': {
-                'start': {
-                    'enabled': False,
-                    'mode': 'toggle',  # Default to toggle mode
-                    'virtuals': [],
-                    'all_virtuals': False,  # New installations choose outputs explicitly.
-                    'scenes': []
-                },
-                'end': {
-                    'enabled': False,
-                    'mode': 'toggle',  # Default to toggle mode
-                    'virtuals': [],
-                    'all_virtuals': False,  # Existing YAML keeps its saved scope.
-                    'scenes': []
-                }
-            }
-        }
-    except Exception as e:
-        logger.error(f"Error reading virtual config: {e}")
-        return {'error': str(e) if app.debug else 'Error reading configuration'}
+    return {'ledfx': {'host': LEDFX_HOST, 'port': int(LEDFX_PORT)}, 'hooks': settings_store.read()['hooks']}
 
 
 def save_virtual_config(config_data):
-    """Write virtual configuration to YAML file"""
     try:
-        # Build YAML structure with new nested format
-        start_hook_data = config_data.get('start_hook', {})
-        end_hook_data = config_data.get('end_hook', {})
-
-        yaml_data = {
-            'ledfx': {
-                'host': LEDFX_HOST,
-                'port': int(LEDFX_PORT)
-            },
-            'hooks': {
-                'start': {
-                    'enabled': config_data.get('start_enabled', True),
-                    'mode': start_hook_data.get('mode', 'toggle'),  # 'toggle' or 'scene'
-                    'all_virtuals': start_hook_data.get('all_virtuals', True),
-                    'virtuals': start_hook_data.get('virtuals', []),
-                    'scenes': start_hook_data.get('scenes', [])  # List of scene IDs
-                },
-                'end': {
-                    'enabled': config_data.get('end_enabled', True),
-                    'mode': end_hook_data.get('mode', 'toggle'),  # 'toggle' or 'scene'
-                    'all_virtuals': end_hook_data.get('all_virtuals', True),
-                    'virtuals': end_hook_data.get('virtuals', []),
-                    'scenes': end_hook_data.get('scenes', [])  # List of scene IDs
-                }
-            }
-        }
-
-        # Preserve extension settings that this form does not edit.
-        if os.path.exists(HOOKS_YAML):
-            with open(HOOKS_YAML) as source:
-                previous = yaml.safe_load(source) or {}
-            previous.setdefault('ledfx', {}).update(yaml_data['ledfx'])
-            hooks = previous.setdefault('hooks', {})
-            for key in ('start', 'end'):
-                hooks.setdefault(key, {}).update(yaml_data['hooks'][key])
-            yaml_data = previous
-
-        # Write YAML file
-        with tempfile.NamedTemporaryFile(mode='w', dir=CONFIG_DIR, delete=False) as f:
-            temporary_path = f.name
-            try:
-                yaml.safe_dump(yaml_data, f, default_flow_style=False, sort_keys=False)
-                f.flush()
-                os.fsync(f.fileno())
-                os.chmod(temporary_path, 0o644)
-                os.replace(temporary_path, HOOKS_YAML)
-            finally:
-                if os.path.exists(temporary_path):
-                    os.unlink(temporary_path)
-
+        settings_store.update_hooks(config_data)
         return {'success': True}
-    except Exception as e:
-        logger.error(f"Error saving virtual config: {e}")
-        return {'error': str(e) if app.debug else 'Error saving configuration'}
+    except (OSError, ValueError):
+        return {'error': 'Playback settings could not be saved.'}
 
 
 def get_config():
     """Get current configuration"""
     try:
-        hook_config = get_hook_config()
         virtual_config = get_virtual_config()
+        hook_config = {'start_hook_enabled':virtual_config['hooks']['start']['enabled'],
+                       'end_hook_enabled':virtual_config['hooks']['end']['enabled']}
         virtuals_list = get_ledfx_virtuals()
 
         # Get list of available virtual IDs
@@ -308,25 +163,6 @@ def get_config():
         return jsonify({'error': str(e) if app.debug else 'Error reading configuration'}), 500
 
 
-def validate_hook(hook):
-    """Validate the action shape shared by saved automation and one-off tests."""
-    if not isinstance(hook, dict) or type(hook.get('all_virtuals', True)) is not bool:
-        raise ValueError('Invalid action settings.')
-    mode = hook.get('mode', 'toggle')
-    if mode not in ('toggle', 'scene'):
-        raise ValueError('Choose an output action or a scene.')
-    virtuals, scenes = hook.get('virtuals', []), hook.get('scenes', [])
-    if not isinstance(virtuals, list) or not isinstance(scenes, list):
-        raise ValueError('Outputs and scenes must be lists.')
-    if any(not isinstance(v, dict) or not isinstance(v.get('id'), str) or not v['id']
-           or type(v.get('repeats', 1)) is not int or not 0 <= v.get('repeats', 1) <= 10 for v in virtuals):
-        raise ValueError('Outputs need an ID and a valid legacy repeat count.')
-    if any(not isinstance(sid, str) or not sid for sid in scenes):
-        raise ValueError('Scene IDs must be nonempty strings.')
-    return {'mode': mode, 'all_virtuals': hook.get('all_virtuals', True),
-            'virtuals': virtuals, 'scenes': scenes}
-
-
 def save_config():
     """Save configuration changes"""
     try:
@@ -352,10 +188,10 @@ def save_config():
         start_mode = start_hook_data.get('mode', 'toggle')
         end_mode = end_hook_data.get('mode', 'toggle')
 
-        start_all_virtuals = start_hook_data.get('all_virtuals', True)
+        start_all_virtuals = start_hook_data.get('all_virtuals', False)
         start_virtuals = start_hook_data.get('virtuals', [])
         start_scenes = start_hook_data.get('scenes', [])
-        end_all_virtuals = end_hook_data.get('all_virtuals', True)
+        end_all_virtuals = end_hook_data.get('all_virtuals', False)
         end_virtuals = end_hook_data.get('virtuals', [])
         end_scenes = end_hook_data.get('scenes', [])
 

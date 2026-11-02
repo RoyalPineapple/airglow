@@ -2,6 +2,7 @@
 (() => {
   const $ = id => document.getElementById(id);
   const keys = ['start', 'end'];
+  const tabs = ['playback', 'receiver', 'backup'];
   let catalog, receiverBaseline, actionsBaseline, testing = false;
   async function api(path, data) {
     const response = await fetch(path, {method:data ? 'POST' : 'GET', headers:data ? {'Content-Type':'application/json'} : {}, body:data ? JSON.stringify(data) : undefined, signal:AbortSignal.timeout(15000)});
@@ -163,7 +164,7 @@
   });
   function showTab(key, focus = false) {
     keys.forEach(name => $(name + '-picker').open = false);
-    for (const name of ['playback', 'receiver']) {
+    for (const name of tabs) {
       const selected = name === key;
       $(name + '-tab').setAttribute('aria-selected', String(selected));
       $(name + '-tab').tabIndex = selected ? 0 : -1;
@@ -171,12 +172,13 @@
     }
     if (focus) $(key + '-tab').focus();
   }
-  for (const key of ['playback', 'receiver']) {
+  for (const key of tabs) {
     $(key + '-tab').addEventListener('click', () => showTab(key));
     $(key + '-tab').addEventListener('keydown', event => {
       if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
       event.preventDefault();
-      showTab(event.key === 'Home' ? 'playback' : event.key === 'End' ? 'receiver' : key === 'playback' ? 'receiver' : 'playback', true);
+      const index = tabs.indexOf(key);
+      showTab(event.key === 'Home' ? tabs[0] : event.key === 'End' ? tabs[tabs.length - 1] : tabs[(index + (event.key === 'ArrowRight' ? 1 : tabs.length - 1)) % tabs.length], true);
     });
   }
   $('discard-actions').addEventListener('click', () => {
@@ -205,6 +207,45 @@
     $('receiver-result').textContent = 'No unsaved changes';
     delete $('receiver-result').dataset.result;
     receiverChanged();
+  });
+  let restoreCandidate = null, restoreSelection = 0;
+  $('backup-file').addEventListener('change', async () => {
+    const selection = ++restoreSelection;
+    restoreCandidate = null; $('restore-review').hidden = true;
+    $('backup-result').textContent = '';
+    const file = $('backup-file').files[0];
+    if (!file) return;
+    message('backup-result', 'Checking configuration…');
+    try {
+      if (file.size > 1024 * 1024) throw new Error('Configuration files must be smaller than 1 MB.');
+      const candidate = JSON.parse(await file.text());
+      const preview = await api('/api/settings/restore', {config:candidate, preview:true});
+      if (selection !== restoreSelection) return;
+      const rows = [ ['Receiver', preview.receiver.effective_name],
+        ['Fixed audio level', preview.receiver.fixed_volume ? 'Enabled' : 'Disabled'],
+        ['AirPlay password', preview.receiver.password_set ? 'Included' : 'Not set'],
+        ['Idle delay', preview.receiver.idle_timeout + ' seconds'] ];
+      for (const key of keys) {
+        const hook = preview.hooks[key];
+        rows.push([key === 'start' ? 'Playback starts' : 'Playback ends', !hook.enabled ? 'Off' : hook.mode === 'scene' ? 'Scenes: ' + hook.scenes.join(', ') : (key === 'start' ? 'Resume effects · ' : 'Stop output · ') + (hook.all_virtuals ? 'All current and future outputs' : hook.output_count + ' selected outputs')]);
+      }
+      $('restore-summary').replaceChildren(...rows.map(([name,value]) => {
+        const row = document.createElement('div'), term = document.createElement('dt'), detail = document.createElement('dd');
+        term.textContent = name; detail.textContent = value; row.append(term,detail); return row;
+      }));
+      restoreCandidate = candidate; $('restore-review').hidden = false;
+      message('backup-result', 'Valid configuration. Review the settings before restoring.');
+    } catch (error) { if (selection !== restoreSelection) return; message('backup-result', error instanceof SyntaxError ? 'This file is not valid JSON.' : error.message, true); }
+  });
+  $('restore-config').addEventListener('click', async () => {
+    if (!restoreCandidate) return;
+    $('restore-config').disabled = true; $('backup-file').disabled = true;
+    try {
+      const result = await api('/api/settings/restore', {config:restoreCandidate});
+      restoreCandidate = null;
+      message('backup-result', result.restart_requested ? 'Configuration restored. AirPlay restart requested. Reloading…' : 'Configuration restored. Reloading…');
+      setTimeout(() => window.location.reload(), 1200);
+    } catch (error) { message('backup-result', error.message, true); $('restore-config').disabled = false; $('backup-file').disabled = false; }
   });
   Promise.all([api('/api/receiver'), api('/api/config')]).then(([settings, config]) => {
     catalog = config; receiver(settings); keys.forEach(key => hook(key, config.virtuals.hooks[key]));

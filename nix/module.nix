@@ -12,7 +12,12 @@ let
   webPython = pkgs.python3.withPackages (p: [ p.flask p.pyyaml p.gunicorn ]);
   publishSession = pkgs.writeShellScript "airglow-session" (builtins.readFile ../scripts/publish-session.sh);
   # UI asset changes must not restart the receiver or interrupt an action in progress.
-  receiverSource = pkgs.writeText "airglow-receiver.py" (builtins.readFile ../web/receiver.py);
+  receiverSource = pkgs.runCommand "airglow-receiver" {} ''
+    mkdir -p "$out"
+    cp ${../web/receiver.py} "$out/receiver.py"
+    cp ${../web/settings_store.py} "$out/settings_store.py"
+  '';
+  settingsSource = pkgs.writeText "airglow-settings.py" (builtins.readFile ../web/settings_store.py);
   workerSource = pkgs.writeText "airglow-actions.py" (builtins.readFile ../web/session_worker.py);
   # Copy only runtime source into the immutable Nix store, including local assets.
   webSource = builtins.path {
@@ -151,13 +156,17 @@ in
     after = [ "network.target" ];
     environment = {
       AIRGLOW_RUNTIME = "/run/airglow";
-      AIRGLOW_HOOKS_FILE = "/var/lib/airglow/ledfx-hooks.yaml";
+      AIRGLOW_CONFIG_DIR = "/var/lib/airglow";
+      AIRGLOW_HOOKS_FILE = "/var/lib/airglow/airglow.json";
       LEDFX_HOST = cfg.address;
       LEDFX_PORT = "8888";
     };
     serviceConfig = {
       User = "airglow";
       Group = "airglow";
+      StateDirectory = "airglow";
+      StateDirectoryMode = "0750";
+      ExecStartPre = "${webPython}/bin/python ${settingsSource} --migrate";
       RuntimeDirectory = "airglow";
       RuntimeDirectoryMode = "2770";
       # Nix updates stop/start this worker while the receiver keeps using the directory.
@@ -267,7 +276,7 @@ in
       AIRGLOW_RUNTIME = "/run/airglow";
       AIRGLOW_CONFIG_DIR = "/var/lib/airglow";
     };
-    serviceConfig.ExecStart = lib.mkForce "${webPython}/bin/python ${receiverSource} ${receiver}/bin/shairport-sync";
+    serviceConfig.ExecStart = lib.mkForce "${webPython}/bin/python ${receiverSource}/receiver.py ${receiver}/bin/shairport-sync";
   };
   systemd.services.nqptp = {
     description = "AirPlay timing service";

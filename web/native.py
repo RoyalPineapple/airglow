@@ -10,12 +10,47 @@ from flask import Flask, jsonify, render_template, request
 
 import product
 import receiver
+import settings_store
 import configuration as config_api
 from configuration import require_admin
 
 app = Flask(__name__)
+app.config['MAX_CONTENT_LENGTH'] = 1024 * 1024
 app.before_request(require_admin)
 UNITS = ('shairport-sync', 'nqptp', 'pulseaudio', 'ledfx')
+
+
+@app.errorhandler(413)
+def upload_too_large(error):
+    return jsonify(error='Configuration files must be smaller than 1 MB.'), 413
+
+
+@app.get('/api/settings/export')
+def export_settings():
+    try:
+        data = settings_store.read()
+    except ValueError as error:
+        return jsonify(error=str(error)), 500
+    return app.response_class(json.dumps(data, indent=2) + '\n', mimetype='application/json', headers={
+        'Content-Disposition': 'attachment; filename=airglow.json', 'Cache-Control': 'no-store'})
+
+
+@app.post('/api/settings/restore')
+def restore_settings():
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict) or type(payload.get('preview', False)) is not bool:
+        return jsonify(error='Choose a valid Airglow configuration file.'), 400
+    try:
+        data, restart = settings_store.restore(payload.get('config'), preview=payload.get('preview', False))
+        summary = {key: {'enabled':hook['enabled'], 'mode':hook['mode'],
+                         'all_virtuals':hook['all_virtuals'], 'output_count':len(hook['virtuals']),
+                         'scenes':hook['scenes']} for key,hook in data['hooks'].items()}
+        return jsonify(success=True, preview=payload.get('preview', False), receiver=receiver.public(data['receiver']),
+                       hooks=summary, restart_requested=restart and not payload.get('preview', False), restart_required=restart), {'Cache-Control': 'no-store'}
+    except ValueError as error:
+        return jsonify(error=str(error)), 400
+    except OSError:
+        return jsonify(error='Configuration could not be applied. Check the saved settings and retry.'), 500
 
 
 def command(*args):

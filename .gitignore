@@ -83,3 +83,7 @@ id_ed25519*
 receiver.json
 ledfx-hooks.yaml
 ledfx-config.json
+
+airglow.json
+airglow.previous.json
+.airglow.lock

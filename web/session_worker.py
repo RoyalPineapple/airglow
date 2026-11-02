@@ -89,7 +89,7 @@ def main():
         if event and event != last:
             last = event
             job = multiprocessing.Process(target=process, args=(
-                event, current, os.environ.get('AIRGLOW_HOOKS_FILE', '/configs/ledfx-hooks.yaml'), RUNTIME / 'action.json'))
+                event, current, os.environ.get('AIRGLOW_HOOKS_FILE', '/var/lib/airglow/airglow.json'), RUNTIME / 'action.json'))
             job.start()
             job.join(10)
             if job.is_alive():

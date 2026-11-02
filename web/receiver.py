@@ -7,43 +7,16 @@ import tempfile
 import uuid
 
 
+from settings_store import validate_receiver as validate
+import settings_store
+
+
 def settings_path():
-    return Path(os.environ.get('AIRGLOW_CONFIG_DIR', '/var/lib/airglow')) / 'receiver.json'
+    return settings_store.path()
 
 
 def load():
-    try:
-        data = json.loads(settings_path().read_text())
-        data.setdefault('idle_timeout', 10)
-        return data
-    except FileNotFoundError:
-        return {'name': '', 'mode': 'airplay2', 'fixed_volume': True, 'password': '', 'idle_timeout': 10}
-
-
-def validate(data, previous):
-    if not isinstance(data, dict):
-        raise ValueError('Receiver settings must be an object.')
-    name = data.get('name', previous.get('name', ''))
-    mode = data.get('mode', previous.get('mode', 'airplay2'))
-    volume = data.get('fixed_volume', previous.get('fixed_volume', True))
-    idle_timeout = data.get('idle_timeout', previous.get('idle_timeout', 10))
-    if type(idle_timeout) is not int or not 1 <= idle_timeout <= 300:
-        raise ValueError('Use an idle delay from 1 to 300 whole seconds.')
-    supplied_password = data.get('password', '')
-    if not isinstance(supplied_password, str) or type(data.get('clear_password', False)) is not bool:
-        raise ValueError('Use text for the password and a boolean for password removal.')
-    password = supplied_password or previous.get('password', '')
-    if data.get('clear_password') is True:
-        password = ''
-    if not isinstance(name, str) or len(name.strip()) > 50 or any(c in name for c in ('"', '\\')) or any(ord(c) < 32 for c in name):
-        raise ValueError('Use a receiver name of up to 50 characters without quotes, backslashes, or control characters.')
-    if mode != 'airplay2':
-        raise ValueError('Airglow supports AirPlay 2 only.')
-    if type(volume) is not bool:
-        raise ValueError('Fixed audio level must be a boolean.')
-    if not isinstance(password, str) or len(password) > 128 or any(ord(c) < 32 for c in password):
-        raise ValueError('Use an AirPlay password of up to 128 characters without control characters.')
-    return {'name': name.strip(), 'mode': mode, 'fixed_volume': volume, 'password': password, 'idle_timeout': idle_timeout}
+    return settings_store.read()['receiver']
 
 
 def public(data):
@@ -55,30 +28,12 @@ def public(data):
 
 
 def request_restart():
-    # Keep the watched inode stable; settings themselves are replaced atomically.
-    path = settings_path().parent / 'receiver.restart'
-    with os.fdopen(os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o640), 'w') as output:
-        output.write(uuid.uuid4().hex)
+    settings_store.request_restart()
 
 
 def save(data):
-    previous = load()
-    updated = validate(data, previous)
-    if updated == previous:
-        return public(updated) | {'restart_requested': False}
-    path = settings_path()
-    with tempfile.NamedTemporaryFile(mode='w', dir=path.parent, delete=False) as output:
-        temporary = Path(output.name)
-        try:
-            json.dump(updated, output)
-            output.flush()
-            os.fsync(output.fileno())
-            os.chmod(temporary, 0o640)
-            temporary.replace(path)
-            request_restart()
-        finally:
-            temporary.unlink(missing_ok=True)
-    return public(updated) | {'restart_requested': True}
+    document, requested = settings_store.update_receiver(data)
+    return public(document['receiver']) | {'restart_requested': requested}
 
 
 def run(binary):

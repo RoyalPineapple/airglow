@@ -10,7 +10,7 @@
   <header><a class="brand" href="/">AIRGLOW</a><nav aria-label="Navigation"><a href="/">State</a><a href="/config" aria-current="page">Configuration</a><a href="/status">Troubleshooting</a></nav><span id="engine-state" class="engine-state"></span></header>
   <div class="page-heading"><h1>Configuration</h1><a href="{{ ledfx_url }}" target="_blank" rel="noopener">Open LedFX ↗</a></div>
   <p id="load-status" role="status">Loading settings…</p>
-  <div class="settings-tabs" role="tablist" aria-label="Configuration section"><button type="button" id="playback-tab" role="tab" aria-selected="true" aria-controls="playback-panel">Playback</button><button type="button" id="receiver-tab" role="tab" aria-selected="false" aria-controls="receiver-panel" tabindex="-1">Receiver</button></div>
+  <div class="settings-tabs" role="tablist" aria-label="Configuration section"><button type="button" id="playback-tab" role="tab" aria-selected="true" aria-controls="playback-panel">Playback</button><button type="button" id="receiver-tab" role="tab" aria-selected="false" aria-controls="receiver-panel" tabindex="-1">Receiver</button><button type="button" id="backup-tab" role="tab" aria-selected="false" aria-controls="backup-panel" tabindex="-1">Backup</button></div>
   <section id="playback-panel" role="tabpanel" aria-labelledby="playback-tab">
     <form id="actions-form">
       <fieldset id="actions-fields" disabled><legend class="sr-only">Playback actions</legend>
@@ -45,5 +45,11 @@
       <p class="help action-note">Applying receiver settings restarts AirPlay and disconnects current playback.</p>
       <div class="save-row"><p id="receiver-result" role="status">No unsaved changes</p><button id="discard-receiver" type="button" class="secondary" hidden>Discard</button><button id="save-receiver" class="primary" type="submit" disabled>Save receiver</button></div>
     </fieldset></form>
+  </section>
+  <section id="backup-panel" role="tabpanel" aria-labelledby="backup-tab" hidden>
+    <div class="receiver-settings backup-settings"><div class="setting-row"><div><h2>Download configuration</h2><p class="help">Saved receiver settings and playback actions in one versioned file.</p></div><div><a class="secondary download-config" href="/api/settings/export" download="airglow.json">Download airglow.json</a><p class="help">Includes the AirPlay password. Store this file privately.</p></div></div>
+    <div class="setting-row"><div><label for="backup-file">Restore configuration</label><p class="help">Choose a backup to review before replacing saved settings.</p></div><div><input id="backup-file" type="file" accept=".json,application/json"><p class="help">Airglow JSON · maximum 1 MB</p></div></div></div>
+    <div id="restore-review" class="restore-review" hidden><h2>Review restore</h2><dl id="restore-summary"></dl><p class="help">This replaces saved settings and discards unsaved edits. AirPlay may restart. LedFX data is separate; saved targets must exist there.</p><button id="restore-config" type="button" class="primary">Restore configuration</button></div>
+    <p id="backup-result" role="status" class="help"></p>
   </section>
 </main></body></html>

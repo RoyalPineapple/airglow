@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "receiver": {
+    "name": "",
+    "mode": "airplay2",
+    "fixed_volume": true,
+    "password": "",
+    "idle_timeout": 10
+  },
+  "hooks": {
+    "start": {
+      "enabled": false,
+      "mode": "toggle",
+      "all_virtuals": false,
+      "virtuals": [],
+      "scenes": []
+    },
+    "end": {
+      "enabled": false,
+      "mode": "toggle",
+      "all_virtuals": false,
+      "virtuals": [],
+      "scenes": []
+    }
+  },
+  "extensions": {}
+}

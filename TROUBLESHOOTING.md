@@ -42,3 +42,15 @@ failure. Check the configured input and an active effect in LedFX during real pl
 The download contains an allowlist of service states, connection results and versions.
 It excludes raw configuration, passwords, cookies and unrelated host inventories.
 Logs viewed directly on the host are separate from that download; review before sharing.
+
+## Settings backup and recovery
+
+Use Configuration → Backup to download or restore the versioned Airglow settings file.
+Keep the download private; it includes the AirPlay password. Restore validates the file
+and shows a summary before applying it. It does not need LedFX to be online. Invalid
+settings can be replaced by a valid backup through this screen.
+
+The active file is `/var/lib/airglow/airglow.json`. The older receiver JSON and hook YAML
+are retained migration inputs and are ignored after migration. Do not edit those old files
+expecting live settings to change. Before overwriting the active file during restore,
+Airglow saves one private previous copy; a failed previous-copy write aborts the restore.

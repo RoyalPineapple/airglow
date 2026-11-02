@@ -1,58 +1,88 @@
 # Configuration
 
-## NixOS service settings
+## Airglow settings file
+
+`/var/lib/airglow/airglow.json` is the source of truth for all settings managed by the
+Airglow interface. The receiver wrapper, web interface and session-action worker use
+this file. It is versioned JSON and is private: it includes the AirPlay password.
+
+See [the public example](configs/airglow.example.json) for the complete version 1 shape:
+
+- `version`: configuration format version, currently 1.
+- `receiver`: name, AirPlay mode, fixed-volume flag, password and idle delay.
+- `hooks`: independent start/end actions, enable flags, explicit output scope, selected
+  virtual IDs and scene IDs. Legacy hook extensions are retained.
+- `extensions`: preserved metadata from the previous YAML configuration. It does not
+  override Nix-managed network bindings or service installation.
+
+Empty receiver names use the hostname. Only AirPlay 2 is supported. The idle delay is
+1–300 whole seconds, default 10. Applying receiver changes requests an AirPlay restart.
+The wrapper renders a numeric timeout into runtime storage; it never edits the
+Nix-managed Shairport base file. The stable restart signal records which receiver
+settings were requested, so a failed signal can be retried without changing the values.
+A request receipt is not proof that Shairport has applied or advertised the new settings.
+
+## Download and restore
+
+Open **Configuration → Backup** to download `airglow.json`. Keep it private: the export
+includes the AirPlay password. Passwords remain omitted from ordinary settings responses,
+restore previews and diagnostics. An optional web login also protects these backup routes.
+
+Choose a JSON file to restore. Airglow validates its format and shows a summary before
+applying it. Unsupported versions and malformed/incomplete files are rejected without
+replacing saved settings. Restore does not require LedFX to be online.
+
+Restoring replaces the complete Airglow settings file and discards unsaved browser edits.
+Receiver changes request a restart; playback-action changes take effect for later events.
+Before replacement, Airglow keeps a private `airglow.previous.json` copy. If creating that
+copy fails, restoration is aborted. The previous copy is replaced on the next restore,
+so backup storage does not grow without limit.
+
+Writes use a process-safe lock, atomic replacement, and file/directory synchronization.
+Normal receiver and action saves update only their respective section, preserving the
+other settings. Manual tests use a validated runtime snapshot of current on-screen
+choices and do not save it as automation.
+
+## Migration
+
+Before the worker starts, Airglow imports an existing `receiver.json` and
+`ledfx-hooks.yaml` if the new file does not exist. Existing names, passwords, volume
+handling, idle delay, action selections and supported extensions are retained. The old
+files are left unchanged. After migration, they are not read or updated; `airglow.json`
+is authoritative. An invalid existing file stops migration rather than silently resetting
+settings.
+
+Legacy repeat values remain accepted for compatibility. Positive values send one command;
+zero leaves an output disabled. Existing scene sequences remain intact until changed.
+
+## What stays outside this file
+
+- LedFX owns its complete `/var/lib/ledfx` directory, including devices, effects, presets
+  and scenes. Back it up separately. Restoring Airglow does not import LedFX data; saved
+  virtual and scene references must exist in the destination LedFX installation.
+- Nix owns host addresses/interfaces, the LedFX browser URL, package versions and service
+  installation. SSH access, disk configuration and the optional web-login secret remain
+  in private host configuration. Supply web secrets through a private EnvironmentFile.
+- `/run/airglow` contains receiver sessions, events and results. Never restore it from a
+  backup or replay old events.
+
+## NixOS module
 
 Import `nix/module.nix` and configure `services.airglow`:
 
 | Setting | Meaning |
 |---|---|
 | `enable` | Enable the native services; defaults to false |
-| `address` | Existing host IPv4 address for the web, LedFX and AirPlay checks |
+| `address` | Existing host IPv4 address for web, LedFX and AirPlay checks |
 | `interface` | LAN interface for AirPlay and lighting reply firewall rules |
-| `ledfxBrowserUrl` | Optional browser-facing LedFX URL; defaults to the address on port 8888 |
+| `ledfxBrowserUrl` | Optional browser URL; defaults to the address on port 8888 |
 
 The module enables Shairport Sync with AirPlay 2, NQPTP, Avahi, a local PulseAudio
-bridge, LedFX, the web interface and one session-action worker. No Docker is installed.
-It does not set host networking, credentials, filesystem UUIDs or SSH keys.
+bridge, LedFX, the web interface and one worker. It installs no Docker and does not set
+host networking, disks or SSH keys. Application source and the module stay together.
+Shairport/NQPTP source tags and the LedFX package collection revision are pinned; the
+host owner manages the overall NixOS/nixpkgs revision.
 
-Shairport and NQPTP source tags/hashes and the LedFX package collection revision are
-pinned in the module. The host's own NixOS/nixpkgs revision is managed by the host owner.
-Do not treat package pinning as a pin of the whole operating system.
-
-## Saved settings
-
-| Path | Contents | In Git? |
-|---|---|---|
-| `/var/lib/airglow/receiver.json` | Receiver name, volume handling, idle delay and optional AirPlay password | No |
-| `/var/lib/airglow/ledfx-hooks.yaml` | Enabled playback actions and selected outputs/scenes | No |
-| `/var/lib/ledfx/` | LedFX configuration, devices, effects, scenes and other saved data | No |
-| `/run/airglow/` | Current receiver session, event mailbox, worker readiness and last result | No; runtime only |
-| `nix/hosts/` | Optional local host deployment configuration | No |
-
-Receiver overrides are written atomically with mode 0640. Passwords are not returned
-by the settings API or included in the diagnostic download. Empty receiver names use
-the hostname. Only AirPlay 2 is supported.
-
-Existing hook YAML extensions are preserved. Legacy repeat values are accepted for
-compatibility; positive values send one command, and zero leaves an output disabled.
-Existing multiple-scene selections are preserved until replaced with one scene in the UI.
-
-Use LedFX's interface/API while it runs. Airglow never overwrites an existing LedFX
-configuration during service startup. First installation resolves the named audio
-bridge rather than assuming the capture-device index is zero.
-
-## Upgrades and rollback
-
-Back up the two mutable state directories before applying an upgrade. Use a consistent
-backup made with their writers stopped. Do not back up `/run/airglow` or replay old events.
-
-Build the candidate NixOS configuration before switching. NixOS software rollback does
-not restore saved application state; use the matching state backup when necessary.
-There are no automatic updates, automatic data migrations or automatic data rollback.
-
-The Receiver tab configures the inactive-session grace period from 1 to 300 whole
-seconds (default 10). Applying it restarts AirPlay. The wrapper renders a numeric
-Shairport timeout in runtime storage; it does not edit the Nix-managed base file.
-
-Run test sends a validated snapshot of the current on-screen action to the worker.
-It does not save the snapshot as automation. Playback callbacks still use the saved YAML.
+A NixOS generation rollback restores software, not mutable application data. Retain a
+matching Airglow configuration download and separate LedFX data backup before upgrades.
+Older generations that predate the new format still read the retained legacy files.
