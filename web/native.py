@@ -3,6 +3,7 @@ import json
 import os
 import subprocess
 import tempfile
+import re
 from pathlib import Path
 from uuid import uuid4
 
@@ -10,6 +11,7 @@ from flask import Flask, jsonify, render_template, request
 
 import product
 import receiver
+from session_worker import worker_available
 import settings_store
 import configuration as config_api
 from configuration import require_admin
@@ -77,15 +79,47 @@ def observe():
                      shairport_corked=all(s['corked'] for s in receiver_streams) if receiver_streams else False)
     except (OSError, subprocess.SubprocessError, ValueError, KeyError):
         pass
-    airplay = {'device_name': None, 'advertising': None,
+    airplay = {'device_name': None, 'desired_name': None, 'advertising': None,
+               'configuration_state': 'unknown', 'observed_names': {},
                'running': services['shairport-sync']['running']}
+    configuration_error = None
     try:
-        settings = receiver.public(receiver.load())
-        airplay['device_name'] = settings['effective_name']
-        rows = [line.split(';') for line in command('avahi-browse', '-rpt', '_airplay._tcp').splitlines()]
-        airplay['advertising'] = any(len(row) >= 9 and row[0] == '='
-                                    and row[7] == os.environ['AIRGLOW_ADDRESS']
-                                    and row[8] == '7000' for row in rows)
+        saved = receiver.load()
+        settings = receiver.public(saved)
+        airplay['desired_name'] = settings['effective_name']
+        airplay['revision'] = settings['revision']
+        for service, port in (('_airplay._tcp', '7000'), ('_raop._tcp', '7000')):
+            rows = [line.split(';') for line in command('avahi-browse', '-rpt', service).splitlines()]
+            names = []
+            for row in rows:
+                if len(row) >= 9 and row[0] == '=' and row[4] == service and row[7] == os.environ['AIRGLOW_ADDRESS'] and row[8] == port:
+                    name = re.sub(rb'\\([0-9]{3})', lambda match: bytes([int(match[1])]), row[3].encode()).decode('utf-8', errors='replace')
+                    if service == '_raop._tcp':
+                        name = name.partition('@')[2]
+                    names.append(name)
+            airplay['observed_names'][service] = sorted(set(names))
+        observed = airplay['observed_names']
+        matching = all(settings['effective_name'] in observed[service] for service in ('_airplay._tcp', '_raop._tcp'))
+        airplay['advertising'] = matching
+        names = observed.get('_airplay._tcp', [])
+        airplay['device_name'] = names[0] if len(names) == 1 else None
+        airplay['configuration_state'] = 'mismatch' if any(observed.values()) and not matching else 'pending'
+        try:
+            receipt = json.loads((Path(os.environ.get('AIRGLOW_RUNTIME', '/runtime')) / 'receiver.applied').read_text())
+            pid = int(command('systemctl', 'show', 'shairport-sync.service', '--property=MainPID', '--value').strip())
+            if matching and services['shairport-sync']['running'] and receipt.get('pid') == pid and receipt.get('fingerprint') == settings_store._digest(saved):
+                airplay['configuration_state'] = 'applied'
+        except (OSError, ValueError, subprocess.SubprocessError):
+            pass
+        if airplay['configuration_state'] != 'applied':
+            try:
+                result = command('systemctl', 'show', 'airglow-receiver-apply.service', '--property=Result', '--value').strip()
+                if result not in ('success', ''):
+                    airplay['configuration_state'] = 'failed'
+            except (OSError, subprocess.SubprocessError):
+                pass
+    except ValueError as error:
+        configuration_error = str(error)
     except (OSError, subprocess.SubprocessError, KeyError):
         pass
     engine = {'connected': None}
@@ -108,15 +142,24 @@ def observe():
                 for key, item in response['devices'].items()}}
         except (OSError, subprocess.SubprocessError, ValueError, KeyError, AttributeError):
             pass
-    hooks = config_api.get_hook_config()
+    try:
+        hooks = config_api.get_hook_config()
+    except ValueError as error:
+        configuration_error = str(error)
+        hooks = {}
     actions_enabled = hooks.get('start_hook_enabled') or hooks.get('end_hook_enabled')
     data = {'services': services, 'audio': audio, 'airplay': airplay, 'ledfx': engine,
-            'devices': devices,
-            'diagnostics': {'available': all(s['running'] is not None for s in services.values())},
+            'devices': devices, 'configuration_error': configuration_error,
+            'diagnostics': {'available': all(s['running'] is not None for s in services.values()),
+                            'actions_worker_running': worker_available(Path(os.environ.get('AIRGLOW_RUNTIME', '/runtime'))) if actions_enabled else None},
             'session_action': product.action_status() if actions_enabled else {'state': 'disabled'},
             'release': {'runtime': 'NixOS', 'versions': json.loads(os.environ.get('AIRGLOW_VERSIONS', '{}'))},
             'ledfx_browser_url': product.browser_url(request.host.split(':')[0])}
     data['state'] = product.summary(data)
+    if airplay['configuration_state'] == 'pending' and data['state'] != 'degraded':
+        data['state'] = 'unknown'
+    if configuration_error or airplay['configuration_state'] in ('mismatch', 'failed') or data['diagnostics']['actions_worker_running'] is False:
+        data['state'] = 'degraded'
     if any(s['running'] is False for s in services.values()):
         data['state'] = 'degraded'
     elif any(d['online'] is False for d in devices['devices'].values()):
@@ -146,12 +189,17 @@ def status():
 def configuration():
     if request.method == 'POST':
         return config_api.save_config()
-    response = config_api.get_config()
+    response = app.make_response(config_api.get_config(include_catalog=request.args.get('catalog') != '0'))
     if response.status_code == 200:
         data = response.get_json()
         data['airplay_name'] = receiver.public(receiver.load())['effective_name']
         return jsonify(data)
     return response
+
+
+@app.get('/api/catalog')
+def catalog():
+    return config_api.get_config()
 
 
 @app.route('/api/receiver', methods=['GET', 'POST'])
@@ -162,6 +210,8 @@ def receiver_settings():
             return jsonify(receiver.public(receiver.load()))
         saved = receiver.save(request.get_json(silent=True))
         return jsonify(success=True, name=saved['effective_name'], receiver=saved)
+    except settings_store.ConflictError as error:
+        return jsonify(error=str(error)), 409
     except ValueError as error:
         return jsonify(error=str(error)), 400
     except OSError:
@@ -193,7 +243,7 @@ def test_action():
         return jsonify(error='Choose an output or scene before testing.'), 400
     runtime = Path(os.environ.get('AIRGLOW_RUNTIME', '/runtime'))
     try:
-        if not (runtime / 'worker.ready').exists():
+        if not worker_available(runtime):
             return jsonify(error='The action worker is unavailable.'), 503
         session = (runtime / 'receiver').read_text().strip()
         if not session:
@@ -218,8 +268,11 @@ def test_action():
 
 @app.post('/api/shairport/restart')
 def restart_receiver():
-    receiver.request_restart()
-    return jsonify(success=True)
+    try:
+        receiver.request_restart()
+        return jsonify(success=True)
+    except (OSError, ValueError):
+        return jsonify(error='The receiver restart could not be requested. Check saved settings.'), 503
 
 
 @app.get('/api/diagnostics/download')
@@ -242,6 +295,10 @@ def details():
     description = 'These are live service checks. Use LedFX to configure devices, effects, and scenes.'
     rows = [(unit, state['state']) for unit, state in data['services'].items()]
     rows += [('AirPlay discovery', str(data['airplay']['advertising'])),
+             ('Receiver settings', data['airplay']['configuration_state']),
+             ('Saved receiver name', data['airplay']['desired_name'] or 'Unknown'),
+             ('AirPlay broadcast', ', '.join(data['airplay']['observed_names'].get('_airplay._tcp', [])) or 'Not confirmed'),
+             ('RAOP broadcast', ', '.join(data['airplay']['observed_names'].get('_raop._tcp', [])) or 'Not confirmed'),
              ('Versions', ', '.join(f'{k}: {v}' for k, v in data['release']['versions'].items()))]
     return render_template('native.html', title=title, description=description, rows=rows,
                            receiver_name=data['airplay']['device_name'] or 'the receiver',

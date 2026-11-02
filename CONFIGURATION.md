@@ -21,6 +21,11 @@ The wrapper renders a numeric timeout into runtime storage; it never edits the
 Nix-managed Shairport base file. The stable restart signal records which receiver
 settings were requested, so a failed signal can be retried without changing the values.
 A request receipt is not proof that Shairport has applied or advertised the new settings.
+Status checks compare the running process and configuration fingerprint with both
+AirPlay and RAOP broadcast names. Pending, mismatched and unknown observations do not
+count as confirmed application. Configuration edits carry section revisions; stale
+browser saves are rejected rather than overwriting newer changes. Saved settings
+load separately from the bounded LedFX catalog checks and remain editable offline.
 
 ## Download and restore
 

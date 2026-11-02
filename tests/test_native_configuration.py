@@ -135,7 +135,7 @@ class NativeConfiguration(unittest.TestCase):
                         self.assertEqual(client.post('/api/actions/test', json={'hook':'start'}, headers={'Origin':'https://other.example'}).status_code, 403)
                         self.assertEqual(client.post('/api/actions/test', json={'hook':'end'}).status_code, 503)
                         (runtime / 'receiver').write_text('receiver-startup-123')
-                        (runtime / 'worker.ready').write_text('123')
+                        (runtime / 'worker.ready').write_text(str(os.getpid()))
                         queued_start = client.post('/api/actions/test', json={'hook':'start'})
                         start_event = queued_start.get_json()['event']
                         session_worker.process(start_event, lambda:start_event, path, runtime / 'action.json')

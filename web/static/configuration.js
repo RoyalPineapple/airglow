@@ -3,7 +3,7 @@
   const $ = id => document.getElementById(id);
   const keys = ['start', 'end'];
   const tabs = ['playback', 'receiver', 'backup'];
-  let catalog, receiverBaseline, actionsBaseline, testing = false;
+  let catalog, receiverBaseline, actionsBaseline, receiverRevision, actionsRevision, testing = false;
   async function api(path, data) {
     const response = await fetch(path, {method:data ? 'POST' : 'GET', headers:data ? {'Content-Type':'application/json'} : {}, body:data ? JSON.stringify(data) : undefined, signal:AbortSignal.timeout(15000)});
     const result = await response.json();
@@ -12,6 +12,7 @@
   }
   function message(id, text, error = false) { $(id).textContent = text; $(id).dataset.result = error ? 'error' : 'success'; }
   function dirtyStatus(id, dirty) {
+    if ($(id).dataset.result === 'error') return;
     if (dirty || $(id).textContent === 'Unsaved changes') {
       $(id).textContent = dirty ? 'Unsaved changes' : 'No unsaved changes';
       delete $(id).dataset.result;
@@ -24,12 +25,14 @@
   function receiverChanged() {
     const dirty = JSON.stringify(receiverValue()) !== receiverBaseline;
     $('save-receiver').disabled = !dirty;
+    if (dirty) $('retry-receiver').hidden = true;
     $('discard-receiver').hidden = !dirty;
     $('fixed-volume-label').textContent = $('fixed-volume').checked ? 'Enabled' : 'Disabled';
     dirtyStatus('receiver-result', dirty);
-    $('effective-name').textContent = 'Appears in AirPlay as “' + ($('receiver-name').value.trim() || $('receiver-name').placeholder) + '”.';
+    $('effective-name').textContent = 'Broadcast name after saving: “' + ($('receiver-name').value.trim() || $('receiver-name').placeholder) + '”.';
   }
   function receiver(data) {
+    receiverRevision = data.revision;
     $('receiver-name').value = data.name;
     $('receiver-name').placeholder = data.default_name;
     $('fixed-volume').checked = data.fixed_volume;
@@ -53,7 +56,7 @@
   function values() {
     return {start_enabled:$('start-enabled').checked, end_enabled:$('end-enabled').checked, start_hook:action('start'), end_hook:action('end')};
   }
-  function hasTarget(a) { return a.mode === 'scene' ? a.scenes.length > 0 : a.all_virtuals ? catalog.available_virtuals.length > 0 : a.virtuals.length > 0; }
+  function hasTarget(a) { return a.mode === 'scene' ? a.scenes.length > 0 : a.all_virtuals ? true : a.virtuals.length > 0; }
   function update() {
     if (!catalog) return;
     const dirty = JSON.stringify(values()) !== actionsBaseline;
@@ -88,6 +91,7 @@
     $('connection-note').textContent = !catalog.ledfx_connected ? 'LedFX unavailable. Saved choices are retained; reconnect before testing.' : '';
   }
   function hook(key, config) {
+    $(key + '-virtuals').replaceChildren(); $(key + '-scenes').replaceChildren();
     $(key + '-enabled').checked = config.enabled;
     setMode(key, config.mode);
     $(key + '-all').checked = config.all_virtuals;
@@ -109,6 +113,8 @@
       const opt = option(sceneName(id) + (catalog.available_scenes.includes(id) ? '' : ' · unavailable'), [id]);
       if (config.scenes.length === 1 && config.scenes[0] === id) opt.selected = true;
     }
+  }
+  for (const key of keys) {
     $(key + '-all').addEventListener('change', () => {
       if ($(key + '-all').checked) for (const box of $(key + '-virtuals').querySelectorAll('input[type=checkbox]')) box.checked = true;
       update();
@@ -131,33 +137,33 @@
         if (result.state === 'success') message(key + '-result', 'Command accepted · just now');
         else if (result.state === 'superseded') message(key + '-result', 'A newer playback event replaced this test.');
         else if (result.state === 'skipped') message(key + '-result', 'No commands ran. Check the saved action and its targets.', true);
-        else message(key + '-result', 'The action failed. Check LedFX and Troubleshooting.', true);
+        else message(key + '-result', result.message || (result.state === 'partial_failure' ? 'Some commands failed. Check the selected outputs in LedFX.' : 'The action failed. Check LedFX and Troubleshooting.'), true);
         break;
       }
       if (!matched) message(key + '-result', 'No result received. The test may have been replaced by a playback event; lighting state is unconfirmed.', true);
     } catch (error) { message(key + '-result', error.message, true); }
     finally { testing = false; update(); }
   }
-  $('receiver-form').addEventListener('input', receiverChanged);
+  $('receiver-form').addEventListener('input', () => { delete $('receiver-result').dataset.result; receiverChanged(); });
   $('receiver-form').addEventListener('submit', async event => {
     event.preventDefault(); $('receiver-fields').disabled = true;
     try {
-      const result = await api('/api/receiver', receiverValue());
-      receiver(result.receiver); message('receiver-result', result.receiver.restart_requested ? 'Saved. The receiver will restart. Reconnect AirPlay if playback stops.' : 'No changes to apply. The receiver was not restarted.');
+      const result = await api('/api/receiver', {...receiverValue(), revision:receiverRevision});
+      receiver(result.receiver); message('receiver-result', result.receiver.restart_requested ? 'Saved. Restart requested; checking the broadcast…' : 'Saved. Checking the broadcast…');
+      confirmReceiver();
     } catch (error) { message('receiver-result', error.message, true); }
     finally { $('receiver-fields').disabled = false; receiverChanged(); }
   });
   $('receiver-password').addEventListener('input', () => { $('clear-password').checked = false; receiverChanged(); });
   $('clear-password').addEventListener('change', () => { if ($('clear-password').checked) $('receiver-password').value = ''; receiverChanged(); });
-  $('actions-form').addEventListener('input', update);
-  $('actions-form').addEventListener('change', update);
+  for (const event of ['input', 'change']) $('actions-form').addEventListener(event, () => { delete $('actions-result').dataset.result; update(); });
   $('actions-form').addEventListener('submit', async event => {
     event.preventDefault();
     const data = values();
     for (const key of keys) if (data[key + '_enabled'] && !hasTarget(data[key + '_hook'])) { message('actions-result', 'Choose an output or scene for the ' + key + ' action.', true); return; }
     $('actions-fields').disabled = true;
     try {
-      await api('/api/config', data); actionsBaseline = JSON.stringify(values());
+      const result = await api('/api/config', {...data, revision:actionsRevision}); actionsRevision = result.revision; actionsBaseline = JSON.stringify(values());
       message('actions-result', 'Saved');
     } catch (error) { message('actions-result', error.message, true); }
     finally { $('actions-fields').disabled = false; update(); }
@@ -247,12 +253,45 @@
       setTimeout(() => window.location.reload(), 1200);
     } catch (error) { message('backup-result', error.message, true); $('restore-config').disabled = false; $('backup-file').disabled = false; }
   });
-  Promise.all([api('/api/receiver'), api('/api/config')]).then(([settings, config]) => {
-    catalog = config; receiver(settings); keys.forEach(key => hook(key, config.virtuals.hooks[key]));
+  async function confirmReceiver() {
+    $('retry-receiver').hidden = true;
+    for (let attempt = 0; attempt < 8; attempt++) {
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      try {
+        const status = await api('/api/status');
+        if (JSON.stringify(receiverValue()) !== receiverBaseline) return;
+        if (status.airplay?.configuration_state === 'applied' && status.airplay.revision === receiverRevision) { message('receiver-result', 'Applied · broadcast confirmed'); return; }
+      } catch { break; }
+    }
+    if (JSON.stringify(receiverValue()) !== receiverBaseline || $('receiver-result').dataset.result === 'error') return;
+    $('retry-receiver').hidden = false;
+    message('receiver-result', 'Saved; application has not been confirmed. Check Troubleshooting.', true);
+  }
+  $('retry-receiver').addEventListener('click', async () => {
+    $('retry-receiver').disabled = true;
+    try {
+      await api('/api/shairport/restart', {});
+      message('receiver-result', 'Restart requested; checking the broadcast…');
+      confirmReceiver();
+    } catch (error) { message('receiver-result', error.message, true); }
+    finally { $('retry-receiver').disabled = false; }
+  });
+  api('/api/receiver').then(settings => {
+    receiver(settings); $('receiver-fields').disabled = false; confirmReceiver();
+  }).catch(error => message('receiver-result', error.message, true));
+  api('/api/config?catalog=0').then(async config => {
+    catalog = config; actionsRevision = config.revision;
+    keys.forEach(key => hook(key, config.virtuals.hooks[key]));
     actionsBaseline = JSON.stringify(values());
-    $('receiver-fields').disabled = false; $('actions-fields').disabled = false; update();
-    $('load-status').hidden = true;
-    $('engine-state').textContent = config.ledfx_connected ? 'LedFX connected' : 'LedFX unavailable';
-    $('engine-state').dataset.connected = String(config.ledfx_connected);
-  }).catch(error => message('load-status', error.message + ' Reload this page to try again.', true));
+    $('actions-fields').disabled = false; update(); $('load-status').hidden = true;
+    try {
+      const details = await api('/api/catalog');
+      const draft = values(), dirty = JSON.stringify(draft) !== actionsBaseline;
+      catalog = details;
+      keys.forEach(key => hook(key, {...draft[key + '_hook'], enabled:draft[key + '_enabled']}));
+      if (!dirty) actionsBaseline = JSON.stringify(values());
+      $('engine-state').textContent = details.ledfx_connected ? 'LedFX connected' : 'LedFX unavailable';
+      $('engine-state').dataset.connected = String(details.ledfx_connected); update();
+    } catch (error) { message('connection-note', 'LedFX catalog unavailable. Saved settings can still be edited.', true); $('connection-note').hidden = false; }
+  }).catch(error => message('load-status', error.message + ' Use Backup to restore a valid configuration.', true));
 })();

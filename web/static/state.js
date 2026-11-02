@@ -48,7 +48,11 @@
     const servicesKnown = ['shairport-sync','nqptp','pulseaudio','ledfx'].every(unit => services[unit]?.running === true);
     const ledFxUrl = data.ledfx_browser_url || document.querySelector('main').dataset.ledfxUrl;
     let message = '', label = 'Troubleshoot', href = '/status', health = 'Connections ready', state = 'good';
-    if (stopped) message = 'A required service is stopped. Open connection details to identify it.';
+    if (data.configuration_error) { message = data.configuration_error; label = 'Restore configuration'; href = '/config#backup'; }
+    else if (data.airplay?.configuration_state === 'failed') message = 'Receiver settings could not be applied. Check Troubleshooting, then retry.';
+    else if (data.airplay?.configuration_state === 'mismatch') message = 'The broadcast name does not match the saved receiver name. Check receiver settings.';
+    else if (data.airplay?.configuration_state === 'pending') message = 'Receiver settings are awaiting confirmation. Open connection details if this continues.';
+    else if (stopped) message = 'A required service is stopped. Open connection details to identify it.';
     else if (engine === false) message = 'LedFX is unreachable. Check that its service is running.';
     else if (pulse === false) message = 'The audio bridge is unavailable. Check PulseAudio and the LedFX input.';
     else if (receiver === false) message = 'AirPlay discovery has not been confirmed. Check the receiver and LAN connection.';
@@ -62,7 +66,9 @@
     } else if (unchecked.length) {
       message = unchecked.length + ' device ' + (unchecked.length === 1 ? 'status has' : 'statuses have') + ' not been confirmed by LedFX.';
       health = 'Checks incomplete'; state = 'unknown';
-    } else if (data.session_action?.state === 'failed') {
+    } else if (data.diagnostics?.actions_worker_running === false) {
+      message = 'Playback actions are enabled but their worker is unavailable. Check Troubleshooting.';
+    } else if (['failed','partial_failure'].includes(data.session_action?.state)) {
       message = 'The last playback action failed. Check the selected outputs or scene.'; label = 'Playback settings'; href = '/config';
     }
     if (message && state !== 'unknown') { health = 'Needs attention'; state = 'attention'; }

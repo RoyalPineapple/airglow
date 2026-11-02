@@ -45,11 +45,16 @@ command. Scene actions apply the scene's own saved instructions; there is no sta
 restoration. The manual test buttons run the current on-screen actions immediately without saving them, and change lighting.
 Each selected output receives one command. Legacy zero-repeat entries remain disabled.
 
-Saving receiver settings restarts the receiver and may interrupt playback. Saving
+Saving receiver settings requests a restart and may interrupt playback. The interface
+confirms application only after the runtime configuration and both discovery names match. Saving
 playback actions does not restart it. The action worker runs separately from audio,
 serializes requests, skips superseded pending events and applies a 10-second deadline.
 Worker updates preserve the receiver's shared runtime directory; receiver startup
-creates a fresh session and clears old events.
+creates a fresh session and clears old events. Unfinished current-session events are
+retried after a worker restart; completed events are not replayed. A crash between a
+LedFX request and its receipt can cause that command to be sent again.
+Conflicting output selections are rejected before activation; use a LedFX scene
+for deliberate overlapping layouts. Independent targets report partial failures.
 
 There is no web login when `AIRGLOW_ADMIN_PASSWORD` is empty or unset. Supply that
 value through a root-owned systemd `EnvironmentFile` outside the repository to enable
@@ -92,6 +97,8 @@ python3 -m venv .venv
 node --check web/static/configuration.js
 node --check web/static/state.js
 sh -n scripts/publish-session.sh
+# Linux with Nix and KVM: builds the stack and runs native service/discovery checks.
+nix-build nix/integration-test.nix --no-out-link
 ```
 
 The development VM passed a native NixOS rebuild, state/configuration browser checks,

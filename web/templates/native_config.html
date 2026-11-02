@@ -42,8 +42,8 @@
         <div class="setting-row"><div><label for="fixed-volume">Fixed audio level</label><p class="help">Keep lighting analysis independent of phone volume.</p></div><label class="enable-switch"><input id="fixed-volume" type="checkbox" role="switch"><span id="fixed-volume-label">Enabled</span></label></div>
         <div class="setting-row"><div><label for="receiver-password">AirPlay password</label><p class="help">Optional</p></div><div><input id="receiver-password" type="password" maxlength="128" autocomplete="new-password" aria-describedby="password-help"><p id="password-help" class="help">Leave empty for no password.</p><label class="check" id="clear-password-row" hidden><input id="clear-password" type="checkbox"><span>Remove saved password</span></label></div></div>
       </div>
-      <p class="help action-note">Applying receiver settings restarts AirPlay and disconnects current playback.</p>
-      <div class="save-row"><p id="receiver-result" role="status">No unsaved changes</p><button id="discard-receiver" type="button" class="secondary" hidden>Discard</button><button id="save-receiver" class="primary" type="submit" disabled>Save receiver</button></div>
+      <p class="help action-note">Applying receiver settings requests an AirPlay restart and can disconnect playback.</p>
+      <div class="save-row"><p id="receiver-result" role="status">No unsaved changes</p><button id="retry-receiver" type="button" class="secondary" hidden>Retry saved settings</button><button id="discard-receiver" type="button" class="secondary" hidden>Discard</button><button id="save-receiver" class="primary" type="submit" disabled>Save receiver</button></div>
     </fieldset></form>
   </section>
   <section id="backup-panel" role="tabpanel" aria-labelledby="backup-tab" hidden>

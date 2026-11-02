@@ -20,3 +20,11 @@ jobs:
       - run: python -m unittest discover -s tests -v
       - run: node --check web/static/configuration.js && node --check web/static/state.js
       - run: sh -n scripts/publish-session.sh
+  nix-integration:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: cachix/install-nix-action@v31
+        with:
+          nix_path: nixpkgs=channel:nixos-26.05
+      - run: nix-build nix/integration-test.nix --no-out-link

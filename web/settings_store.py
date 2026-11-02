@@ -1,7 +1,9 @@
 """One versioned, private Airglow configuration; legacy files are migration inputs only."""
+import base64
 import copy
 import fcntl
 import hashlib
+import hmac
 import json
 import os
 from pathlib import Path
@@ -10,9 +12,26 @@ from contextlib import contextmanager
 
 import yaml
 
+REVISION_KEY = os.urandom(32)
 VERSION = 1
 RECEIVER_DEFAULTS = {'name':'', 'mode':'airplay2', 'fixed_volume':True, 'password':'', 'idle_timeout':10}
 HOOK_DEFAULTS = {'enabled':False, 'mode':'toggle', 'all_virtuals':False, 'virtuals':[], 'scenes':[]}
+
+
+class ConflictError(ValueError):
+    pass
+
+
+# A keyed revision must not expose a reusable password hash through the settings API.
+def revision(section):
+    return hmac.new(REVISION_KEY, json.dumps(section, sort_keys=True).encode(), hashlib.sha256).hexdigest()
+
+
+def check_revision(changes, section):
+    if not isinstance(changes, dict):
+        raise ValueError('Settings must be an object.')
+    if 'revision' in changes and changes['revision'] != revision(section):
+        raise ConflictError('These settings changed elsewhere. Reload before saving your changes.')
 
 
 def directory():
@@ -186,6 +205,7 @@ def ensure():
 def update_receiver(changes):
     with locked():
         data = read()
+        check_revision(changes, data['receiver'])
         updated = validate_receiver(changes, data['receiver'])
         changed = updated != data['receiver']
         data['receiver'] = updated
@@ -197,12 +217,17 @@ def update_receiver(changes):
 def update_hooks(changes):
     with locked():
         data = read()
+        check_revision(changes, data['hooks'])
         for key in ('start', 'end'):
             enabled = changes.get(key + '_enabled', False)
             if type(enabled) is not bool:
                 raise ValueError('Action enabled flags must be boolean.')
             data['hooks'][key].update(validate_hook(changes.get(key + '_hook', {})))
             data['hooks'][key]['enabled'] = enabled
+            hook = data['hooks'][key]
+            targets = hook['scenes'] if hook['mode'] == 'scene' else hook['all_virtuals'] or any(v.get('repeats', 1) > 0 for v in hook['virtuals'])
+            if enabled and not targets:
+                raise ValueError('Choose an output or scene before enabling an action.')
         data = validate_document(data)
         _write(path(), data)
         return data
@@ -226,7 +251,10 @@ def restore(value, preview=False):
         replacing = old is None or incoming != old
         if path().exists() and replacing:
             # Abort before replacement if a consistent previous copy cannot be saved.
-            previous = json.loads(path().read_text()) if old is not None else {'invalid_configuration': path().read_text()}
+            try:
+                previous = json.loads(path().read_text()) if old is not None else {'invalid_configuration': path().read_text()}
+            except UnicodeDecodeError:
+                previous = {'invalid_configuration_base64': base64.b64encode(path().read_bytes()).decode('ascii')}
             _write(directory() / 'airglow.previous.json', previous)
         if replacing or not path().exists():
             _write(path(), incoming)

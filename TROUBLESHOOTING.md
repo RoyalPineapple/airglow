@@ -24,6 +24,11 @@ Globally paused LedFX output, missing effects, deleted targets and overlapping v
 segments can prevent the intended result even when the controller is reachable.
 
 If a test cannot be queued, check `airglow-actions` and `/run/airglow/receiver`.
+Queue admission checks a live process and a recent worker heartbeat, not marker presence.
+After a restart, unfinished events from the current receiver session are retried.
+Completed receipts and older receiver sessions are not replayed. Conflicting output
+segments fail before activation; use non-overlapping outputs or a LedFX scene.
+A partial failure means some targets accepted the command and others failed.
 The shared runtime directory must survive worker stop/start while the receiver runs.
 Do not copy runtime files between hosts or restore them from a backup.
 

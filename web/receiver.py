@@ -24,7 +24,7 @@ def public(data):
     return {key: data[key] for key in ('name', 'mode', 'fixed_volume')} | {
         'effective_name': data.get('name') or default, 'default_name': default,
         'idle_timeout': data.get('idle_timeout', 10),
-        'password_set': bool(data.get('password'))}
+        'password_set': bool(data.get('password')), 'revision': settings_store.revision(data)}
 
 
 def request_restart():
@@ -61,6 +61,9 @@ def run(binary):
             marker.replace(runtime / 'receiver')
         finally:
             marker.unlink(missing_ok=True)
+    receipt = runtime / 'receiver.applied'
+    receipt.write_text(json.dumps({'fingerprint': settings_store._digest(data), 'pid': os.getpid()}))
+    receipt.chmod(0o640)
     for name in ('event.json', 'action.json'):
         (runtime / name).unlink(missing_ok=True)
     args = [binary, '--service-type=airplay2', '--configfile=' + str(runtime_config)]

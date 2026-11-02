@@ -10,6 +10,7 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'web'))
 import native
+import settings_store
 
 
 class NativeStatus(unittest.TestCase):
@@ -19,15 +20,21 @@ class NativeStatus(unittest.TestCase):
         def read_config(path, *args, **kwargs):
             if str(path) == '/etc/shairport-sync.conf':
                 return 'general={name="airglow-dev";};'
+            if path.name == 'receiver.applied':
+                return json.dumps({'pid':123, 'fingerprint':settings_store._digest(settings_store.read()['receiver'])})
             return read_text(path, *args, **kwargs)
 
         for scenario, expected in [('ready', 'ready'), ('playing', 'playing'),
                                    ('paused', 'idle'), ('stopped', 'degraded'),
-                                   ('discovery_timeout', 'unknown'), ('device_offline', 'degraded')]:
+                                   ('discovery_timeout', 'unknown'), ('name_mismatch', 'degraded'), ('raop_missing', 'degraded'), ('device_offline', 'degraded')]:
             with self.subTest(scenario=scenario):
                 def run(args, **kwargs):
                     if args[0] == 'systemctl':
                         output = 'inactive' if scenario == 'stopped' and args[2] == 'nqptp.service' else 'active'
+                        if '--property=Result' in args:
+                            output = 'success'
+                        if '--property=MainPID' in args:
+                            output = '123'
                     elif args[0] == 'pactl':
                         if args[-1] == 'info':
                             output = json.dumps({'server_string': 'unix:/run/pulse/native'})
@@ -39,7 +46,13 @@ class NativeStatus(unittest.TestCase):
                     elif args[0] == 'avahi-browse':
                         if scenario == 'discovery_timeout':
                             raise subprocess.TimeoutExpired(args, 3)
-                        output = '=;ens18;IPv4;airglow-dev;_airplay._tcp;local;airglow-dev.local;192.0.2.20;7000;'
+                        service = args[-1]
+                        name = 'Wrong' if scenario == 'name_mismatch' else 'airglow-dev'
+                        name = 'AABBCCDDEEFF@' + name if service == '_raop._tcp' else name
+                        port = '7000'
+                        output = f'=;ens18;IPv4;{name};{service};local;airglow-dev.local;192.0.2.20;{port};'
+                        if scenario == 'raop_missing' and service == '_raop._tcp':
+                            output = ''
                     elif args[0] == 'curl':
                         if args[-1].endswith('/api/devices'):
                             output = json.dumps({'devices': {'lamp': {'config': {'name': 'Table Lamp'}, 'online': scenario != 'device_offline'}}})
@@ -52,7 +65,7 @@ class NativeStatus(unittest.TestCase):
                 with patch.dict(os.environ, AIRGLOW_ADDRESS='192.0.2.20',
                                 LEDFX_API_URL='http://192.0.2.20:8888',
                                 LEDFX_BROWSER_URL='http://example.test:8888',
-                                AIRGLOW_ADMIN_PASSWORD=''), \
+                                AIRGLOW_ADMIN_PASSWORD='', AIRGLOW_DEFAULT_RECEIVER_NAME='airglow-dev'), \
                      patch.object(native.subprocess, 'run', side_effect=run), \
                      patch.object(Path, 'read_text', autospec=True, side_effect=read_config):
                     client = native.app.test_client()

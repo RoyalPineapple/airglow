@@ -4,6 +4,7 @@ import json
 import logging
 import os
 import subprocess
+from concurrent.futures import ThreadPoolExecutor
 from urllib.parse import urlsplit
 
 from flask import current_app as app, jsonify, request
@@ -33,80 +34,35 @@ def require_admin():
             return jsonify({'error': 'Cross-origin writes are not allowed.'}), 403
 
 
-def get_ledfx_virtuals():
-    """Get LedFX virtuals status"""
+def catalog_resource(resource):
     try:
-        result = subprocess.run(
-            ['curl', '-s', '-f', f'{LEDFX_URL}/api/virtuals'],
-            capture_output=True,
-            text=True,
-            timeout=5
-        )
+        result = subprocess.run(['curl', '--fail', '--silent', '--max-time', '2',
+                                 f'{LEDFX_URL}/api/{resource}'], capture_output=True, text=True, timeout=3)
         if result.returncode == 0:
             data = json.loads(result.stdout)
-            virtuals = {}
-            if 'virtuals' in data:
-                for vid, vdata in data['virtuals'].items():
-                    virtuals[vid] = {
-                        'name': vdata.get('config', {}).get('name', vid),
-                        'active': vdata.get('active', False),
-                        'streaming': vdata.get('streaming', False),
-                        'effect': vdata.get('effect', {}).get('type', 'none') if isinstance(vdata.get('effect'), dict) else 'none',
-                        'paused': data.get('paused', False)
-                    }
-            return {'connected': True, 'virtuals': virtuals, 'paused': data.get('paused', False)}
-    except (subprocess.TimeoutExpired, json.JSONDecodeError, subprocess.SubprocessError):
+            if isinstance(data.get(resource), dict):
+                return {'connected': True, resource: data[resource]}
+    except (OSError, subprocess.SubprocessError, ValueError, AttributeError):
         pass
-    return {'connected': False, 'virtuals': {}, 'paused': False}
+    return {'connected': False, resource: {}}
+
+
+def get_ledfx_virtuals():
+    result = catalog_resource('virtuals')
+    result['virtuals'] = {key: {'name': item.get('config', {}).get('name', key),
+        'active': item.get('active', False), 'streaming': item.get('streaming', False),
+        'segments': item.get('segments', []), 'is_device': item.get('is_device'),
+        'effect': (item.get('effect') or {}).get('type', 'none')}
+        for key, item in result['virtuals'].items()}
+    return result
 
 
 def get_ledfx_devices():
-    """Get LedFX devices status"""
-    try:
-        result = subprocess.run(
-            ['curl', '-s', '-f', f'{LEDFX_URL}/api/devices'],
-            capture_output=True,
-            text=True,
-            timeout=5
-        )
-        if result.returncode == 0:
-            data = json.loads(result.stdout)
-            devices = {}
-            if 'devices' in data:
-                for did, ddata in data['devices'].items():
-                    devices[did] = {
-                        'online': ddata.get('online', False),
-                        'type': ddata.get('type', 'unknown'),
-                        'config': ddata.get('config', {})
-                    }
-            return {'connected': True, 'devices': devices}
-    except (subprocess.TimeoutExpired, json.JSONDecodeError, subprocess.SubprocessError):
-        pass
-    return {'connected': False, 'devices': {}}
+    return catalog_resource('devices')
 
 
 def get_ledfx_scenes():
-    """Get LedFX scenes"""
-    try:
-        result = subprocess.run(
-            ['curl', '-s', '-f', f'{LEDFX_URL}/api/scenes'],
-            capture_output=True,
-            text=True,
-            timeout=5
-        )
-        if result.returncode == 0:
-            data = json.loads(result.stdout)
-            scenes = {}
-            if 'scenes' in data:
-                for sid, sdata in data['scenes'].items():
-                    scenes[sid] = {
-                        'name': sdata.get('name', sid),
-                        'virtuals': sdata.get('virtuals', [])
-                    }
-            return {'connected': True, 'scenes': scenes}
-    except (subprocess.TimeoutExpired, json.JSONDecodeError, subprocess.SubprocessError):
-        pass
-    return {'connected': False, 'scenes': {}}
+    return catalog_resource('scenes')
 
 
 def get_hook_config():
@@ -118,37 +74,31 @@ def get_virtual_config():
     return {'ledfx': {'host': LEDFX_HOST, 'port': int(LEDFX_PORT)}, 'hooks': settings_store.read()['hooks']}
 
 
-def save_virtual_config(config_data):
-    try:
-        settings_store.update_hooks(config_data)
-        return {'success': True}
-    except (OSError, ValueError):
-        return {'error': 'Playback settings could not be saved.'}
-
-
-def get_config():
+def get_config(include_catalog=True):
     """Get current configuration"""
     try:
         virtual_config = get_virtual_config()
         hook_config = {'start_hook_enabled':virtual_config['hooks']['start']['enabled'],
                        'end_hook_enabled':virtual_config['hooks']['end']['enabled']}
-        virtuals_list = get_ledfx_virtuals()
+        with ThreadPoolExecutor(max_workers=3) as pool:
+            futures = [pool.submit(fn) for fn in (get_ledfx_virtuals, get_ledfx_scenes, get_ledfx_devices)] if include_catalog else []
+            virtuals_list, scenes_list, devices_data = [f.result() for f in futures] if futures else [
+                {'connected': False, 'virtuals': {}}, {'connected': False, 'scenes': {}}, {'connected': False, 'devices': {}}]
 
         # Get list of available virtual IDs
         available_virtuals = list(virtuals_list.get('virtuals', {}).keys()) if virtuals_list.get('connected') else []
 
         # Get list of available scenes
-        scenes_list = get_ledfx_scenes()
         available_scenes = list(scenes_list.get('scenes', {}).keys()) if scenes_list.get('connected') else []
 
         # Get device count
-        devices_data = get_ledfx_devices()
         has_devices = devices_data.get('connected') and len(devices_data.get('devices', {})) > 0
 
         # Also check if virtuals are available (virtuals can exist without devices being "online")
         has_virtuals = len(available_virtuals) > 0
 
         return jsonify({
+            'revision': settings_store.revision(virtual_config['hooks']),
             'hooks': hook_config,
             'virtuals': virtual_config,
             'available_virtuals': available_virtuals,
@@ -160,118 +110,19 @@ def get_config():
         })
     except Exception as e:
         logger.error(f"Error getting config: {e}")
-        return jsonify({'error': str(e) if app.debug else 'Error reading configuration'}), 500
+        return jsonify(error='Configuration could not be read. Use Backup to restore a valid configuration.'), 500
 
 
 def save_config():
-    """Save configuration changes"""
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify(error='Configuration must be an object.'), 400
     try:
-        data = request.get_json(silent=True)
-
-        if not isinstance(data, dict):
-            return jsonify({'error': 'Configuration must be an object.'}), 400
-        for key in ('start_enabled', 'end_enabled'):
-            if type(data.get(key, False)) is not bool:
-                return jsonify({'error': f'{key} must be a boolean.'}), 400
-        try:
-            for key in ('start_hook', 'end_hook'):
-                validate_hook(data.get(key, {}))
-        except ValueError as error:
-            return jsonify(error=str(error)), 400
-
-        start_enabled = data.get('start_enabled', False)
-        end_enabled = data.get('end_enabled', False)
-
-        start_hook_data = data.get('start_hook', {})
-        end_hook_data = data.get('end_hook', {})
-
-        start_mode = start_hook_data.get('mode', 'toggle')
-        end_mode = end_hook_data.get('mode', 'toggle')
-
-        start_all_virtuals = start_hook_data.get('all_virtuals', False)
-        start_virtuals = start_hook_data.get('virtuals', [])
-        start_scenes = start_hook_data.get('scenes', [])
-        end_all_virtuals = end_hook_data.get('all_virtuals', False)
-        end_virtuals = end_hook_data.get('virtuals', [])
-        end_scenes = end_hook_data.get('scenes', [])
-
-        # Validate mode values
-        if start_mode not in ['toggle', 'scene']:
-            return jsonify({'error': f'Invalid mode for start hook: {start_mode}. Must be "toggle" or "scene"'}), 400
-        if end_mode not in ['toggle', 'scene']:
-            return jsonify({'error': f'Invalid mode for end hook: {end_mode}. Must be "toggle" or "scene"'}), 400
-
-        # Validate virtual IDs if toggle mode and specific virtuals are selected
-        if start_mode == 'toggle' or end_mode == 'toggle':
-            virtuals_list = get_ledfx_virtuals()
-            available_virtuals = set(virtuals_list.get('virtuals', {}).keys()) if virtuals_list.get('connected') else set()
-
-        if start_mode == 'toggle':
-            # Validate start hook virtuals
-            if not start_all_virtuals and start_virtuals:
-                for v in start_virtuals:
-                    vid = v.get('id')
-                    if vid and vid not in available_virtuals:
-                        return jsonify({'error': f'Invalid virtual ID in start hook: {vid}'}), 400
-
-                    # Validate repeat counts
-                    repeats = v.get('repeats', 1)
-                    if not isinstance(repeats, int) or repeats < 0:
-                        return jsonify({'error': f'Invalid repeats for {vid} in start hook: must be integer >= 0'}), 400
-
-        # Validate end hook virtuals
-        if end_mode == 'toggle':
-            if not end_all_virtuals and end_virtuals:
-                for v in end_virtuals:
-                    vid = v.get('id')
-                    if vid and vid not in available_virtuals:
-                        return jsonify({'error': f'Invalid virtual ID in end hook: {vid}'}), 400
-
-                    # Validate repeat counts
-                    repeats = v.get('repeats', 0)
-                    if not isinstance(repeats, int) or repeats < 0:
-                        return jsonify({'error': f'Invalid repeats for {vid} in end hook: must be integer >= 0'}), 400
-
-        # Validate scene IDs if scene mode
-        if start_mode == 'scene':
-            scenes_list = get_ledfx_scenes()
-            available_scenes = set(scenes_list.get('scenes', {}).keys()) if scenes_list.get('connected') else set()
-
-            for sid in start_scenes:
-                if sid not in available_scenes:
-                    return jsonify({'error': f'Invalid scene ID in start hook: {sid}'}), 400
-
-        if end_mode == 'scene':
-            scenes_list = get_ledfx_scenes()
-            available_scenes = set(scenes_list.get('scenes', {}).keys()) if scenes_list.get('connected') else set()
-
-            for sid in end_scenes:
-                if sid not in available_scenes:
-                    return jsonify({'error': f'Invalid scene ID in end hook: {sid}'}), 400
-
-        # Save virtual configuration (includes hook enable/disable in YAML)
-        # No restart needed - hook scripts check YAML dynamically
-        virtual_config_data = {
-            'start_enabled': start_enabled,
-            'end_enabled': end_enabled,
-            'start_hook': {
-                'mode': start_mode,
-                'all_virtuals': start_all_virtuals,
-                'virtuals': start_virtuals,
-                'scenes': start_scenes
-            },
-            'end_hook': {
-                'mode': end_mode,
-                'all_virtuals': end_all_virtuals,
-                'virtuals': end_virtuals,
-                'scenes': end_scenes
-            }
-        }
-        virtual_result = save_virtual_config(virtual_config_data)
-        if 'error' in virtual_result:
-            return jsonify(virtual_result), 500
-
-        return jsonify({'success': True})
-    except Exception as e:
-        logger.error(f"Error saving config: {e}", exc_info=True)
-        return jsonify({'error': str(e) if app.debug else 'Error saving configuration'}), 500
+        document = settings_store.update_hooks(data)
+        return jsonify(success=True, revision=settings_store.revision(document['hooks']))
+    except settings_store.ConflictError as error:
+        return jsonify(error=str(error)), 409
+    except ValueError as error:
+        return jsonify(error=str(error)), 400
+    except OSError:
+        return jsonify(error='Playback settings could not be saved.'), 500

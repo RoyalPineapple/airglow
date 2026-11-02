@@ -17,7 +17,11 @@ def browser_url(host):
 
 def action_status():
     try:
-        return json.loads((Path(os.environ.get('AIRGLOW_RUNTIME', '/runtime')) / 'action.json').read_text())
+        runtime = Path(os.environ.get('AIRGLOW_RUNTIME', '/runtime'))
+        result = json.loads((runtime / 'action.json').read_text())
+        if result.get('event', {}).get('session') != (runtime / 'receiver').read_text().strip():
+            return {'state': 'unknown'}
+        return result
     except (OSError, ValueError):
         return {'state': 'unknown'}
 
@@ -27,7 +31,7 @@ def summary(status):
     checks = [audio.get('pulseaudio', {}).get('available'), ledfx.get('connected'), airplay.get('advertising')]
     if any(value is False for value in checks):
         return 'degraded'
-    if (status.get('session_action') or action_status()).get('state') == 'failed':
+    if (status.get('session_action') or action_status()).get('state') in ('failed', 'partial_failure'):
         return 'degraded'
     if (status.get('diagnostics') or {}).get('available') is False:
         return 'unknown'
