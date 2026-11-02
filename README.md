@@ -12,15 +12,36 @@ Devices do not need to run WLED; the development installation uses Govee devices
 This branch replaces the Docker Compose deployment with a NixOS module and a new web
 interface. It does not install Docker or require a Docker socket.
 
-Import [nix/module.nix](nix/module.nix) into an existing NixOS host configuration.
-Use [nix/example.nix](nix/example.nix) as a starting point. Its address is reserved
-for documentation and must be replaced with an address already assigned to the host.
-The module manages services; your host configuration retains networking, disks,
-bootloader, SSH access and operating-system version settings.
+Use Airglow as a flake input in your NixOS host configuration. The flake includes
+both the NixOS module and Airglow's web/worker source; no separate application checkout
+or installation is needed.
 
-Keep the repository's `nix`, `scripts` and `web` directories together: the module
-packages its runtime source from relative paths. Run `nixos-rebuild build` to check
-the candidate before applying it with `nixos-rebuild switch`.
+Copy [nix/flake-example.nix](nix/flake-example.nix) to `/etc/nixos/flake.nix` as a starting
+point, keeping your existing `configuration.nix` and hardware configuration. Replace
+the documentation address and interface with your host's settings. If the existing
+configuration imports Airglow directly, remove that duplicate import.
+
+```sh
+cd /etc/nixos
+sudo nix --extra-experimental-features 'nix-command flakes' flake lock
+sudo nixos-rebuild build --flake .#airglow
+sudo nixos-rebuild switch --flake .#airglow
+```
+
+Enable `nix.settings.experimental-features = [ "nix-command" "flakes" ];` in your host
+configuration for later commands. Commit your host's `flake.lock` to its private
+configuration repository. It fixes the exact Airglow and Nixpkgs revisions used by
+that host. Updates are explicit: run `nix flake update airglow`, review the lock change,
+then build before switching. The example uses this migration's draft branch until
+it is released.
+
+Airglow exports `nixosModules.default` and the equivalent `nixosModules.airglow`.
+Host networking, disks, bootloader, SSH and operating-system version settings stay
+in your host configuration. Credentials and mutable settings stay outside the public
+repository and Nix store.
+
+Direct module imports still work: use [nix/example.nix](nix/example.nix) and keep the
+repository's `nix`, `scripts` and `web` directories together.
 
 The validated reference is an x86-64 NixOS VM on a wired home LAN. Other host
 architectures and routed discovery have not been validated. This is a development
@@ -98,7 +119,7 @@ node --check web/static/configuration.js
 node --check web/static/state.js
 sh -n scripts/publish-session.sh
 # Linux with Nix and KVM: builds the stack and runs native service/discovery checks.
-nix-build nix/integration-test.nix --no-out-link
+nix --extra-experimental-features 'nix-command flakes' flake check --print-build-logs
 ```
 
 The development VM passed a native NixOS rebuild, state/configuration browser checks,
