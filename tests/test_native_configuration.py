@@ -18,6 +18,23 @@ import session_worker
 
 
 class NativeConfiguration(unittest.TestCase):
+    def test_repeated_name_changes_signal_restart_and_noop_does_not(self):
+        with tempfile.TemporaryDirectory() as directory, patch.dict(os.environ,
+                AIRGLOW_CONFIG_DIR=directory, AIRGLOW_ADMIN_PASSWORD=''):
+            client = native.app.test_client()
+            signal = Path(directory) / 'receiver.restart'
+            previous = None
+            for name in ('Studio', 'Kitchen', ''):
+                response = client.post('/api/receiver', json={'name':name})
+                self.assertEqual(response.status_code, 200)
+                self.assertTrue(response.get_json()['receiver']['restart_requested'])
+                self.assertEqual(receiver.load()['name'], name)
+                current = signal.read_text()
+                self.assertNotEqual(current, previous)
+                self.assertFalse(client.post('/api/receiver', json={'name':name}).get_json()['receiver']['restart_requested'])
+                self.assertEqual(signal.read_text(), current)
+                previous = current
+
     def test_receiver_roundtrip_keeps_password_private_and_rejects_invalid_changes(self):
         with tempfile.TemporaryDirectory() as directory, patch.dict(os.environ,
                 AIRGLOW_CONFIG_DIR=directory, AIRGLOW_DEFAULT_RECEIVER_NAME='airglow-dev', AIRGLOW_ADMIN_PASSWORD=''):

@@ -137,7 +137,8 @@ in
   # A fixed systemd action applies validated settings. The web process receives no sudo access.
   systemd.paths.airglow-receiver-settings = {
     wantedBy = [ "multi-user.target" ];
-    pathConfig.PathChanged = [ "/var/lib/airglow/receiver.json" "/var/lib/airglow/receiver.restart" ];
+    # Atomic JSON replacement invalidates a file watch; signal through a stable file.
+    pathConfig.PathChanged = "/var/lib/airglow/receiver.restart";
     pathConfig.Unit = "airglow-receiver-apply.service";
   };
   systemd.services.airglow-receiver-apply = {

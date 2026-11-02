@@ -54,6 +54,13 @@ def public(data):
         'password_set': bool(data.get('password'))}
 
 
+def request_restart():
+    # Keep the watched inode stable; settings themselves are replaced atomically.
+    path = settings_path().parent / 'receiver.restart'
+    with os.fdopen(os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o640), 'w') as output:
+        output.write(uuid.uuid4().hex)
+
+
 def save(data):
     previous = load()
     updated = validate(data, previous)
@@ -68,6 +75,7 @@ def save(data):
             os.fsync(output.fileno())
             os.chmod(temporary, 0o640)
             temporary.replace(path)
+            request_restart()
         finally:
             temporary.unlink(missing_ok=True)
     return public(updated) | {'restart_requested': True}

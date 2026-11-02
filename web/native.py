@@ -130,7 +130,7 @@ def receiver_settings():
     except ValueError as error:
         return jsonify(error=str(error)), 400
     except OSError:
-        return jsonify(error='Receiver settings could not be saved. The previous settings remain in use.'), 500
+        return jsonify(error='Receiver settings could not be applied. Check the saved settings and retry.'), 500
 
 
 @app.route('/api/actions/test', methods=['GET', 'POST'])
@@ -183,8 +183,7 @@ def test_action():
 
 @app.post('/api/shairport/restart')
 def restart_receiver():
-    import time
-    (receiver.settings_path().parent / 'receiver.restart').write_text(str(time.time_ns()))
+    receiver.request_restart()
     return jsonify(success=True)
 
 
