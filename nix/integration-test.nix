@@ -54,7 +54,7 @@ pkgs.testers.runNixOSTest {
     event = {"session":session, "id":"downtime", "action":"stop"}
     machine.succeed("printf %s " + shlex.quote(json.dumps(event)) + " > /run/airglow/event.json; chown airglow:airglow /run/airglow/event.json")
     machine.succeed("systemctl start airglow-actions")
-    machine.wait_until_succeeds("grep downtime /run/airglow/action.json")
+    machine.wait_until_succeeds("grep downtime /run/airglow/action.json", timeout=30)
     receipt = machine.succeed("cat /run/airglow/action.json")
     machine.succeed("systemctl restart airglow-actions")
     time.sleep(1)

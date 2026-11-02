@@ -132,7 +132,7 @@ def main():
         raise SystemExit(0)
     signal.signal(signal.SIGTERM, stop)
     try:
-        ready.write_text(str(os.getpid()))
+        atomic_json(ready, os.getpid())
         while True:
             ready.touch()
             event = current()

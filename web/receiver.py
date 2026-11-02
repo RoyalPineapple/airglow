@@ -51,19 +51,18 @@ def run(binary):
     runtime_config = runtime / 'receiver.conf'
     runtime_config.write_text(configured)
     runtime_config.chmod(0o640)
-    # Replace rather than truncate a marker recovered by the web/worker service account.
-    with tempfile.NamedTemporaryFile(mode='w', dir=runtime, delete=False) as output:
-        marker = Path(output.name)
-        try:
-            output.write(str(uuid.uuid4()))
-            output.flush()
-            marker.chmod(0o640)
-            marker.replace(runtime / 'receiver')
-        finally:
-            marker.unlink(missing_ok=True)
-    receipt = runtime / 'receiver.applied'
-    receipt.write_text(json.dumps({'fingerprint': settings_store._digest(data), 'pid': os.getpid()}))
-    receipt.chmod(0o640)
+    # Atomic replacement also recovers runtime markers left by a root-run diagnostic.
+    for name, value in (('receiver', str(uuid.uuid4())),
+                        ('receiver.applied', json.dumps({'fingerprint': settings_store._digest(data), 'pid': os.getpid()}))):
+        with tempfile.NamedTemporaryFile(mode='w', dir=runtime, delete=False) as output:
+            marker = Path(output.name)
+            try:
+                output.write(value)
+                output.flush()
+                marker.chmod(0o640)
+                marker.replace(runtime / name)
+            finally:
+                marker.unlink(missing_ok=True)
     for name in ('event.json', 'action.json'):
         (runtime / name).unlink(missing_ok=True)
     args = [binary, '--service-type=airplay2', '--configfile=' + str(runtime_config)]

@@ -103,9 +103,10 @@ nix-build nix/integration-test.nix --no-out-link
 
 The development VM passed a native NixOS rebuild, state/configuration browser checks,
 and real start/end test-button requests affecting four Govee virtual outputs. The
-user confirmed the playback path and test actions work. Worker stop/start preservation
-was checked on systemd. The automated tests use a local LedFX HTTP fixture and mocked
-host observations; they do not replace physical acceptance. Multi-host installation,
+user confirmed the playback path and test actions work. The NixOS integration test boots the full stack and checks repeated receiver updates,
+both discovery records, offline editing, stale worker readiness and event recovery
+through real systemd services. Python regressions also use a local LedFX HTTP fixture
+and mocked host observations. These checks do not replace physical acceptance. Multi-host installation,
 100-cycle endurance, seven-day soak and external-household pilot remain outstanding.
 
 Airglow is MIT-licensed. Upstream applications retain their own licenses.
