@@ -15,25 +15,11 @@
     text('state', 'Unknown'); text('explanation', 'Receiver status could not be refreshed.');
     $('overall-dot').dataset.state = 'unknown';
     show('health', 'Update failed');
-    for (const id of ['receiver','pulse','ledfx','output','session']) show(id, 'Not checked');
-    text('receiver-name', ''); text('action-context', ''); $('action-time').hidden = true;
+    for (const id of ['receiver','pulse','ledfx','output']) show(id, 'Not checked');
+    text('receiver-name', '');
     $('device-list').replaceChildren(); $('device-details').open = false;
     text('updated', lastObservation ? 'Last updated ' + lastObservation.toLocaleTimeString() + ' · stale' : 'No successful checks');
     attention('The latest state is unavailable. Check the services or try refreshing.');
-  }
-  function actionStatus(action = {}) {
-    const labels = {disabled:'Off', success:'Command accepted', failed:'Failed', superseded:'Replaced by newer event', skipped:'Nothing to run', unknown:'No result yet'};
-    show('session', labels[action.state] || 'No result yet', action.state === 'failed' ? 'attention' : action.state === 'success' ? 'good' : 'unknown');
-    const name = {start:'Start', stop:'End'}[action.event?.action];
-    text('action-context', name ? name + (action.event.source === 'manual' ? ' test' : ' action') : '');
-    const seconds = Number(action.time), date = new Date(seconds * 1000);
-    $('action-time').hidden = !Number.isFinite(date.getTime()) || seconds <= 0 || action.state === 'disabled';
-    if (!$('action-time').hidden) {
-      const age = Math.max(0, Date.now() - date.getTime());
-      const minutes = Math.floor(age / 60000), hours = Math.floor(minutes / 60);
-      $('action-time').dateTime = date.toISOString();
-      text('action-time', minutes < 1 ? 'Just now' : minutes < 60 ? minutes + ' min ago' : hours < 24 ? hours + ' hr ago' : date.toLocaleString());
-    }
   }
   function render(data) {
     const receiver = data.airplay?.advertising, pulse = data.audio?.pulseaudio?.available, engine = data.ledfx?.connected;
@@ -58,7 +44,6 @@
       li.append(name, status); return li;
     });
     $('device-list').replaceChildren(...rows);
-    actionStatus(data.session_action);
     const services = data.services || {}, stopped = Object.values(services).some(service => service.running === false);
     const servicesKnown = ['shairport-sync','nqptp','pulseaudio','ledfx'].every(unit => services[unit]?.running === true);
     const ledFxUrl = data.ledfx_browser_url || document.querySelector('main').dataset.ledfxUrl;
