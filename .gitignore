@@ -87,3 +87,8 @@ ledfx-config.json
 airglow.json
 airglow.previous.json
 .airglow.lock
+
+# Generated release and VM artifacts
+dist/
+*.qcow2
+*.qcow2.zst

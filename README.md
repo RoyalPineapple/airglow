@@ -9,8 +9,10 @@ Devices do not need to run WLED; the development installation uses Govee devices
 
 ## Deployment
 
-This branch replaces the Docker Compose deployment with a NixOS module and a new web
-interface. It does not install Docker or require a Docker socket.
+The beta package is one versioned flake. For the downloadable DHCP/UEFI VM or an
+existing NixOS host, follow [the installation guide](docs/INSTALL.md). Use
+[the recovery guide](docs/RECOVERY.md) before switching releases. Release assets
+and publication gates are described in [RELEASING.md](RELEASING.md).
 
 Use Airglow as a flake input in your NixOS host configuration. The flake includes
 both the NixOS module and Airglow's web/worker source; no separate application checkout
@@ -32,8 +34,7 @@ Enable `nix.settings.experimental-features = [ "nix-command" "flakes" ];` in you
 configuration for later commands. Commit your host's `flake.lock` to its private
 configuration repository. It fixes the exact Airglow and Nixpkgs revisions used by
 that host. Updates are explicit: run `nix flake update airglow`, review the lock change,
-then build before switching. The example uses this migration's draft branch until
-it is released.
+then build before switching. Change the release tag in the host input before updating its lock file.
 
 Airglow exports `nixosModules.default` and the equivalent `nixosModules.airglow`.
 Host networking, disks, bootloader, SSH and operating-system version settings stay

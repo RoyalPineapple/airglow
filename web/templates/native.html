@@ -27,7 +27,7 @@
     <details id="receiver-details"><summary><span>Receiver &amp; versions</span><span class="detail-value"><span id="receiver-summary" data-state="unknown">Not checked</span><span class="disclosure" aria-hidden="true">⌄</span></span></summary><dl id="receiver-list" class="detail-list"><div><dt>Receiver observations</dt><dd>Not checked</dd></div></dl></details>
   </div>
   <p class="privacy-note">Diagnostics include connection checks and versions. Passwords and raw configuration are excluded.</p>
-  <footer><p id="updated-at">No successful checks</p><span id="refresh-note">Checks refresh every 10 seconds</span><a href="{{ ledfx_url }}" target="_blank" rel="noopener">Open LedFX ↗</a></footer>
+  <footer><p id="updated-at">No successful checks</p><span id="refresh-note">Checks refresh every 10 seconds</span><a href="{{ ledfx_url }}" target="_blank" rel="noopener">Open LedFX ↗</a><span class="build-id" title="{{ build_info.revision }}">Airglow {{ build_info.version }} · {{ build_info.revision[:7] if build_info.revision != 'development' else 'development' }}</span></footer>
   <noscript><p>Enable JavaScript to refresh connection checks. You can still download diagnostics or open LedFX.</p></noscript>
 </main></body>
 </html>

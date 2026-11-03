@@ -5,6 +5,11 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 
+def release_identification():
+    version = json.loads(Path(__file__).with_name('release.json').read_text())['version']
+    return {'version': version, 'revision': os.environ.get('AIRGLOW_REVISION', 'development')}
+
+
 def browser_url(host):
     url = os.environ.get('LEDFX_BROWSER_URL') or f'http://{host}:8888'
     parsed = urlsplit(url)

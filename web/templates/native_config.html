@@ -52,4 +52,5 @@
     <div id="restore-review" class="restore-review" hidden><h2>Review restore</h2><dl id="restore-summary"></dl><p class="help">This replaces saved settings and discards unsaved edits. AirPlay may restart. LedFX data is separate; saved targets must exist there.</p><button id="restore-config" type="button" class="primary">Restore configuration</button></div>
     <p id="backup-result" role="status" class="help"></p>
   </section>
+<footer><span class="build-id" title="{{ build_info.revision }}">Airglow {{ build_info.version }} · {{ build_info.revision[:7] if build_info.revision != 'development' else 'development' }}</span></footer>
 </main></body></html>

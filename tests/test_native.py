@@ -35,7 +35,7 @@ class NativeStatus(unittest.TestCase):
                 return json.dumps({'pid':123, 'fingerprint':settings_store._digest(settings_store.read()['receiver'])})
             return read_text(path, *args, **kwargs)
 
-        for scenario, expected in [('ready', 'ready'), ('playing', 'playing'),
+        for scenario, expected in [('ready', 'ready'), ('dhcp', 'ready'), ('playing', 'playing'),
                                    ('paused', 'idle'), ('stopped', 'degraded'),
                                    ('discovery_timeout', 'unknown'), ('name_mismatch', 'degraded'), ('raop_missing', 'degraded'), ('device_offline', 'degraded')]:
             with self.subTest(scenario=scenario):
@@ -46,11 +46,13 @@ class NativeStatus(unittest.TestCase):
                             output = 'success'
                         if '--property=MainPID' in args:
                             output = '123'
+                    elif args[0] == 'ip':
+                        output = json.dumps([{'addr_info':[{'family':'inet','scope':'global','local':'192.0.2.20'}]}])
                     elif args[0] == 'pactl':
                         if args[-1] == 'info':
                             output = json.dumps({'server_string': 'unix:/run/pulse/native'})
                         else:
-                            streams = [] if scenario == 'ready' else [{
+                            streams = [] if scenario in ('ready','dhcp') else [{
                                 'corked': scenario == 'paused',
                                 'properties': {'application.name': 'Shairport Sync'}}]
                             output = json.dumps(streams)
@@ -73,7 +75,7 @@ class NativeStatus(unittest.TestCase):
                         raise AssertionError(f'Unexpected external program: {args[0]}')
                     return SimpleNamespace(stdout=output, returncode=0)
 
-                with patch.dict(os.environ, AIRGLOW_ADDRESS='192.0.2.20',
+                with patch.dict(os.environ, AIRGLOW_ADDRESS='0.0.0.0' if scenario == 'dhcp' else '192.0.2.20', AIRGLOW_INTERFACE='ens18', AIRGLOW_REVISION='test-revision',
                                 LEDFX_API_URL='http://192.0.2.20:8888',
                                 LEDFX_BROWSER_URL='http://example.test:8888',
                                 AIRGLOW_ADMIN_PASSWORD='', AIRGLOW_DEFAULT_RECEIVER_NAME='airglow-dev'), \
@@ -85,6 +87,10 @@ class NativeStatus(unittest.TestCase):
                     self.assertEqual(response.headers['Cache-Control'], 'no-store')
                     data = response.get_json()
                     self.assertEqual(data['state'], expected)
+                    self.assertRegex(data['release']['version'], r'^\d+\.\d+\.\d+(?:-[a-z0-9.]+)?$')
+                    self.assertEqual(data['release']['revision'], 'test-revision')
+                    self.assertEqual(data['release']['configuration_version'], 1)
+                    self.assertIn('Airglow ' + data['release']['version'], client.get('/status').get_data(as_text=True))
                     if scenario == 'discovery_timeout':
                         self.assertIsNone(data['airplay']['advertising'])
                     bundle = client.get('/api/diagnostics/download')

@@ -1,6 +1,7 @@
 { config, lib, pkgs, ... }:
 let
   cfg = config.services.airglow;
+  apiHost = if cfg.address == "0.0.0.0" then "127.0.0.1" else cfg.address;
   # This revision supplies LedFX 2.2.1 and its matching Python dependencies.
   # Pin the collection so updates happen only when we change this revision and hash.
   latestPackages = import (builtins.fetchTarball {
@@ -72,6 +73,12 @@ in
       type = lib.types.str;
       description = "LAN interface on which to allow AirPlay and lighting reply traffic.";
     };
+    releaseRevision = lib.mkOption {
+      type = lib.types.str;
+      default = "development";
+      internal = true;
+      description = "Source revision supplied by the Airglow flake.";
+    };
     ledfxBrowserUrl = lib.mkOption {
       type = lib.types.nullOr lib.types.str;
       default = null;
@@ -105,18 +112,20 @@ in
     wantedBy = [ "multi-user.target" ];
     after = [ "network.target" "pulseaudio.service" "shairport-sync.service" "ledfx.service" ];
     # Keep the status page available even when an audio service fails.
-    path = [ pkgs.systemd pkgs.pulseaudio pkgs.avahi pkgs.curl ];
+    path = [ pkgs.systemd pkgs.pulseaudio pkgs.avahi pkgs.curl pkgs.iproute2 ];
     environment = {
       AIRGLOW_ADDRESS = cfg.address;
-      LEDFX_API_URL = "http://${cfg.address}:8888";
-      LEDFX_BROWSER_URL = if cfg.ledfxBrowserUrl == null then "http://${cfg.address}:8888" else cfg.ledfxBrowserUrl;
+      AIRGLOW_INTERFACE = cfg.interface;
+      AIRGLOW_REVISION = cfg.releaseRevision;
+      LEDFX_API_URL = "http://${apiHost}:8888";
+      LEDFX_BROWSER_URL = if cfg.ledfxBrowserUrl != null then cfg.ledfxBrowserUrl else if cfg.address == "0.0.0.0" then "" else "http://${cfg.address}:8888";
       PULSE_SERVER = "unix:/run/pulse/native";
       PYTHONDONTWRITEBYTECODE = "1";
       AIRGLOW_CONFIG_DIR = "/var/lib/airglow";
       AIRGLOW_RUNTIME = "/run/airglow";
       SHAIRPORT_CONF = "/etc/shairport-sync.conf";
       AIRGLOW_DEFAULT_RECEIVER_NAME = config.services.shairport-sync.settings.general.name;
-      LEDFX_HOST = cfg.address;
+      LEDFX_HOST = apiHost;
       LEDFX_PORT = "8888";
       AIRGLOW_VERSIONS = builtins.toJSON {
         shairport = receiver.version;
@@ -158,7 +167,7 @@ in
       AIRGLOW_RUNTIME = "/run/airglow";
       AIRGLOW_CONFIG_DIR = "/var/lib/airglow";
       AIRGLOW_HOOKS_FILE = "/var/lib/airglow/airglow.json";
-      LEDFX_HOST = cfg.address;
+      LEDFX_HOST = apiHost;
       LEDFX_PORT = "8888";
     };
     serviceConfig = {

@@ -20,6 +20,6 @@
   <section class="details-group" aria-label="Outputs and automation">
     <details id="device-details"><summary><span>Lighting devices</span><span class="detail-value"><span id="output" data-state="unknown">Not checked</span><span class="disclosure" aria-hidden="true">⌄</span></span></summary><div class="device-content"><p>Status reported by LedFX; physical light output is not verified.</p><ul id="device-list"></ul></div></details>
   </section>
-  <footer><p id="updated">Not checked yet</p><button id="refresh" type="button">Refresh ↻</button><a href="/status">Connection details ↗</a></footer>
+  <footer><p id="updated">Not checked yet</p><button id="refresh" type="button">Refresh ↻</button><a href="/status">Connection details ↗</a><span class="build-id" title="{{ build_info.revision }}">Airglow {{ build_info.version }} · {{ build_info.revision[:7] if build_info.revision != 'development' else 'development' }}</span></footer>
 </main></body>
 </html>

@@ -21,8 +21,69 @@ jobs:
       - run: node --check web/static/configuration.js && node --check web/static/state.js && node --check web/static/troubleshooting.js
       - run: sh -n scripts/publish-session.sh
   nix-integration:
+    outputs:
+      source-commit: ${{ steps.source.outputs.commit }}
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
+      - name: Identify source commit
+        id: source
+        run: echo "commit=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
       - uses: cachix/install-nix-action@v31
-      - run: nix flake check --print-build-logs
+      - run: nix flake check --option max-jobs 1 --print-build-logs
+      - name: Package release candidate
+        if: github.event_name == 'push'
+        run: |
+          mkdir -p dist
+          task_image=$(nix build --no-link --print-out-paths .#qcow2)
+          task_manifest=$(nix build --no-link --print-out-paths .#release-manifest)
+          cp "$task_image"/*.qcow2 dist/
+          cp "$task_manifest" dist/release.json
+          cp docs/INSTALL.md docs/RECOVERY.md docs/RELEASE_NOTES.md LICENSE THIRD_PARTY.md RELEASING.md dist/
+          python - <<'PY'
+          import json, subprocess
+          from pathlib import Path
+          manifest = json.loads(Path('dist/release.json').read_text())
+          assert manifest['revision'] == subprocess.check_output(['git','rev-parse','HEAD'], text=True).strip(), 'Artifact does not match the pushed commit'
+          assert manifest['version'] == json.loads(Path('web/release.json').read_text())['version']
+          for image in Path('dist').glob('*.qcow2'):
+              assert image.stat().st_size < 2 * 1024**3, 'Image exceeds release asset limit'
+          PY
+          cd dist
+          sha256sum *.qcow2 release.json INSTALL.md RECOVERY.md RELEASE_NOTES.md LICENSE THIRD_PARTY.md RELEASING.md > SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        if: github.event_name == 'push'
+        with:
+          name: airglow-release-${{ steps.source.outputs.commit }}
+          path: dist/
+          retention-days: 14
+          compression-level: 0
+          if-no-files-found: error
+  draft-release:
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    needs: [checks, nix-integration]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: airglow-release-${{ needs.nix-integration.outputs.source-commit }}
+          path: dist/
+      - name: Create draft beta release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          AIRGLOW_RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          task_version=$(python -c 'import json; print(json.load(open("web/release.json"))["version"])')
+          test "$AIRGLOW_RELEASE_TAG" = "v$task_version"
+          cd dist
+          sha256sum --check SHA256SUMS
+          cd ..
+          if gh release view "$AIRGLOW_RELEASE_TAG" --json isDraft > /tmp/airglow-release-state.json 2>/dev/null; then
+            python -c 'import json; assert json.load(open("/tmp/airglow-release-state.json"))["isDraft"], "Refusing to replace a published release"'
+            gh release upload "$AIRGLOW_RELEASE_TAG" dist/* --clobber
+          else
+            gh release create "$AIRGLOW_RELEASE_TAG" dist/* --verify-tag --draft --prerelease --title "Airglow $task_version" --notes-file docs/RELEASE_NOTES.md
+          fi

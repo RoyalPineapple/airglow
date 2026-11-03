@@ -14,6 +14,7 @@ pkgs.testers.runNixOSTest {
     virtualisation.memorySize = 1024;
     virtualisation.cores = 2;
     system.stateVersion = "26.05";
+    specialisation.rollback-candidate.configuration.environment.etc."airglow-rollback-test".text = "candidate";
   };
   testScript = ''
     import json
@@ -61,5 +62,17 @@ pkgs.testers.runNixOSTest {
     assert machine.succeed("cat /run/airglow/action.json") == receipt
     assert api("/api/settings/export") == before
     machine.succeed("systemctl start ledfx")
+    # Exercise a real generation change and rollback; application data is independent.
+    base_system = machine.succeed("readlink -f /run/current-system").strip()
+    candidate = base_system + "/specialisation/rollback-candidate"
+    machine.succeed("nix-env -p /nix/var/nix/profiles/system --set " + shlex.quote(base_system))
+    machine.succeed("nix-env -p /nix/var/nix/profiles/system --set " + shlex.quote(candidate))
+    machine.succeed(candidate + "/bin/switch-to-configuration switch")
+    machine.succeed("test $(cat /etc/airglow-rollback-test) = candidate")
+    machine.succeed("nixos-rebuild switch --rollback --no-reexec")
+    machine.succeed("test ! -e /etc/airglow-rollback-test")
+    machine.wait_for_unit("airglow.service")
+    assert api("/api/settings/export") == before
+
   '';
 }

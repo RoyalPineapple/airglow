@@ -22,6 +22,11 @@ app.before_request(require_admin)
 UNITS = ('shairport-sync', 'nqptp', 'pulseaudio', 'ledfx')
 
 
+@app.context_processor
+def build_context():
+    return {'build_info': product.release_identification()}
+
+
 @app.errorhandler(413)
 def upload_too_large(error):
     return jsonify(error='Configuration files must be smaller than 1 MB.'), 413
@@ -88,11 +93,16 @@ def observe():
         settings = receiver.public(saved)
         airplay['desired_name'] = settings['effective_name']
         airplay['revision'] = settings['revision']
+        address = os.environ['AIRGLOW_ADDRESS']
+        addresses = {address}
+        if address == '0.0.0.0':
+            links = json.loads(command('ip', '-json', '-4', 'address', 'show', 'dev', os.environ['AIRGLOW_INTERFACE']))
+            addresses = {item['local'] for link in links for item in link.get('addr_info', []) if item.get('family') == 'inet' and item.get('scope') == 'global'}
         for service, port in (('_airplay._tcp', '7000'), ('_raop._tcp', '7000')):
             rows = [line.split(';') for line in command('avahi-browse', '-rpt', service).splitlines()]
             names = []
             for row in rows:
-                if len(row) >= 9 and row[0] == '=' and row[4] == service and row[7] == os.environ['AIRGLOW_ADDRESS'] and row[8] == port:
+                if len(row) >= 9 and row[0] == '=' and row[4] == service and row[7] in addresses and row[8] == port:
                     name = re.sub(rb'\\([0-9]{3})', lambda match: bytes([int(match[1])]), row[3].encode()).decode('utf-8', errors='replace')
                     if service == '_raop._tcp':
                         name = name.partition('@')[2]
@@ -153,7 +163,7 @@ def observe():
             'diagnostics': {'available': all(s['running'] is not None for s in services.values()),
                             'actions_worker_running': worker_available(Path(os.environ.get('AIRGLOW_RUNTIME', '/runtime'))) if actions_enabled else None},
             'session_action': product.action_status() if actions_enabled else {'state': 'disabled'},
-            'release': {'runtime': 'NixOS', 'versions': json.loads(os.environ.get('AIRGLOW_VERSIONS', '{}'))},
+            'release': product.release_identification() | {'configuration_version': settings_store.VERSION, 'runtime': 'NixOS', 'versions': json.loads(os.environ.get('AIRGLOW_VERSIONS', '{}'))},
             'ledfx_browser_url': product.browser_url(request.host.split(':')[0])}
     data['state'] = product.summary(data)
     if airplay['configuration_state'] == 'pending' and data['state'] != 'degraded':

@@ -94,7 +94,7 @@
     status('receiver-summary', settingLabels[airplay.configuration_state] || 'Not checked', applied ? 'good' : ['pending','mismatch','failed'].includes(airplay.configuration_state) ? 'attention' : 'unknown');
     const connected = audio.shairport_connected, corked = audio.shairport_corked;
     const stream = connected === false ? 'No active stream' : connected === true && corked === false ? 'Active' : connected === true && corked === true ? 'Inactive · connected' : 'Not checked';
-    rows('receiver-list', [['Saved AirPlay name', airplay.desired_name || 'Not checked'], ['AirPlay broadcast',names('_airplay._tcp')], ['RAOP broadcast',names('_raop._tcp')], ['Receiver stream',stream],
+    rows('receiver-list', [['Airglow version',data.release?.version || 'Not reported'], ['Airglow revision',data.release?.revision || 'Not reported'], ['Saved AirPlay name', airplay.desired_name || 'Not checked'], ['AirPlay broadcast',names('_airplay._tcp')], ['RAOP broadcast',names('_raop._tcp')], ['Receiver stream',stream],
       ...[['shairport','Shairport Sync'],['nqptp','NQPTP'],['pulseaudio','PulseAudio'],['ledfx','LedFX']].map(([key,label]) => [label + ' version', data.release?.versions?.[key] || 'Not reported'])]);
     const incomplete = !devices || unchecked.length > 0 || unknownCount > 0 || data.diagnostics?.available !== true || ![advertising,pulse,engine].every(value => typeof value === 'boolean') || !applied || !actionsOff && typeof worker !== 'boolean';
     if (issues.length) {
