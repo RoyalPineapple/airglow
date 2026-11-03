@@ -49,13 +49,21 @@
     const offline = devices?.filter(device => device.online === false) || [], unchecked = devices?.filter(device => typeof device.online !== 'boolean') || [];
     const issues = [];
     const issue = (title, help, unit, action) => issues.push({title,help,unit,action});
-    const stopped = key => services[key]?.running === false;
+    const transitions = {activating:'Starting',deactivating:'Stopping',reloading:'Reloading'};
+    const changing = Object.keys(units).filter(key => transitions[services[key]?.state]);
+    const stopped = key => services[key]?.running === false && !transitions[services[key]?.state];
     const serviceRows = Object.entries(units).map(([key,label]) => {
       const running = services[key]?.running;
-      return [label, running === true ? 'Running' : running === false ? services[key].state === 'failed' ? 'Failed' : 'Stopped' : 'Not checked', running === true ? 'good' : running === false ? 'attention' : 'unknown'];
+      return [label, running === true ? 'Running' : transitions[services[key]?.state] || (running === false ? services[key].state === 'failed' ? 'Failed' : 'Stopped' : 'Not checked'), running === true ? 'good' : stopped(key) ? 'attention' : 'unknown'];
     });
+    if (!actionsOff) serviceRows.push(['Playback action worker', worker === true ? 'Running' : worker === false ? 'Unavailable' : 'Not checked', worker === true ? 'good' : worker === false ? 'attention' : 'unknown']);
     const stoppedCount = serviceRows.filter(row => row[2] === 'attention').length, unknownCount = serviceRows.filter(row => row[2] === 'unknown').length;
-    status('services-summary', stoppedCount ? stoppedCount + ' stopped' : unknownCount ? unknownCount + ' not checked' : 'All running', stoppedCount ? 'attention' : unknownCount ? 'unknown' : 'good');
+    let serviceLabel = unknownCount ? unknownCount + ' incomplete' : 'All running';
+    if (stoppedCount) {
+      serviceLabel = stoppedCount + ' stopped';
+      if (worker === false && !actionsOff) serviceLabel = stoppedCount === 1 ? 'Worker unavailable' : stoppedCount + ' need attention';
+    }
+    status('services-summary', serviceLabel, stoppedCount ? 'attention' : unknownCount ? 'unknown' : 'good');
     rows('service-list', serviceRows);
 
     status('discovery-check', stopped('shairport-sync') ? 'Stopped' : advertising === true ? 'Confirmed' : advertising === false ? 'Not discovered' : 'Not checked', stopped('shairport-sync') || advertising === false ? 'attention' : advertising === true ? 'good' : 'unknown');
@@ -94,7 +102,7 @@
       const description = issues.length > 1 ? 'Start with the first issue below. Other results remain visible.' : issues[0].title === 'LedFX is unreachable' && receiverAvailable ? 'The audio receiver is available. Check LedFX before changing AirPlay settings.' : issues[0].help;
       summary(issues.length === 1 ? issues[0].title : issues.length + ' issues need attention', description, 'attention', issues[0].action);
     } else if (incomplete) {
-      summary('Some checks are incomplete', 'Missing observations are not confirmation that the connection works.', 'unknown', ['View services','#native-services']);
+      summary('Some checks are incomplete', changing.length ? 'A service is starting or stopping. Wait for it to settle, then refresh checks.' : 'Missing observations are not confirmation that the connection works.', 'unknown', ['View services','#native-services']);
       issue('Incomplete observations', engine === true && (!devices || unchecked.length) ? 'LedFX has not confirmed every device status. Check its device details before assuming output works.' : 'Refresh checks. If results remain unavailable, inspect the Airglow service logs.', engine === true && (!devices || unchecked.length) ? 'ledfx' : 'airglow', engine === true && (!devices || unchecked.length) ? ['Open LedFX',ledfxUrl] : null);
     } else summary('Connections confirmed', 'Services and connection checks passed. Physical lighting output is not verified.', 'good');
     guidance(issues);
@@ -103,7 +111,7 @@
   function unavailable() {
     for (const id of ['discovery-check','bridge-check','ledfx-check','actions-check','devices-check','services-summary','receiver-summary']) status(id, 'Not checked');
     text('discovery-description', 'AirPlay and RAOP broadcast names');
-    rows('service-list', Object.values(units).map(label => [label,'Not checked']));
+    rows('service-list', [...Object.values(units), 'Playback action worker'].map(label => [label,'Not checked']));
     rows('receiver-list', [['Receiver observations','Not checked'],['Versions','Not checked']]);
     summary('Checks unavailable', lastCheck ? 'Previous results are stale. Try refreshing or read the Airglow service logs.' : 'No current connection results are available. Try refreshing or read the Airglow service logs.', 'unknown');
     guidance([{help:'Check the Airglow web service if diagnostics remain unavailable.',unit:'airglow'}]);
