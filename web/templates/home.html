@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#080f1b">
+  <title>Airglow · State</title>
+  <link rel="stylesheet" href="/static/state.css"><link rel="stylesheet" href="/static/overview.css">
+  <script src="/static/state.js" defer></script>
+</head>
+<body class="state-page"><a class="skip" href="#state">Skip to state</a>
+<main class="shell" data-ledfx-url="{{ ledfx_url }}">
+  <header><a href="/" class="brand" aria-label="Airglow home">AIRGLOW</a><nav aria-label="Navigation"><a href="/" aria-current="page">State</a><a href="/config">Configuration</a><a href="/status">Troubleshooting</a></nav></header>
+  <div class="overview-heading"><h1>State</h1><a href="{{ ledfx_url }}" target="_blank" rel="noopener">Open LedFX ↗</a></div>
+  <section class="input-state" aria-labelledby="input-heading"><div><h2 id="input-heading">Receiver stream</h2><div class="stream-heading"><span id="overall-dot" class="indicator" data-state="unknown"></span><p id="state" role="status">Checking…</p></div><p id="explanation">Waiting for receiver status.</p></div><div class="connection-health"><span id="health" data-state="unknown">Checking connections</span><span id="receiver-name"></span></div></section>
+  <section class="connection-group" aria-label="Audio connections"><dl class="connection-grid">
+    <div><dt>AirPlay receiver</dt><dd id="receiver" data-state="unknown">Not checked</dd></div>
+    <div><dt>Audio bridge</dt><dd id="pulse" data-state="unknown">Not checked</dd></div>
+    <div><dt>LedFX</dt><dd id="ledfx" data-state="unknown">Not checked</dd></div>
+  </dl></section>
+  <section class="attention" id="attention" aria-labelledby="next-title" hidden><div><h2 id="next-title">Needs attention</h2><p id="next-step"></p></div><a id="next-link" href="/status">Troubleshoot ↗</a></section>
+  <section class="details-group" aria-label="Outputs and automation">
+    <details id="device-details"><summary><span>Lighting devices</span><span class="detail-value"><span id="output" data-state="unknown">Not checked</span><span class="disclosure" aria-hidden="true">⌄</span></span></summary><div class="device-content"><p>Status reported by LedFX; physical light output is not verified.</p><ul id="device-list"></ul></div></details>
+  </section>
+  <footer><p id="updated">Not checked yet</p><button id="refresh" type="button">Refresh ↻</button><a href="/status">Connection details ↗</a><span class="build-id" title="{{ build_info.revision }}">Airglow {{ build_info.version }} · {{ build_info.revision[:7] if build_info.revision != 'development' else 'development' }}</span></footer>
+</main></body>
+</html>

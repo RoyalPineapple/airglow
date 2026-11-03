@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Airglow · Configuration</title>
+  <link rel="stylesheet" href="/static/state.css"><link rel="stylesheet" href="/static/configuration.css">
+  <script defer src="/static/configuration.js"></script>
+</head>
+<body class="configuration-page"><a class="skip" href="#main">Skip to configuration</a><main class="shell" id="main">
+  <header><a class="brand" href="/">AIRGLOW</a><nav aria-label="Navigation"><a href="/">State</a><a href="/config" aria-current="page">Configuration</a><a href="/status">Troubleshooting</a></nav><span id="engine-state" class="engine-state"></span></header>
+  <div class="page-heading"><h1>Configuration</h1><a href="{{ ledfx_url }}" target="_blank" rel="noopener">Open LedFX ↗</a></div>
+  <p id="load-status" role="status">Loading settings…</p>
+  <div class="settings-tabs" role="tablist" aria-label="Configuration section"><button type="button" id="receiver-tab" role="tab" aria-selected="true" aria-controls="receiver-panel">AirPlay settings</button><button type="button" id="playback-tab" role="tab" aria-selected="false" aria-controls="playback-panel" tabindex="-1">Playback actions</button><button type="button" id="backup-tab" role="tab" aria-selected="false" aria-controls="backup-panel" tabindex="-1">Backup &amp; restore</button></div>
+  <section id="playback-panel" role="tabpanel" aria-labelledby="playback-tab" hidden>
+    <form id="actions-form">
+      <fieldset id="actions-fields" disabled><legend class="sr-only">Playback actions</legend>
+        <div class="action-pair">
+        {% for key,title in [('start','Playback starts'),('end','Playback ends')] %}
+        <section class="hook" aria-labelledby="{{ key }}-title">
+          <div class="hook-heading"><span class="event-symbol" aria-hidden="true">{{ '▷' if key == 'start' else '□' }}</span><h2 id="{{ key }}-title">{{ title }}</h2><label class="enable-switch"><span id="{{ key }}-enabled-label">Off</span><input id="{{ key }}-enabled" type="checkbox" role="switch" aria-label="Enable {{ key }} action"></label></div>
+          <fieldset id="{{ key }}-fields" class="hook-fields"><legend class="sr-only">{{ title }} settings</legend>
+            <fieldset class="mode-choice"><legend>Action</legend><div class="mode-options"><label class="action-choice"><input id="{{ key }}-mode-toggle" type="radio" name="{{ key }}-mode" value="toggle" checked><span>{{ 'Resume saved effects' if key == 'start' else 'Stop LedFX output' }}</span></label><label class="action-choice"><input id="{{ key }}-mode-scene" type="radio" name="{{ key }}-mode" value="scene"><span>Activate a scene</span></label></div></fieldset>
+            <div id="{{ key }}-toggle"><label id="{{ key }}-outputs-label">Outputs</label><details id="{{ key }}-picker" class="output-picker"><summary aria-labelledby="{{ key }}-outputs-label {{ key }}-selection"><span id="{{ key }}-selection">Choose outputs…</span><span aria-hidden="true">⌄</span></summary><div class="output-options"><label class="check future-choice"><input id="{{ key }}-all" type="checkbox"><span>Include all current and future outputs</span></label><div id="{{ key }}-virtuals" class="targets"></div></div></details><p id="{{ key }}-scope" class="help"></p></div>
+            <div id="{{ key }}-scene" hidden><label for="{{ key }}-scenes">Scene</label><select id="{{ key }}-scenes"></select><p id="{{ key }}-scene-help" class="help"></p><a class="text-link" href="{{ ledfx_url }}" target="_blank" rel="noopener">Edit scenes in LedFX ↗</a><details class="scene-details"><summary>Scene actions</summary><p id="{{ key }}-scene-preview" class="help"></p></details></div>
+          </fieldset>
+          <div class="test-row"><button id="{{ key }}-test" type="button" class="secondary" disabled aria-describedby="test-help">Run test<span class="sr-only">: {{ title }}</span></button><p id="{{ key }}-result" role="status">Not tested</p></div>
+        </section>
+        {% endfor %}
+        </div>
+        <p id="test-help" class="help action-note">Tests run the current choices without saving. Stopping LedFX output may leave lamps illuminated.</p>
+        <p id="connection-note" class="help" role="status" hidden></p>
+        <div class="save-row"><p id="actions-result" role="status">No unsaved changes</p><button id="discard-actions" type="button" class="secondary" hidden>Discard</button><button id="save-actions" class="primary" type="submit" disabled>Save changes</button></div>
+      </fieldset>
+    </form>
+  </section>
+  <section id="receiver-panel" role="tabpanel" aria-labelledby="receiver-tab">
+    <form id="receiver-form"><fieldset id="receiver-fields" disabled><legend class="sr-only">AirPlay receiver</legend>
+      <div class="receiver-settings">
+        <div class="setting-row"><div><label for="receiver-name">Receiver name</label><p class="help">Shown in the AirPlay picker.</p></div><div><input id="receiver-name" name="name" type="text" maxlength="50" aria-describedby="name-help effective-name"><p id="name-help" class="help">Leave empty to use the hostname.</p><p id="effective-name" class="help"></p></div></div>
+        <div class="setting-row"><label>AirPlay</label><span>AirPlay 2</span></div>
+        <div class="setting-row"><div><label for="idle-timeout">Idle delay</label><p id="idle-help" class="help">Wait before ending the session during a pause. Default: 10 seconds.</p></div><div class="seconds-input"><input id="idle-timeout" type="number" min="1" max="300" step="1" required aria-describedby="idle-help"><span>seconds</span></div></div>
+        <div class="setting-row"><div><label for="fixed-volume">Fixed audio level</label><p class="help">Keep lighting analysis independent of phone volume.</p></div><label class="enable-switch"><input id="fixed-volume" type="checkbox" role="switch"><span id="fixed-volume-label">Enabled</span></label></div>
+        <div class="setting-row"><div><label for="receiver-password">AirPlay password</label><p class="help">Optional</p></div><div><input id="receiver-password" type="password" maxlength="128" autocomplete="new-password" aria-describedby="password-help"><p id="password-help" class="help">Leave empty for no password.</p><label class="check" id="clear-password-row" hidden><input id="clear-password" type="checkbox"><span>Remove saved password</span></label></div></div>
+      </div>
+      <p class="help action-note">Applying receiver settings requests an AirPlay restart and can disconnect playback.</p>
+      <div class="save-row"><p id="receiver-result" role="status">No unsaved changes</p><button id="retry-receiver" type="button" class="secondary" hidden>Retry saved settings</button><button id="discard-receiver" type="button" class="secondary" hidden>Discard</button><button id="save-receiver" class="primary" type="submit" disabled>Save receiver</button></div>
+    </fieldset></form>
+  </section>
+  <section id="backup-panel" role="tabpanel" aria-labelledby="backup-tab" hidden>
+    <div class="receiver-settings backup-settings"><div class="setting-row"><div><h2>Download configuration</h2><p class="help">Saved receiver settings and playback actions in one versioned file.</p></div><div><a class="secondary download-config" href="/api/settings/export" download="airglow.json">Download airglow.json</a><p class="help">Includes the AirPlay password. Store this file privately.</p></div></div>
+    <div class="setting-row"><div><label for="backup-file">Restore configuration</label><p class="help">Choose a backup to review before replacing saved settings.</p></div><div><input id="backup-file" type="file" accept=".json,application/json"><p class="help">Airglow JSON · maximum 1 MB</p></div></div></div>
+    <div id="restore-review" class="restore-review" hidden><h2>Review restore</h2><dl id="restore-summary"></dl><p class="help">This replaces saved settings and discards unsaved edits. AirPlay may restart. LedFX data is separate; saved targets must exist there.</p><button id="restore-config" type="button" class="primary">Restore configuration</button></div>
+    <p id="backup-result" role="status" class="help"></p>
+  </section>
+<footer><span class="build-id" title="{{ build_info.revision }}">Airglow {{ build_info.version }} · {{ build_info.revision[:7] if build_info.revision != 'development' else 'development' }}</span></footer>
+</main></body></html>

@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#080f1b">
+  <title>Airglow · Troubleshooting</title>
+  <link rel="stylesheet" href="/static/state.css"><link rel="stylesheet" href="/static/overview.css"><link rel="stylesheet" href="/static/troubleshooting.css">
+  <script src="/static/troubleshooting.js" defer></script>
+</head>
+<body class="state-page troubleshooting-page"><a class="skip" href="#main">Skip to troubleshooting</a>
+<main class="shell" id="main" data-ledfx-url="{{ ledfx_url }}">
+  <header><a class="brand" href="/" aria-label="Airglow home">AIRGLOW</a><nav aria-label="Navigation"><a href="/">State</a><a href="/config">Configuration</a><a href="/status" aria-current="page">Troubleshooting</a></nav></header>
+  <div class="trouble-heading"><h1>Troubleshooting</h1><div class="page-actions"><button id="refresh-checks" type="button" class="secondary">Refresh checks</button><a id="download-diagnostics" href="/api/diagnostics/download" class="primary" download>Download diagnostics</a></div></div>
+  <p id="download-result" role="status" class="download-result"></p>
+  <section id="check-summary" class="check-summary" data-state="unknown" aria-labelledby="check-title"><div><h2 id="check-title" role="status">Checking connections…</h2><p id="check-description">Waiting for service and connection observations.</p></div><a id="recovery-link" class="secondary" href="/status" hidden>View services</a></section>
+  <section class="checks" aria-labelledby="checks-heading"><div class="section-heading"><h2 id="checks-heading">Connection checks</h2><span id="checked-at">Not checked yet</span></div>
+    <dl class="check-list">
+      <div><dt>AirPlay discovery<small id="discovery-description">AirPlay and RAOP broadcast names</small></dt><dd id="discovery-check" data-state="unknown">Not checked</dd></div>
+      <div><dt>Audio bridge<small>PulseAudio connection</small></dt><dd id="bridge-check" data-state="unknown">Not checked</dd></div>
+      <div><dt>LedFX API<small>Lighting engine connection</small></dt><dd id="ledfx-check" data-state="unknown">Not checked</dd></div>
+      <div><dt>Lighting devices<small>Status reported by LedFX</small></dt><dd id="devices-check" data-state="unknown">Not checked</dd></div>
+      <div><dt>Playback actions<small>Worker readiness</small></dt><dd id="actions-check" data-state="unknown">Not checked</dd></div>
+    </dl>
+    <div id="recovery-guidance" class="recovery-guidance" hidden><ul id="issue-list"></ul><p class="host-command-label" id="command-label">Read recent logs on the Airglow host</p><div class="command-row" id="command-row"><code id="log-command"></code><button id="copy-command" type="button">Copy</button></div><p id="copy-result" role="status" class="help"></p></div>
+  </section>
+  <div class="diagnostic-details">
+    <details id="native-services"><summary><span>Native services</span><span class="detail-value"><span id="services-summary" data-state="unknown">Not checked</span><span class="disclosure" aria-hidden="true">⌄</span></span></summary><dl id="service-list" class="detail-list"><div><dt>Service observations</dt><dd>Not checked</dd></div></dl></details>
+    <details id="receiver-details"><summary><span>Receiver &amp; versions</span><span class="detail-value"><span id="receiver-summary" data-state="unknown">Not checked</span><span class="disclosure" aria-hidden="true">⌄</span></span></summary><dl id="receiver-list" class="detail-list"><div><dt>Receiver observations</dt><dd>Not checked</dd></div></dl></details>
+  </div>
+  <p class="privacy-note">Diagnostics include connection checks and versions. Passwords and raw configuration are excluded.</p>
+  <footer><p id="updated-at">No successful checks</p><span id="refresh-note">Checks refresh every 10 seconds</span><a href="{{ ledfx_url }}" target="_blank" rel="noopener">Open LedFX ↗</a><span class="build-id" title="{{ build_info.revision }}">Airglow {{ build_info.version }} · {{ build_info.revision[:7] if build_info.revision != 'development' else 'development' }}</span></footer>
+  <noscript><p>Enable JavaScript to refresh connection checks. You can still download diagnostics or open LedFX.</p></noscript>
+</main></body>
+</html>
