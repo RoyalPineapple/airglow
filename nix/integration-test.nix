@@ -11,6 +11,8 @@ pkgs.testers.runNixOSTest {
     networking.hostName = "airglow-test";
     networking.useDHCP = false;
     networking.interfaces.eth1.ipv4.addresses = lib.mkForce [{ address = "192.0.2.20"; prefixLength = 24; }];
+    # This harness boots the kernel directly; the published disk has a separate UEFI boot test.
+    boot.loader.grub.enable = lib.mkForce false;
     virtualisation.memorySize = 1024;
     virtualisation.cores = 2;
     system.stateVersion = "26.05";
