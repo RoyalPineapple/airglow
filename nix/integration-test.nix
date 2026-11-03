@@ -64,7 +64,7 @@ pkgs.testers.runNixOSTest {
     machine.succeed("systemctl start ledfx")
     # Exercise a real generation change and rollback; application data is independent.
     base_system = machine.succeed("readlink -f /run/current-system").strip()
-    candidate = base_system + "/specialisation/rollback-candidate"
+    candidate = machine.succeed("readlink -f " + shlex.quote(base_system + "/specialisation/rollback-candidate")).strip()
     machine.succeed("nix-env -p /nix/var/nix/profiles/system --set " + shlex.quote(base_system))
     machine.succeed("nix-env -p /nix/var/nix/profiles/system --set " + shlex.quote(candidate))
     machine.succeed(candidate + "/bin/switch-to-configuration switch")
