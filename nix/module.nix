@@ -258,6 +258,7 @@ in
         output_backend = "pulseaudio";
         # Keep the analysis signal at full level regardless of the phone's volume.
         ignore_volume_control = "\${AIRGLOW_FIXED_VOLUME}";
+        volume_control_type = 3; # The receiver launcher sets this to 0 in fixed-volume mode.
         password = "\${AIRGLOW_AIRPLAY_PASSWORD}";
       };
       pulseaudio = {

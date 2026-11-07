@@ -79,7 +79,8 @@ class NativeConfiguration(unittest.TestCase):
             self.assertTrue(response['restart_requested'])
             self.assertEqual(receiver.load()['password'], 'fake-private')
             base = Path(directory) / 'base.conf'
-            base.write_text('sessioncontrol={active_state_timeout=10.0;};')
+            base.write_text('general={ignore_volume_control="${AIRGLOW_FIXED_VOLUME}";volume_control_type=3;};\n'
+                            'sessioncontrol={active_state_timeout=10.0;};')
             with patch.dict(os.environ, SHAIRPORT_CONF=str(base)), patch.object(receiver.os, 'execv') as execute:
                 receiver.run('/test/shairport-sync')
             generated = Path(directory) / 'receiver.conf'
@@ -88,6 +89,15 @@ class NativeConfiguration(unittest.TestCase):
             self.assertNotIn('fake-private', ' '.join(execute.call_args.args[1]))
             self.assertEqual(generated.stat().st_mode & 0o777, 0o640)
             self.assertIn('10.0', base.read_text())
+            self.assertIn('volume_control_type=0;', generated.read_text())
+            for fixed, ignored, control_type in ((False, 'no', 3), (True, 'yes', 0)):
+                self.assertEqual(client.post('/api/receiver', json={'fixed_volume':fixed}).status_code, 200)
+                with patch.dict(os.environ, SHAIRPORT_CONF=str(base)), patch.object(receiver.os, 'execv'):
+                    receiver.run('/test/shairport-sync')
+                    self.assertEqual(os.environ['AIRGLOW_FIXED_VOLUME'], ignored)
+                    self.assertIn(f'ignore_volume_control="{ignored}";', os.path.expandvars(generated.read_text()))
+                self.assertIn(f'volume_control_type={control_type};', generated.read_text())
+                self.assertIn('active_state_timeout=25.0;', generated.read_text())
 
     def test_action_form_saves_yaml_targets_and_repeats_without_losing_extensions(self):
         commands = []

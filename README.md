@@ -60,6 +60,9 @@ Set `services.airglow.ledfxBrowserUrl` if browsers access LedFX through another 
 - **Backup & restore:** download one private Airglow settings file, or validate and restore an uploaded copy.
 - **Troubleshooting:** connection checks and an allowlisted diagnostic download.
 
+Fixed audio level also requests hidden or disabled volume controls from AirPlay 2 senders.
+Sender support varies. Disabling fixed audio level restores normal volume control.
+
 Playback actions default to disabled. Select existing outputs or scenes in LedFX.
 Start resumes the selected outputs' saved effects; end stops their output after a
 configured inactive-session grace period (10 seconds by default). Stopping output is not a physical power-off

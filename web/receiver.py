@@ -42,12 +42,15 @@ def run(binary):
     os.environ['AIRGLOW_AIRPLAY_PASSWORD'] = json.dumps(data['password'], ensure_ascii=False)[1:-1]
     os.environ['AIRGLOW_FIXED_VOLUME'] = 'yes' if data['fixed_volume'] else 'no'
     runtime = Path(os.environ['AIRGLOW_RUNTIME'])
-    # Libconfig requires a numeric timeout; environment substitution only handles strings.
+    # Libconfig numeric settings cannot use Shairport's string substitution.
     base = Path(os.environ.get('SHAIRPORT_CONF', '/etc/shairport-sync.conf')).read_text()
-    configured, count = re.subn(r'(\bactive_state_timeout\s*=\s*)[0-9]+(?:\.[0-9]*)?(\s*;)',
-                                lambda match: f"{match[1]}{data['idle_timeout']}.0{match[2]}", base)
-    if count != 1:
-        raise ValueError('Expected one active_state_timeout in the receiver configuration.')
+    configured = base
+    for key, value in (('active_state_timeout', f"{data['idle_timeout']}.0"),
+                       ('volume_control_type', '0' if data['fixed_volume'] else '3')):
+        configured, count = re.subn(rf'(\b{key}\s*=\s*)[0-9]+(?:\.[0-9]*)?(\s*;)',
+                                    lambda match: f"{match[1]}{value}{match[2]}", configured)
+        if count != 1:
+            raise ValueError(f'Expected one {key} in the receiver configuration.')
     runtime_config = runtime / 'receiver.conf'
     runtime_config.write_text(configured)
     runtime_config.chmod(0o640)
