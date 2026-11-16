@@ -115,7 +115,8 @@ class NativeStatus(unittest.TestCase):
             'session_action': {'state': 'partial_failure', 'time': 123,
                 'event': {'id': secret, 'session': secret, 'action': 'start', 'source': 'manual',
                           'hook_config': {'password': secret}},
-                'targets': [{'id': 'lamp', 'state': 'failed', 'error': 'TimeoutError', 'password': secret}],
+                'targets': [{'id': 'lamp', 'state': 'failed', 'error': 'TimeoutError', 'password': secret}]
+                           + [{'id': f'output-{i}', 'state': 'success', 'Authorization': secret} for i in range(50)],
                 'message': secret},
             'password': secret, 'cookies': secret, 'Authorization': secret,
         }
@@ -127,7 +128,9 @@ class NativeStatus(unittest.TestCase):
         self.assertFalse(data['diagnostics']['actions_worker_running'])
         self.assertEqual(data['configuration_error'], 'Restore a valid backup.')
         self.assertEqual(data['session_action']['state'], 'partial_failure')
-        self.assertEqual(data['session_action']['targets'], [{'id': 'lamp', 'state': 'failed', 'error': 'TimeoutError'}])
+        self.assertEqual(data['session_action']['targets'][0], {'id': 'lamp', 'state': 'failed', 'error': 'TimeoutError'})
+        self.assertEqual(len(data['session_action']['targets']), 50)
+        self.assertEqual(data['session_action']['target_count'], 51)
         self.assertNotIn(secret, response.get_data(as_text=True))
 
 

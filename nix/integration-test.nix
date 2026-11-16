@@ -28,6 +28,7 @@ pkgs.testers.runNixOSTest {
     for unit in ("airglow", "airglow-actions", "pulseaudio", "nqptp", "shairport-sync", "ledfx"):
         machine.wait_for_unit(unit + ".service")
     machine.wait_until_succeeds("curl --fail --silent http://192.0.2.20/healthz")
+    machine.wait_until_succeeds("curl --fail --silent --max-time 2 http://192.0.2.20:8888/api/info")
     machine.succeed("runuser -u ledfx -- python ${../tests/integration/audio_probe.py} http://192.0.2.20:8888", timeout=30)
 
     def api(path, data=None):
