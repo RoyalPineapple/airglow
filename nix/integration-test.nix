@@ -13,6 +13,7 @@ pkgs.testers.runNixOSTest {
     networking.interfaces.eth1.ipv4.addresses = lib.mkForce [{ address = "192.0.2.20"; prefixLength = 24; }];
     # This harness boots the kernel directly; the published disk has a separate UEFI boot test.
     boot.loader.grub.enable = lib.mkForce false;
+    environment.systemPackages = [ (pkgs.python3.withPackages (p: [ p.websockets ])) pkgs.pulseaudio ];
     virtualisation.memorySize = 1024;
     virtualisation.cores = 2;
     system.stateVersion = "26.05";
@@ -27,6 +28,7 @@ pkgs.testers.runNixOSTest {
     for unit in ("airglow", "airglow-actions", "pulseaudio", "nqptp", "shairport-sync", "ledfx"):
         machine.wait_for_unit(unit + ".service")
     machine.wait_until_succeeds("curl --fail --silent http://192.0.2.20/healthz")
+    machine.succeed("runuser -u ledfx -- python ${../tests/integration/audio_probe.py} http://192.0.2.20:8888", timeout=30)
 
     def api(path, data=None):
         command = "curl --fail --silent http://192.0.2.20" + path

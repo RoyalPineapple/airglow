@@ -37,7 +37,10 @@ class NativeStatus(unittest.TestCase):
 
         for scenario, expected in [('ready', 'ready'), ('dhcp', 'ready'), ('playing', 'playing'),
                                    ('paused', 'idle'), ('stopped', 'degraded'),
-                                   ('discovery_timeout', 'unknown'), ('name_mismatch', 'degraded'), ('raop_missing', 'degraded'), ('device_offline', 'degraded')]:
+                                   ('stream_timeout', 'unknown'), ('cork_unknown', 'unknown'),
+                                   ('discovery_timeout', 'unknown'), ('neighbour_timeout', 'ready'),
+                                   ('foreign_only_timeout', 'unknown'), ('name_mismatch', 'degraded'),
+                                   ('raop_missing', 'degraded'), ('device_offline', 'degraded')]:
             with self.subTest(scenario=scenario):
                 def run(args, **kwargs):
                     if args[0] == 'systemctl':
@@ -52,8 +55,10 @@ class NativeStatus(unittest.TestCase):
                         if args[-1] == 'info':
                             output = json.dumps({'server_string': 'unix:/run/pulse/native'})
                         else:
-                            streams = [] if scenario in ('ready','dhcp') else [{
-                                'corked': scenario == 'paused',
+                            if scenario == 'stream_timeout':
+                                raise subprocess.TimeoutExpired(args, 3)
+                            streams = [] if scenario in ('ready','dhcp','neighbour_timeout') else [{
+                                'corked': None if scenario == 'cork_unknown' else scenario == 'paused',
                                 'properties': {'application.name': 'Shairport Sync'}}]
                             output = json.dumps(streams)
                     elif args[0] == 'avahi-browse':
@@ -64,6 +69,10 @@ class NativeStatus(unittest.TestCase):
                         name = 'AABBCCDDEEFF@' + name if service == '_raop._tcp' else name
                         port = '7000'
                         output = f'=;ens18;IPv4;{name};{service};local;airglow-dev.local;192.0.2.20;{port};'
+                        if scenario == 'neighbour_timeout':
+                            raise subprocess.TimeoutExpired(args, 3, output=(output + '\n').encode())
+                        if scenario == 'foreign_only_timeout':
+                            raise subprocess.TimeoutExpired(args, 3, output=output.replace('192.0.2.20', '192.0.2.99').encode())
                         if scenario == 'raop_missing' and service == '_raop._tcp':
                             output = ''
                     elif args[0] == 'curl':
@@ -95,6 +104,31 @@ class NativeStatus(unittest.TestCase):
                         self.assertIsNone(data['airplay']['advertising'])
                     bundle = client.get('/api/diagnostics/download')
                     self.assertNotIn('fake-password-keep-private', bundle.get_data(as_text=True))
+
+    def test_diagnostics_include_faults_without_exporting_settings_or_credentials(self):
+        secret = 'FAKE_PRIVATE_SECRET'
+        observations = {
+            'services': {}, 'state': 'degraded', 'audio': {}, 'airplay': {}, 'ledfx': {}, 'release': {},
+            'configuration_error': 'Restore a valid backup.',
+            'diagnostics': {'available': True, 'actions_worker_running': False},
+            'devices': {'connected': True, 'devices': {'lamp': {'name': 'Lamp', 'online': False}}},
+            'session_action': {'state': 'partial_failure', 'time': 123,
+                'event': {'id': secret, 'session': secret, 'action': 'start', 'source': 'manual',
+                          'hook_config': {'password': secret}},
+                'targets': [{'id': 'lamp', 'state': 'failed', 'error': 'TimeoutError', 'password': secret}],
+                'message': secret},
+            'password': secret, 'cookies': secret, 'Authorization': secret,
+        }
+        with patch.dict(os.environ, AIRGLOW_ADMIN_PASSWORD=''), patch.object(native, 'observe', return_value=observations):
+            response = native.app.test_client().get('/api/diagnostics/download')
+        self.assertEqual(response.status_code, 200)
+        data = response.get_json()
+        self.assertEqual(data['devices']['devices']['lamp']['online'], False)
+        self.assertFalse(data['diagnostics']['actions_worker_running'])
+        self.assertEqual(data['configuration_error'], 'Restore a valid backup.')
+        self.assertEqual(data['session_action']['state'], 'partial_failure')
+        self.assertEqual(data['session_action']['targets'], [{'id': 'lamp', 'state': 'failed', 'error': 'TimeoutError'}])
+        self.assertNotIn(secret, response.get_data(as_text=True))
 
 
 if __name__ == '__main__':

@@ -18,9 +18,8 @@
           "d /etc/nixos 0700 root root -"
           "C /etc/nixos/flake.nix 0600 root root - ${pkgs.writeText "airglow-host-flake.nix" ''
             {
-              inputs.nixpkgs.url = "github:NixOS/nixpkgs/${nixpkgs.rev}";
+              inputs.nixpkgs.follows = "airglow/nixpkgs";
               inputs.airglow.url = "github:RoyalPineapple/airglow/v${version}";
-              inputs.airglow.inputs.nixpkgs.follows = "nixpkgs";
               outputs = { nixpkgs, airglow, ... }: {
                 nixosConfigurations.airglow = nixpkgs.lib.nixosSystem {
                   system = "x86_64-linux";

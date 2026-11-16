@@ -27,6 +27,11 @@ count as confirmed application. Configuration edits carry section revisions; sta
 browser saves are rejected rather than overwriting newer changes. Saved settings
 load separately from the bounded LedFX catalog checks and remain editable offline.
 
+Diagnostic downloads include device availability, worker health, configuration errors
+and action outcomes. Action target results are limited to the first 50, with the total
+count included. Raw action events, draft settings, passwords and credential headers
+are excluded.
+
 ## Download and restore
 
 Open **Configuration → Backup & restore** to download `airglow.json`. Keep it private: the export

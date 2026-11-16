@@ -9,7 +9,8 @@ Devices do not need to run WLED; the development installation uses Govee devices
 
 ## Deployment
 
-The beta package is one versioned flake. For the downloadable DHCP/UEFI VM or an
+The beta package is one versioned flake. The downloadable VM is the starting point
+for users without an existing NixOS installation. For the DHCP/UEFI VM or an
 existing NixOS host, follow [the installation guide](docs/INSTALL.md). Use
 [the recovery guide](docs/RECOVERY.md) before switching releases. Release assets
 and publication gates are described in [RELEASING.md](RELEASING.md).
@@ -17,6 +18,10 @@ and publication gates are described in [RELEASING.md](RELEASING.md).
 Use Airglow as a flake input in your NixOS host configuration. The flake includes
 both the NixOS module and Airglow's web/worker source; no separate application checkout
 or installation is needed.
+
+The appliance follows the base system pinned by its Airglow release. Existing NixOS
+hosts retain their own base-system input. See the installation guide before updating
+an earlier beta VM that pinned its base separately.
 
 Copy [nix/flake-example.nix](nix/flake-example.nix) to `/etc/nixos/flake.nix` as a starting
 point, keeping your existing `configuration.nix` and hardware configuration. Replace

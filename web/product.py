@@ -42,6 +42,21 @@ def summary(status):
         return 'unknown'
     if any(value is None for value in checks):
         return 'unknown'
+    if type(audio.get('shairport_connected')) is not bool or (audio['shairport_connected'] and type(audio.get('shairport_corked')) is not bool):
+        return 'unknown'
     if audio.get('shairport_connected') and not audio.get('shairport_corked'):
         return 'playing'
     return 'idle' if audio.get('shairport_connected') else 'ready'
+
+
+def diagnostics(status):
+    result = {key: status[key] for key in ('services', 'state', 'audio', 'airplay', 'ledfx', 'release',
+                                          'devices', 'diagnostics', 'configuration_error')}
+    action = status['session_action']
+    # Manual events contain draft settings; export outcomes, never the event or free-form text.
+    result['session_action'] = {key: action[key] for key in ('state', 'time', 'error') if key in action}
+    targets = action.get('targets', [])
+    result['session_action']['targets'] = [
+        {key: target[key] for key in ('id', 'state', 'error') if key in target} for target in targets[:50]]
+    result['session_action']['target_count'] = len(targets)
+    return result
