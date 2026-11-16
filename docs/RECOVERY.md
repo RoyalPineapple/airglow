@@ -43,6 +43,7 @@ Use only your own verified backup. First select the matching software generation
 Run as root on the host. Replace `backup_file` with the verified archive. The current directories are moved aside, not deleted. The timestamped previous copies are private and should be removed only after the restored installation is checked.
 
 ```sh
+sudo bash -eu <<'SH'
 backup_file=/var/backups/airglow/airglow-YYYYMMDDTHHMMSSZ.tar.gz
 gzip -t "$backup_file"
 tar -tzf "$backup_file"
@@ -55,6 +56,7 @@ chown -R airglow:airglow /var/lib/airglow
 chmod 750 /var/lib/airglow
 chown -R ledfx:ledfx /var/lib/ledfx
 systemctl start airglow-receiver-settings.path airglow-actions pulseaudio nqptp shairport-sync ledfx airglow
+SH
 ```
 
 If extraction fails, keep services stopped. Move the incomplete directories aside and put the `.before-restore-*` directories back before restarting. Never copy `/run/airglow` from a backup; receiver sessions and events belong to the current boot.

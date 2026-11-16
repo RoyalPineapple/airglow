@@ -13,7 +13,7 @@ Supported reference: x86-64 NixOS 26.05, one wired LAN interface, and local-subn
 
 The image contains no saved lighting devices, receiver password or SSH keys. SSH is disabled. The hypervisor console signs in as root for initial administration; there is no shared console password. Keep the console under your hypervisor's access controls. Set your own credentials before enabling remote administration.
 
-The VM keeps its editable host configuration in `/etc/nixos`. Host configuration is private. Web settings are in `/var/lib/airglow/airglow.json`; LedFX data is in `/var/lib/ledfx`. Do not put credentials into Nix expressions.
+The VM keeps its editable host configuration in `/etc/nixos`. Its base system follows the Nixpkgs revision pinned by the Airglow release. Host configuration is private. Web settings are in `/var/lib/airglow/airglow.json`; LedFX data is in `/var/lib/ledfx`. Do not put credentials into Nix expressions.
 
 For a larger disk, expand the imported disk in the hypervisor before booting. The root partition/filesystem grows on boot. The boot image and its initial configuration stay on the current version until you explicitly update them.
 
@@ -41,8 +41,14 @@ Use your own host's output name instead of `airglow` when appropriate. Empty web
 
 1. Make and verify the private backup described in [RECOVERY.md](RECOVERY.md).
 2. Change the Airglow tag in the private `/etc/nixos/flake.nix` to the next release. Keep the previous file and lock file with the backup.
-3. Run `nix flake update airglow` and review the new lock file.
+3. Run `nix flake update airglow` and review the new lock file. On the appliance, this updates the application and its pinned base system together. Compare the resolved Nixpkgs revision with `nixpkgs` in the new release's `release.json`.
 4. Run `sudo nixos-rebuild build --flake .#airglow` before switching. Run `sudo nixos-rebuild switch --flake .#airglow` when ready for a receiver interruption.
 5. Check State and Troubleshooting, then run a real Apple-source playback test.
 
 Never move an existing release tag. Releases do not update a host automatically. If software or data recovery is needed, follow [RECOVERY.md](RECOVERY.md).
+
+### Earlier VM images
+
+The first beta image pinned its base system separately. Before its next update, edit the private `/etc/nixos/flake.nix`: replace `inputs.nixpkgs.url` with `inputs.nixpkgs.follows = "airglow/nixpkgs";` and remove `inputs.airglow.inputs.nixpkgs.follows = "nixpkgs";`. Do not keep both follow rules; that creates a cycle. Then follow the update steps above. Preserve the old flake and lock with your backup.
+
+Existing NixOS hosts using `nixosModules.default` keep their own Nixpkgs input and operating-system update policy. Use a base supported by the release and build before switching.

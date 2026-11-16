@@ -95,6 +95,8 @@ class Guest:
         assert state['release']['revision'] == manifest['revision']
         assert state['release']['configuration_version'] == manifest['configurationVersion']
         self.command('stty -echo')
+        base_input = self.command("nix-instantiate --eval --strict --json --expr '(import /etc/nixos/flake.nix).inputs.nixpkgs.follows'")
+        assert json.loads(base_input) == 'airglow/nixpkgs', 'Appliance base must follow its release'
         self.command('test ! -L /etc/nixos/flake.nix; test -f /etc/nixos/configuration.nix; ! systemctl is-active --quiet sshd; test ! -e /etc/ssh/ssh_host_ed25519_key; test ! -e /etc/ssh/ssh_host_rsa_key; test ! -e /etc/ssh/ssh_host_ecdsa_key; test "$(getent shadow root | cut -d: -f2)" = "!"')
         return self.command('cat /etc/machine-id').strip()
 
@@ -159,6 +161,24 @@ with tempfile.TemporaryDirectory(prefix='airglow-vm-') as directory:
     try:
         identity = first.start('first-boot')
         assert re.fullmatch('[0-9a-f]{32}',identity), 'Missing unique machine identity'
+        # Resolve the actual seeded host flake against two offline release fixtures.
+        first.command('mkdir -p /var/tmp/update-check/host; '
+            'cp /etc/nixos/flake.nix /etc/nixos/configuration.nix /var/tmp/update-check/host/; '
+            'for version in a b; do '
+            'mkdir -p /var/tmp/update-check/release-$version /var/tmp/update-check/base-$version; '
+            'printf "{ outputs = { ... }: {}; }" > /var/tmp/update-check/base-$version/flake.nix; '
+            'printf \'{ inputs.nixpkgs.url = "path:/var/tmp/update-check/base-%s"; outputs = { ... }: {}; }\' "$version" > /var/tmp/update-check/release-$version/flake.nix; '
+            'done; '
+            "sed -i 's@github:RoyalPineapple/airglow/[^\"]*@path:/var/tmp/update-check/release-a@' /var/tmp/update-check/host/flake.nix; "
+            'nix flake lock --offline /var/tmp/update-check/host')
+        first.command("sed -i 's@release-a@release-b@' /var/tmp/update-check/host/flake.nix; "
+            'nix flake update airglow --offline --flake /var/tmp/update-check/host')
+        updated_lock = json.loads(first.command('cat /var/tmp/update-check/host/flake.lock'))
+        nodes = updated_lock['nodes']
+        host = nodes[updated_lock['root']]['inputs']
+        assert host['nixpkgs'] == ['airglow', 'nixpkgs']
+        base = nodes[nodes[host['airglow']]['inputs']['nixpkgs']]['locked']['path']
+        assert base.endswith('/base-b'), 'Updating Airglow did not update the appliance base'
         api(first.port,'/api/receiver',{'name':'Recovery check'})
         wait_for(lambda:api(first.port,'/api/status')['airplay']['configuration_state'] == 'applied')
         # The same fixed archive contents and service sequence are documented in RECOVERY.md.

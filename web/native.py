@@ -80,8 +80,12 @@ def observe():
         audio['pulseaudio'] = {'available': True, 'server': info['server_string']}
         streams = json.loads(command('pactl', '--format=json', 'list', 'sink-inputs'))
         receiver_streams = [s for s in streams if s.get('properties', {}).get('application.name') == 'Shairport Sync']
+        corked = [s.get('corked') for s in receiver_streams]
+        corked_state = None
+        if all(type(value) is bool for value in corked):
+            corked_state = all(corked) if corked else False
         audio.update(shairport_connected=bool(receiver_streams),
-                     shairport_corked=all(s['corked'] for s in receiver_streams) if receiver_streams else False)
+                     shairport_corked=corked_state)
     except (OSError, subprocess.SubprocessError, ValueError, KeyError):
         pass
     airplay = {'device_name': None, 'desired_name': None, 'advertising': None,
@@ -99,7 +103,16 @@ def observe():
             links = json.loads(command('ip', '-json', '-4', 'address', 'show', 'dev', os.environ['AIRGLOW_INTERFACE']))
             addresses = {item['local'] for link in links for item in link.get('addr_info', []) if item.get('family') == 'inet' and item.get('scope') == 'global'}
         for service, port in (('_airplay._tcp', '7000'), ('_raop._tcp', '7000')):
-            rows = [line.split(';') for line in command('avahi-browse', '-rpt', service).splitlines()]
+            timed_out = False
+            try:
+                output = command('avahi-browse', '-rpt', service)
+            except subprocess.TimeoutExpired as error:
+                # Other receivers may stall resolution after our complete local records arrived.
+                timed_out = True
+                output = error.stdout or b''
+                if isinstance(output, bytes):
+                    output = output.decode('utf-8', errors='replace')
+            rows = [line.split(';') for line in output.splitlines()]
             names = []
             for row in rows:
                 if len(row) >= 9 and row[0] == '=' and row[4] == service and row[7] in addresses and row[8] == port:
@@ -107,6 +120,8 @@ def observe():
                     if service == '_raop._tcp':
                         name = name.partition('@')[2]
                     names.append(name)
+            if timed_out and not names:
+                raise subprocess.TimeoutExpired('avahi-browse', 3)
             airplay['observed_names'][service] = sorted(set(names))
         observed = airplay['observed_names']
         matching = all(settings['effective_name'] in observed[service] for service in ('_airplay._tcp', '_raop._tcp'))
@@ -288,8 +303,7 @@ def restart_receiver():
 @app.get('/api/diagnostics/download')
 def diagnostics():
     data = observe()
-    # Export only service states and connection results, never raw config or host inventories.
-    return jsonify({key: data[key] for key in ('services', 'state', 'audio', 'airplay', 'ledfx', 'release')}), {
+    return jsonify(product.diagnostics(data)), {
         'Content-Disposition': 'attachment; filename=airglow-diagnostics.json', 'Cache-Control': 'no-store'}
 
 
